@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trade Surveillance Engine — Wissen Technology</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; background: #030712; color: #f1f5f9; font-family: 'DM Mono', monospace; font-size: 13px; overflow: hidden; }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: #030712; }
+    ::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 2px; }
+
+    @keyframes pulse-dot    { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.85)} }
+    @keyframes pulse-badge  { 0%,100%{opacity:1} 50%{opacity:.55} }
+    @keyframes slide-in     { from{opacity:0;transform:translateX(-14px)} to{opacity:1;transform:translateX(0)} }
+    @keyframes scale-in     { from{opacity:0;transform:scale(.65)} to{opacity:1;transform:scale(1)} }
+    @keyframes glow-pulse   { 0%,100%{text-shadow:0 0 18px currentColor} 50%{text-shadow:0 0 38px currentColor,0 0 58px currentColor} }
+    @keyframes ticker-scroll{ 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+    @keyframes esc-slide    { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes bar-fill     { from{width:0%} to{width:var(--w)} }
+
+    .slide-in    { animation: slide-in .28s ease forwards; }
+    .scale-in    { animation: scale-in .4s cubic-bezier(.34,1.56,.64,1) forwards; }
+    .pulse-badge { animation: pulse-badge 2s ease-in-out infinite; }
+    .glow-text   { animation: glow-pulse 2s ease-in-out infinite; }
+
+    .ticker-wrap { overflow:hidden; flex:1; mask-image:linear-gradient(to right,transparent,black 48px,black calc(100% - 48px),transparent); -webkit-mask-image:linear-gradient(to right,transparent,black 48px,black calc(100% - 48px),transparent); }
+    .ticker-track{ display:flex; animation:ticker-scroll 38s linear infinite; width:max-content; }
+    .ticker-track:hover{ animation-play-state:paused; }
+
+    .card { background:#0f1729; border:1px solid #1e3a5f; border-radius:8px; }
+    .section-title { font-family:'Space Grotesk',sans-serif; font-size:11px; font-weight:700; color:#475569; letter-spacing:.12em; text-transform:uppercase; }
+
+    .dt { width:100%; border-collapse:collapse; }
+    .dt th { padding:7px 12px; text-align:left; color:#334155; font-size:10px; letter-spacing:.12em; font-weight:700; border-bottom:1px solid #1e3a5f; font-family:'Space Grotesk',sans-serif; text-transform:uppercase; white-space:nowrap; }
+    .dt td { padding:0 12px; border-bottom:1px solid #0d1a2e; }
+    .dt tbody tr { height:46px; cursor:pointer; transition:background .12s; }
+    .dt tbody tr:nth-child(even) { background:#0d1525; }
+    .dt tbody tr:hover { background:#162036; }
+    .dt tbody tr.sel { border-left:3px solid #3b82f6; background:#0e2040 !important; }
+
+    .badge { display:inline-flex; align-items:center; justify-content:center; border-radius:20px; font-size:11px; font-weight:700; padding:3px 10px; white-space:nowrap; font-family:'Space Grotesk',sans-serif; }
+
+    .btn  { border:none; border-radius:6px; padding:7px 16px; cursor:pointer; font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:12px; transition:all .15s; }
+    .btn-blue  { background:#3b82f6; color:#fff; }
+    .btn-blue:hover  { background:#2563eb; }
+    .btn-blue:active { transform:scale(.97); }
+    .btn-blue:disabled { background:#1e3a5f; color:#334155; cursor:default; }
+    .btn-ghost { background:transparent; color:#10b981; border:1px solid #10b981; }
+    .btn-ghost:hover { background:#10b981; color:#030712; }
+    .btn-triage { background:transparent; color:#3b82f6; border:1px solid #1e3a5f; border-radius:4px; padding:4px 10px; cursor:pointer; font-family:'DM Mono',monospace; font-size:11px; transition:all .15s; white-space:nowrap; }
+    .btn-triage:hover { border-color:#3b82f6; background:#0e1e3a; }
+    .btn-triage:disabled { color:#334155; border-color:#1e3a5f; cursor:default; background:transparent; }
+
+    .num { font-family:'Space Grotesk',sans-serif; }
+
+    @media (max-width:1200px) { .main-grid { flex-direction:column !important; } .col-l,.col-r { width:100% !important; } }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+const API_BASE = 'http://localhost:5000';
+
+const fmtTime = ts => ts ? (ts.includes('T') ? ts.split('T')[1].slice(0,8) : ts.slice(11,19)) : '--';
+const fmtRs   = n  => '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
+const fmtNum  = n  => Number(n||0).toLocaleString('en-IN');
+
+const SEV = { HIGH:{bg:'#ef4444',color:'#fff'}, MEDIUM:{bg:'#f59e0b',color:'#fff'}, LOW:{bg:'#10b981',color:'#fff'} };
+const PAT = { LAYERING:{bg:'#6366f1',color:'#fff'}, SPOOFING:{bg:'#ef4444',color:'#fff'}, WASH_TRADING:{bg:'#f97316',color:'#fff'}, PUMP_DUMP:{bg:'#ec4899',color:'#fff'} };
+const STA = { PENDING:{bg:'#334155',color:'#94a3b8'}, ESCALATED:{bg:'#ef4444',color:'#fff',pulse:true}, DISMISSED:{bg:'#10b981',color:'#fff'} };
+const ESC_C = { CASE_CREATED:'#10b981', SLACK_NOTIFIED:'#3b82f6', WATCHLIST_FLAGGED:'#f59e0b', EMAIL_SENT:'#a855f7' };
+
+function Badge({ label, cfg, lg }) {
+  if (!cfg) cfg = { bg:'#1e3a5f', color:'#475569' };
+  return <span className={`badge${cfg.pulse?' pulse-badge':''}`} style={{ background:cfg.bg, color:cfg.color, padding: lg?'4px 14px':'3px 10px', fontSize: lg?12:11 }}>{(label||'').replace('_',' ')}</span>;
+}
+
+/* ── Ticker ─────────────────────────────────────────────────────────────── */
+function Ticker({ prices }) {
+  const syms = ['HDFCBANK','RELIANCE','INFY','TCS','ICICIBANK','WIPRO','SBIN'];
+  const items = syms.map(s => {
+    const d = prices[s]; if (!d) return null;
+    const up = d.current >= (d.low + (d.high - d.low) * .5);
+    return (
+      <span key={s} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'0 22px', borderRight:'1px solid #1e3a5f', whiteSpace:'nowrap' }}>
+        <span style={{ color:'#64748b', fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, fontSize:11 }}>{s}</span>
+        <span style={{ color:up?'#10b981':'#ef4444', fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, fontSize:13 }}>{fmtRs(d.current)}</span>
+        <span style={{ color:up?'#10b981':'#ef4444', fontSize:10 }}>{up?'▲':'▼'}</span>
+      </span>
+    );
+  }).filter(Boolean);
+  if (!items.length) return <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#334155', fontSize:11 }}>Fetching live prices…</div>;
+  return (
+    <div className="ticker-wrap" style={{ flex:1 }}>
+      <div className="ticker-track">{items}{items}</div>
+    </div>
+  );
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+function Header({ isReplaying, onStart, onStop, prices }) {
+  const [email, setEmail] = useState('');
+  return (
+    <div style={{ height:64, background:'#030712', borderBottom:'1px solid #1e3a5f', display:'flex', alignItems:'center', padding:'0 20px', gap:16, position:'fixed', top:0, left:0, right:0, zIndex:300 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:12, flexShrink:0 }}>
+        <div style={{ width:40, height:40, borderRadius:'50%', background:'#0e2040', border:'1px solid #3b82f6', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, boxShadow:'0 0 12px #3b82f640' }}>🛡</div>
+        <div>
+          <div style={{ fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, fontSize:16, color:'#f1f5f9', letterSpacing:'.02em' }}>TRADE SURVEILLANCE ENGINE</div>
+          <div style={{ fontSize:10, color:'#334155', fontFamily:"'Space Grotesk',sans-serif" }}>Wissen Technology Hackathon 2026 · Powered by Claude AI</div>
+        </div>
+      </div>
+      <Ticker prices={prices} />
+      <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+        <input value={email} onChange={e => setEmail(e.target.value)} placeholder="analyst@bank.com"
+          style={{ background:'#0f1729', border:'1px solid #1e3a5f', color:'#f1f5f9', borderRadius:6, padding:'6px 10px', fontSize:11, fontFamily:"'DM Mono',monospace", width:148, outline:'none' }} />
+        <button className="btn btn-ghost" style={{ padding:'6px 12px', flexShrink:0 }}>Subscribe</button>
+        <div style={{ width:1, height:28, background:'#1e3a5f' }} />
+        {isReplaying ? (
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ width:8, height:8, borderRadius:'50%', background:'#10b981', display:'inline-block', animation:'pulse-dot 1.4s ease-in-out infinite' }} />
+            <span style={{ color:'#10b981', fontSize:11, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700 }}>LIVE</span>
+            <button className="btn btn-blue" onClick={onStop} style={{ background:'#1e3a5f', padding:'6px 12px' }}>⏹ STOP</button>
+          </div>
+        ) : (
+          <button className="btn btn-blue" onClick={onStart}>▶ START REPLAY</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Stats Bar ───────────────────────────────────────────────────────────── */
+function StatsBar({ stats }) {
+  const cards = [
+    { label:'Total Trades',    val:stats.total_trades||0,  border:'#3b82f6', color:'#f1f5f9' },
+    { label:'Alerts Detected', val:stats.total_alerts||0,  border:'#f59e0b', color:'#f59e0b' },
+    { label:'Escalated',       val:stats.escalated||0,     border:'#ef4444', color:'#ef4444' },
+    { label:'Dismissed',       val:stats.dismissed||0,     border:'#10b981', color:'#10b981' },
+    { label:'Pending',         val:stats.pending||0,       border:'#475569', color:'#94a3b8' },
+  ];
+  return (
+    <div style={{ height:80, position:'fixed', top:64, left:0, right:0, zIndex:290, background:'#030712', borderBottom:'1px solid #1e3a5f', display:'flex', alignItems:'center', padding:'0 20px', gap:12 }}>
+      {cards.map((c,i) => (
+        <div key={i} style={{ flex:1, background:'#0f1729', border:'1px solid #1e3a5f', borderLeft:`3px solid ${c.border}`, borderRadius:8, padding:'12px 16px', display:'flex', flexDirection:'column', justifyContent:'space-between', height:56, animation:`slide-in .3s ease ${i*60}ms both` }}>
+          <div className="num" style={{ fontSize:26, fontWeight:700, color:c.color, lineHeight:1 }}>{fmtNum(c.val)}</div>
+          <div style={{ fontSize:10, color:'#334155', fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, letterSpacing:'.1em' }}>{c.label.toUpperCase()}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Alert Table ─────────────────────────────────────────────────────────── */
+function AlertTable({ alerts, selected, onSelect, onTriage, loading, onAutoTriage, autoRunning }) {
+  const pending = alerts.filter(a => a.status==='PENDING').length;
+  return (
+    <div className="card" style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0, overflow:'hidden' }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', borderBottom:'1px solid #1e3a5f', flexShrink:0 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <span className="section-title">Alert Feed</span>
+          <span style={{ background:'#3b82f6', color:'#fff', borderRadius:12, padding:'1px 8px', fontSize:11, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700 }}>{alerts.length}</span>
+        </div>
+        <button className="btn btn-blue" onClick={onAutoTriage} disabled={autoRunning||pending===0} style={{ fontSize:11, padding:'5px 12px' }}>
+          {autoRunning ? '⏳ TRIAGING…' : `AUTO-TRIAGE ALL${pending>0?` (${pending})`:''}` }
+        </button>
+      </div>
+      <div style={{ flex:1, overflowY:'auto' }}>
+        <table className="dt">
+          <thead><tr>{['TIME','ALERT ID','TRADER','INSTRUMENT','PATTERN','SEVERITY','STATUS','ACTION'].map(h=><th key={h}>{h}</th>)}</tr></thead>
+          <tbody>
+            {alerts.length===0 && <tr><td colSpan={8} style={{ textAlign:'center', padding:32, color:'#334155', fontFamily:"'Space Grotesk',sans-serif" }}>No alerts. Click ▶ START REPLAY to detect patterns.</td></tr>}
+            {alerts.map(a => {
+              const isLoading = loading.has(a.alert_id);
+              const done = a.status!=='PENDING';
+              return (
+                <tr key={a.alert_id} className={selected?.alert_id===a.alert_id?'sel':''} onClick={()=>onSelect(a)} style={{ animation:'slide-in .25s ease forwards' }}>
+                  <td><span style={{ color:'#334155', fontSize:11 }}>{fmtTime(a.detected_at)}</span></td>
+                  <td><span style={{ color:'#3b82f6', fontFamily:"'DM Mono',monospace", fontSize:11 }}>{a.alert_id}</span></td>
+                  <td><span style={{ color:'#64748b', fontFamily:"'DM Mono',monospace" }}>{a.trader_id}</span></td>
+                  <td><span style={{ color:'#f1f5f9', fontFamily:"'Space Grotesk',sans-serif", fontWeight:700 }}>{a.instrument}</span></td>
+                  <td><Badge label={a.pattern_type} cfg={PAT[a.pattern_type]} /></td>
+                  <td><Badge label={a.severity} cfg={SEV[a.severity]} /></td>
+                  <td><Badge label={a.status} cfg={STA[a.status]} /></td>
+                  <td onClick={e=>e.stopPropagation()}>
+                    <button className="btn-triage" disabled={isLoading||done} onClick={()=>onTriage(a.alert_id)}>
+                      {isLoading ? '◌' : done ? '✓ DONE' : 'TRIAGE →'}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ── Charts ──────────────────────────────────────────────────────────────── */
+function Charts({ stats }) {
+  const donutRef = useRef(null); const donutInst = useRef(null);
+  const barRef   = useRef(null); const barInst   = useRef(null);
+
+  useEffect(() => {
+    if (!donutRef.current || !stats.patterns) return;
+    if (donutInst.current) donutInst.current.destroy();
+    const p = stats.patterns;
+    const total = (p.layering||0)+(p.spoofing||0)+(p.wash_trading||0);
+    donutInst.current = new Chart(donutRef.current.getContext('2d'), {
+      type:'doughnut',
+      data:{ labels:['Layering','Spoofing','Wash Trading'], datasets:[{ data:[p.layering||0,p.spoofing||0,p.wash_trading||0], backgroundColor:['#6366f1','#ef4444','#f97316'], borderColor:'#0f1729', borderWidth:3, hoverOffset:6 }] },
+      options:{ responsive:true, maintainAspectRatio:false, cutout:'68%',
+        plugins:{ legend:{ position:'right', labels:{ color:'#64748b', font:{ family:"'Space Grotesk',sans-serif", size:11 }, padding:10, boxWidth:12 } }, tooltip:{ backgroundColor:'#0f1729', titleColor:'#f1f5f9', bodyColor:'#94a3b8', borderColor:'#1e3a5f', borderWidth:1 } } },
+      plugins:[{ id:'ct', afterDraw(c) { const {ctx,chartArea:{top,bottom,left,right}}=c; const cx=(left+right)/2,cy=(top+bottom)/2; ctx.save(); ctx.font="bold 22px 'Space Grotesk',sans-serif"; ctx.fillStyle='#f1f5f9'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(total,cx,cy-6); ctx.font="10px 'Space Grotesk',sans-serif"; ctx.fillStyle='#475569'; ctx.fillText('TOTAL',cx,cy+12); ctx.restore(); } }],
+    });
+    return ()=>{ if(donutInst.current) donutInst.current.destroy(); };
+  }, [JSON.stringify(stats.patterns)]);
+
+  useEffect(() => {
+    if (!barRef.current) return;
+    if (barInst.current) barInst.current.destroy();
+    const high = stats.high_severity||0;
+    const total = stats.total_alerts||0;
+    const dismissed = stats.dismissed||0;
+    barInst.current = new Chart(barRef.current.getContext('2d'), {
+      type:'bar',
+      data:{ labels:['HIGH','MEDIUM','LOW'], datasets:[{ data:[high, Math.max(0,total-high-dismissed), dismissed], backgroundColor:['#ef4444','#f59e0b','#10b981'], borderRadius:5, borderSkipped:false }] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{display:false}, tooltip:{ backgroundColor:'#0f1729', titleColor:'#f1f5f9', bodyColor:'#94a3b8', borderColor:'#1e3a5f', borderWidth:1 } },
+        scales:{ x:{ ticks:{color:'#475569',font:{family:"'Space Grotesk',sans-serif",size:11}}, grid:{color:'#0d1a2e'} }, y:{ ticks:{color:'#475569',font:{family:"'Space Grotesk',sans-serif",size:11}}, grid:{color:'#0d1a2e'}, beginAtZero:true } } },
+    });
+    return ()=>{ if(barInst.current) barInst.current.destroy(); };
+  }, [stats.high_severity, stats.total_alerts, stats.dismissed]);
+
+  return (
+    <div className="card" style={{ height:196, display:'flex', flexShrink:0, marginTop:8, overflow:'hidden' }}>
+      <div style={{ flex:1, padding:'10px 16px', borderRight:'1px solid #1e3a5f', display:'flex', flexDirection:'column' }}>
+        <div className="section-title" style={{ marginBottom:8 }}>Alerts by Pattern</div>
+        <div style={{ flex:1, minHeight:0 }}><canvas ref={donutRef} /></div>
+      </div>
+      <div style={{ flex:1, padding:'10px 16px', display:'flex', flexDirection:'column' }}>
+        <div className="section-title" style={{ marginBottom:8 }}>Severity Distribution</div>
+        <div style={{ flex:1, minHeight:0 }}><canvas ref={barRef} /></div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Triage Panel ────────────────────────────────────────────────────────── */
+function TriagePanel({ alert, triageData, onTriage, isLoading }) {
+  const [barW, setBarW] = useState(0);
+  const verdict  = triageData?.triage?.verdict  || alert?.verdict;
+  const conf     = triageData?.triage?.confidence || alert?.confidence;
+  const rationale= triageData?.triage?.rationale || alert?.rationale;
+  const escs     = triageData?.escalations || [];
+  const vc = verdict==='ESCALATE'?'#ef4444': verdict==='DISMISS'?'#10b981':'#3b82f6';
+
+  useEffect(()=>{ if(conf){ setBarW(0); const t=setTimeout(()=>setBarW(conf),80); return()=>clearTimeout(t); } },[conf,verdict]);
+
+  if (!alert) return (
+    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', gap:14, color:'#334155' }}>
+      <div style={{ fontSize:52, animation:'pulse-dot 2.2s ease-in-out infinite' }}>🔍</div>
+      <div style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:14, color:'#475569' }}>Select an alert to begin triage</div>
+      <div style={{ fontSize:11 }}>Click any row in the alert feed</div>
+    </div>
+  );
+
+  return (
+    <div style={{ padding:14, overflowY:'auto', height:'100%' }}>
+      {/* Metadata grid */}
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:7, marginBottom:12 }}>
+        {[
+          ['Alert ID',   <span style={{ color:'#3b82f6', fontFamily:"'DM Mono',monospace", fontSize:11 }}>{alert.alert_id}</span>],
+          ['Trader ID',  <span style={{ fontFamily:"'DM Mono',monospace", color:'#94a3b8' }}>{alert.trader_id}</span>],
+          ['Instrument', <strong style={{ fontFamily:"'Space Grotesk',sans-serif", color:'#f1f5f9', fontSize:14 }}>{alert.instrument}</strong>],
+          ['Pattern',    <Badge label={alert.pattern_type} cfg={PAT[alert.pattern_type]} />],
+          ['Severity',   <Badge label={alert.severity} cfg={SEV[alert.severity]} lg />],
+          ['Detected',   <span style={{ fontSize:11, color:'#475569', fontFamily:"'DM Mono',monospace" }}>{fmtTime(alert.detected_at)}</span>],
+        ].map(([k,v],i) => (
+          <div key={i} style={{ background:'#030712', border:'1px solid #1e3a5f', borderRadius:6, padding:'7px 10px' }}>
+            <div style={{ color:'#334155', fontSize:10, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, letterSpacing:'.1em', marginBottom:4 }}>{k}</div>
+            <div>{v}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Verdict box */}
+      <div style={{ background:'#030712', border:`1px solid ${verdict?vc:'#1e3a5f'}`, borderRadius:8, padding:16, marginBottom:12 }}>
+        {verdict ? (
+          <div className="scale-in">
+            <div className="num glow-text" style={{ fontSize:46, fontWeight:700, color:vc, textAlign:'center', letterSpacing:'.05em', marginBottom:12, lineHeight:1 }}>{verdict}</div>
+            <div style={{ background:'#0f1729', borderRadius:4, height:8, overflow:'hidden' }}>
+              <div style={{ height:'100%', background:vc, borderRadius:4, width:`${barW}%`, transition:'width .8s cubic-bezier(.4,0,.2,1)' }} />
+            </div>
+            <div style={{ display:'flex', justifyContent:'space-between', marginTop:7, fontSize:11, fontFamily:"'Space Grotesk',sans-serif", color:'#475569' }}>
+              <span>CONFIDENCE: <strong style={{ color:'#f1f5f9' }}>{conf}%</strong></span>
+              <span>FALSE POSITIVE: <strong style={{ color:'#f1f5f9' }}>{100-(conf||0)}%</strong></span>
+            </div>
+          </div>
+        ) : isLoading ? (
+          <div style={{ textAlign:'center', padding:'12px 0' }}>
+            <div className="num" style={{ fontSize:28, color:'#3b82f6', animation:'pulse-dot 1s linear infinite' }}>◌</div>
+            <div style={{ fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, color:'#3b82f6', marginTop:8, letterSpacing:'.06em' }}>AWAITING AI TRIAGE</div>
+            <div style={{ color:'#334155', fontSize:11, marginTop:4 }}>Claude Sonnet analyzing evidence…</div>
+          </div>
+        ) : (
+          <button className="btn btn-blue" onClick={()=>onTriage(alert.alert_id)} style={{ width:'100%', padding:12, fontSize:13, letterSpacing:'.04em' }}>⚡ TRIAGE THIS ALERT</button>
+        )}
+      </div>
+
+      {/* Evidence */}
+      <div style={{ marginBottom:12 }}>
+        <div style={{ color:'#334155', fontSize:10, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, letterSpacing:'.12em', marginBottom:6 }}>EVIDENCE</div>
+        <div style={{ background:'#030712', borderLeft:'3px solid #3b82f6', padding:'10px 14px', borderRadius:'0 6px 6px 0', color:'#94a3b8', fontSize:12, lineHeight:1.65 }}>{alert.evidence_summary}</div>
+      </div>
+
+      {/* Stats */}
+      <div style={{ display:'flex', gap:8, marginBottom:12 }}>
+        {[['CANCEL RATIO',`${((alert.cancel_ratio||0)*100).toFixed(1)}%`,'#f59e0b'],['SIGMA',`${alert.sigma}σ`,'#ef4444']].map(([k,v,c])=>(
+          <div key={k} style={{ flex:1, background:'#030712', border:'1px solid #1e3a5f', borderRadius:6, padding:'8px 12px' }}>
+            <div style={{ color:'#334155', fontSize:10, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, letterSpacing:'.1em' }}>{k}</div>
+            <div className="num" style={{ color:c, fontSize:22, fontWeight:700, marginTop:2 }}>{v}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Rationale */}
+      {rationale && (
+        <div style={{ marginBottom:12 }}>
+          <div style={{ color:'#334155', fontSize:10, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, letterSpacing:'.12em', marginBottom:6 }}>AI RATIONALE · CLAUDE SONNET</div>
+          <div style={{ background:'#030712', borderLeft:`3px solid ${vc}`, padding:'10px 14px', borderRadius:'0 6px 6px 0', color:'#94a3b8', fontSize:12, lineHeight:1.75, fontStyle:'italic' }}>{rationale}</div>
+        </div>
+      )}
+
+      {/* Escalation actions */}
+      {escs.length>0 && (
+        <div>
+          <div style={{ color:'#334155', fontSize:10, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, letterSpacing:'.12em', marginBottom:8 }}>ESCALATION ACTIONS</div>
+          {escs.map((e,i) => {
+            const style = { display:'flex', alignItems:'center', gap:10, padding:'8px 0', borderBottom:'1px solid #0d1a2e', animation:`esc-slide .3s ease ${i*200}ms both` };
+            if (e.action==='CASE_CREATED')     return <div key={i} style={style}><span style={{ color:'#10b981',fontSize:16 }}>✓</span><span style={{ color:'#10b981',fontFamily:"'Space Grotesk',sans-serif",fontSize:12,fontWeight:700 }}>COMPLIANCE CASE — {e.case_id}</span></div>;
+            if (e.action==='SLACK_NOTIFIED')   return <div key={i} style={style}><span style={{ color:e.success?'#3b82f6':'#334155',fontSize:16 }}>{e.success?'✓':'✗'}</span><span style={{ color:e.success?'#3b82f6':'#334155',fontFamily:"'Space Grotesk',sans-serif",fontSize:12,fontWeight:700 }}>{e.success?'SLACK NOTIFIED — #compliance-alerts':'SLACK NOT CONFIGURED'}</span></div>;
+            if (e.action==='WATCHLIST_FLAGGED')return <div key={i} style={style}><span style={{ color:'#f59e0b',fontSize:16 }}>✓</span><span style={{ color:'#f59e0b',fontFamily:"'Space Grotesk',sans-serif",fontSize:12,fontWeight:700 }}>WATCHLIST FLAGGED — 72hr monitoring</span></div>;
+            if (e.action==='NO_ESCALATION')    return <div key={i} style={style}><span style={{ color:'#334155',fontSize:16 }}>—</span><span style={{ color:'#334155',fontFamily:"'Space Grotesk',sans-serif",fontSize:12 }}>NO ESCALATION · {e.reason}</span></div>;
+            return null;
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Top Suspects ────────────────────────────────────────────────────────── */
+function TopSuspects({ alerts, onSelect }) {
+  const suspects = useMemo(()=>{
+    const m={};
+    alerts.forEach(a=>{
+      if(!m[a.trader_id]) m[a.trader_id]={trader_id:a.trader_id,score:0,count:0,first:a};
+      m[a.trader_id].score += a.severity==='HIGH'?3:a.severity==='MEDIUM'?2:1;
+      m[a.trader_id].count++;
+    });
+    return Object.values(m).sort((a,b)=>b.score-a.score).slice(0,5);
+  },[alerts]);
+  const maxScore = suspects[0]?.score||1;
+  const rc = ['#ef4444','#f97316','#f59e0b','#64748b','#475569'];
+
+  return (
+    <div className="card" style={{ marginTop:8, flexShrink:0 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', borderBottom:'1px solid #1e3a5f' }}>
+        <span className="section-title">Top Suspects</span>
+      </div>
+      <div style={{ padding:'6px 16px 10px' }}>
+        {suspects.length===0
+          ? <div style={{ padding:'14px 0', textAlign:'center', color:'#334155', fontSize:11, fontFamily:"'Space Grotesk',sans-serif" }}>No suspects detected yet</div>
+          : suspects.map((s,i)=>(
+            <div key={s.trader_id} onClick={()=>onSelect(s.first)}
+              style={{ display:'flex', alignItems:'center', gap:12, padding:'7px 0', borderBottom:'1px solid #0d1a2e', cursor:'pointer', borderRadius:4, transition:'background .12s' }}
+              onMouseEnter={e=>e.currentTarget.style.background='#162036'}
+              onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+            >
+              <span className="num" style={{ fontSize:16, fontWeight:700, color:rc[i], width:22, textAlign:'center', flexShrink:0 }}>#{i+1}</span>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                  <span style={{ color:'#3b82f6', fontFamily:"'DM Mono',monospace", fontSize:12 }}>{s.trader_id}</span>
+                  <span style={{ background:'#1e3a5f', color:'#64748b', borderRadius:10, padding:'1px 6px', fontSize:10, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700 }}>{s.count}</span>
+                </div>
+                <div style={{ background:'#030712', borderRadius:2, height:3 }}>
+                  <div style={{ height:'100%', background:rc[i], borderRadius:2, width:`${(s.score/maxScore)*100}%`, transition:'width .7s ease' }} />
+                </div>
+              </div>
+              <span className="num" style={{ fontSize:14, fontWeight:700, color:rc[i], width:26, textAlign:'right', flexShrink:0 }}>{s.score}</span>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  );
+}
+
+/* ── Escalation Log ──────────────────────────────────────────────────────── */
+function EscalationLog({ escalations }) {
+  const parseDetails = e => {
+    try {
+      const p = JSON.parse(e.payload||'{}');
+      if (p.case_id)    return `Case: ${p.case_id} → ${p.assigned_to||'L2 Desk'}`;
+      if (p.channel)    return p.channel;
+      if (p.trader_id)  return `${p.trader_id} · ${p.monitoring_hours}h`;
+      return e.payload||'';
+    } catch { return e.payload||''; }
+  };
+  return (
+    <div className="card" style={{ flexShrink:0 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 16px', borderBottom:'1px solid #1e3a5f' }}>
+        <span className="section-title">Escalation Log</span>
+        <span style={{ background:'#1e3a5f', color:'#64748b', borderRadius:12, padding:'1px 8px', fontSize:11, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700 }}>{escalations.length}</span>
+      </div>
+      <div style={{ maxHeight:168, overflowY:'auto' }}>
+        <table className="dt">
+          <thead><tr>{['TIME','ALERT ID','ACTION','DETAILS'].map(h=><th key={h}>{h}</th>)}</tr></thead>
+          <tbody>
+            {escalations.length===0 && <tr><td colSpan={4} style={{ padding:'18px', textAlign:'center', color:'#334155', fontFamily:"'Space Grotesk',sans-serif" }}>No escalations yet</td></tr>}
+            {escalations.map(e=>(
+              <tr key={e.escalation_id} style={{ borderLeft:`3px solid ${ESC_C[e.action_type]||'transparent'}` }}>
+                <td><span style={{ color:'#334155', fontSize:11 }}>{fmtTime(e.created_at)}</span></td>
+                <td><span style={{ color:'#3b82f6', fontFamily:"'DM Mono',monospace", fontSize:11 }}>{e.alert_id}</span></td>
+                <td><span style={{ color:ESC_C[e.action_type]||'#64748b', fontFamily:"'Space Grotesk',sans-serif", fontSize:11, fontWeight:700 }}>{e.action_type}</span></td>
+                <td><span style={{ color:'#64748b', fontSize:11 }}>{parseDetails(e)}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ── App ─────────────────────────────────────────────────────────────────── */
+function App() {
+  const [alerts,      setAlerts]      = useState([]);
+  const [stats,       setStats]       = useState({});
+  const [escalations, setEscalations] = useState([]);
+  const [prices,      setPrices]      = useState({});
+  const [selected,    setSelected]    = useState(null);
+  const [triageMap,   setTriageMap]   = useState({});
+  const [isReplaying, setIsReplaying] = useState(false);
+  const [loadingSet,  setLoadingSet]  = useState(new Set());
+  const [autoRunning, setAutoRunning] = useState(false);
+  const pollRef  = useRef(null);
+  const priceRef = useRef(null);
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const [a,s,e] = await Promise.all([
+        fetch(`${API_BASE}/api/alerts`).then(r=>r.json()),
+        fetch(`${API_BASE}/api/stats`).then(r=>r.json()),
+        fetch(`${API_BASE}/api/escalations`).then(r=>r.json()),
+      ]);
+      setAlerts(a.alerts||[]);
+      setStats(s);
+      setEscalations(e.escalations||[]);
+    } catch {}
+  }, []);
+
+  const fetchPrices = useCallback(async () => {
+    try {
+      const r = await fetch(`${API_BASE}/api/market-prices`);
+      const d = await r.json();
+      if (d.prices) setPrices(d.prices);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    fetchAll(); fetchPrices();
+    pollRef.current  = setInterval(fetchAll, 3000);
+    priceRef.current = setInterval(fetchPrices, 60000);
+    return () => { clearInterval(pollRef.current); clearInterval(priceRef.current); };
+  }, []);
+
+  const handleStart = async () => {
+    setIsReplaying(true);
+    try { await fetch(`${API_BASE}/api/replay/start`, { method:'POST' }); } catch {}
+    fetchAll();
+  };
+
+  const handleTriage = async id => {
+    setLoadingSet(p => new Set([...p, id]));
+    try {
+      const r = await fetch(`${API_BASE}/api/triage/${id}`, { method:'POST' });
+      const d = await r.json();
+      setTriageMap(p => ({ ...p, [id]: d }));
+      if (selected?.alert_id===id && d.alert) setSelected(d.alert);
+      fetchAll();
+    } catch(e) { console.error(e); }
+    finally { setLoadingSet(p => { const n=new Set(p); n.delete(id); return n; }); }
+  };
+
+  const handleAutoTriage = async () => {
+    if (autoRunning) return;
+    setAutoRunning(true);
+    for (const a of alerts.filter(a=>a.status==='PENDING')) {
+      await handleTriage(a.alert_id);
+      await new Promise(r => setTimeout(r, 600));
+    }
+    setAutoRunning(false);
+  };
+
+  return (
+    <div style={{ height:'100vh', display:'flex', flexDirection:'column', background:'#030712', overflow:'hidden' }}>
+      <Header isReplaying={isReplaying} onStart={handleStart} onStop={()=>setIsReplaying(false)} prices={prices} />
+      <StatsBar stats={stats} />
+
+      {/* Content below fixed bars: 64+80=144px */}
+      <div style={{ flex:1, display:'flex', flexDirection:'column', marginTop:144, minHeight:0, overflow:'hidden', padding:'10px 20px 0' }}>
+
+        {/* Main two-column grid */}
+        <div className="main-grid" style={{ flex:1, display:'flex', gap:10, minHeight:0, overflow:'hidden' }}>
+
+          {/* LEFT 60% */}
+          <div className="col-l" style={{ width:'60%', display:'flex', flexDirection:'column', minHeight:0, overflow:'hidden' }}>
+            <AlertTable alerts={alerts} selected={selected} onSelect={setSelected} onTriage={handleTriage} loading={loadingSet} onAutoTriage={handleAutoTriage} autoRunning={autoRunning} />
+            <Charts stats={stats} />
+          </div>
+
+          {/* RIGHT 40% */}
+          <div className="col-r" style={{ width:'40%', display:'flex', flexDirection:'column', minHeight:0, overflow:'hidden' }}>
+            <div className="card" style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0, overflow:'hidden' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', borderBottom:'1px solid #1e3a5f', flexShrink:0 }}>
+                <span className="section-title">Triage Detail</span>
+                {selected && <span style={{ color:'#334155', fontSize:11, fontFamily:"'DM Mono',monospace" }}>{selected.alert_id}</span>}
+              </div>
+              <div style={{ flex:1, overflow:'hidden' }}>
+                <TriagePanel alert={selected} triageData={selected?triageMap[selected.alert_id]:null} onTriage={handleTriage} isLoading={selected?loadingSet.has(selected.alert_id):false} />
+              </div>
+            </div>
+            <TopSuspects alerts={alerts} onSelect={setSelected} />
+          </div>
+
+        </div>
+
+        {/* Escalation log */}
+        <div style={{ flexShrink:0, marginTop:10, marginBottom:10 }}>
+          <EscalationLog escalations={escalations} />
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

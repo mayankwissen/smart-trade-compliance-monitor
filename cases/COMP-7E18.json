@@ -1,0 +1,14 @@
+{
+  "case_id": "COMP-7E18",
+  "alert_id": "ALT-3BF9662B",
+  "trader_id": "T-3301",
+  "instrument": "INFY",
+  "pattern_type": "WASH_TRADING",
+  "severity": "MEDIUM",
+  "verdict": "ESCALATE",
+  "confidence": 85,
+  "rationale": "The simultaneous buy and sell of identical quantity (10,000 INFY shares) across different accounts within 18 seconds strongly suggests wash trading behavior designed to create artificial trading activity. The zero cancel ratio indicates executed trades rather than legitimate market making, warranting further investigation into the relationship between accounts A-3301 and A-3302.",
+  "assigned_to": "Surveillance Desk L2",
+  "created_at": "2026-06-05T19:37:31.265665",
+  "status": "OPEN"
+}

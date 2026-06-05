@@ -1,0 +1,14 @@
+{
+  "case_id": "COMP-1617",
+  "alert_id": "ALT-C11ED276",
+  "trader_id": "T-1042",
+  "instrument": "HDFCBANK",
+  "pattern_type": "LAYERING",
+  "severity": "HIGH",
+  "verdict": "ESCALATE",
+  "confidence": 95,
+  "rationale": "The evidence shows classic layering behavior with 85.7% of orders cancelled within 550ms and executions at elevated prices. The high sigma value and rapid cancellation pattern strongly indicates market manipulation rather than legitimate trading activity.",
+  "assigned_to": "Surveillance Desk L2",
+  "created_at": "2026-06-05T19:37:58.189244",
+  "status": "OPEN"
+}

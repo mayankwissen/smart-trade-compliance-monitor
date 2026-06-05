@@ -1,0 +1,14 @@
+{
+  "case_id": "COMP-370F",
+  "alert_id": "ALT-E938AFF3",
+  "trader_id": "T-2891",
+  "instrument": "RELIANCE",
+  "pattern_type": "LAYERING",
+  "severity": "HIGH",
+  "verdict": "ESCALATE",
+  "confidence": 95,
+  "rationale": "Classic layering pattern with 89% cancel ratio and extremely rapid cancellations (340ms median) followed by execution at elevated price. The high sigma value of 14.78 indicates this behavior is statistically abnormal and strongly suggests market manipulation.",
+  "assigned_to": "Surveillance Desk L2",
+  "created_at": "2026-06-05T19:32:55.884743",
+  "status": "OPEN"
+}
