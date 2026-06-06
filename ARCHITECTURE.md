@@ -60,7 +60,7 @@ the estimated financial harm to the market — all from a single API call.**
 │                         AI TRIAGE LAYER                      ★ KEY       │
 │                                                                          │
 │   triage.py                                                              │
-│   └─ Claude Sonnet (claude-sonnet-4-5)                                   │
+│   └─ Claude Sonnet (claude-sonnet-4-6, max_tokens=1024)                                   │
 │                                                                          │
 │   System Persona:                                                        │
 │   "You are Chief Compliance Officer at NSE with 20 years experience      │
@@ -149,7 +149,7 @@ the estimated financial harm to the market — all from a single API call.**
 │   GET  /api/trades          → paginated trades with filters              │
 │   GET  /api/market-prices   → live NSE prices from yfinance              │
 │   GET  /api/token-stats     → Claude usage, real tokens, cost            │
-│   GET  /api/export/case/:id → download compliance case JSON              │
+│   GET  /api/export/case/:id → print-ready HTML compliance case report    │
 │                                                                          │
 │   Analysis:                                                              │
 │   GET  /api/generate-str/:id        → STR filing HTML                   │
@@ -213,7 +213,7 @@ VISIT DASHBOARD (first time)
 5. CLICK "Triage This Alert" on any alert
    │
    ├─ Build compact prompt: cancel_ratio, sigma, evidence_summary (~280 tokens)
-   ├─ Send to Claude Sonnet (claude-sonnet-4-5) with CCO system persona
+   ├─ Send to Claude Sonnet (claude-sonnet-4-6) with CCO system persona
    ├─ Capture real input_tokens + output_tokens from response.usage
    ├─ Parse 8-field JSON verdict (with regulatory_reference fallback)
    ├─ Store to triage_results
@@ -369,7 +369,7 @@ Cluster D: T-4401 / TCS
 
 | Layer | Technology | Why |
 |-------|-----------|-----|
-| AI | Claude Sonnet (`claude-sonnet-4-5`) | Best reasoning quality for compliance decisions |
+| AI | Claude Sonnet (`claude-sonnet-4-6`) | Best reasoning quality for compliance decisions |
 | Backend | Python 3.12 + Flask | Fast iteration, strong financial library ecosystem |
 | Database | SQLite | Zero-config for demo; schema drop-in compatible with PostgreSQL |
 | Market Data | yfinance (20 NSE stocks) | Free live prices, no API key required |
@@ -455,13 +455,14 @@ This is a hackathon demo. Highlighted features that are already production-grade
 | Feature | Status | Notes |
 |---------|--------|-------|
 | STR auto-generation | **BUILT** | FIU-IND format, print-ready, one-click |
+| Case Report (HTML) | **BUILT** | Print/PDF-ready for non-technical judges and compliance officers |
 | AI verdict with regulatory citation | **BUILT** | Never NULL, per-pattern SEBI defaults |
-| Real token tracking + cost | **BUILT** | `response.usage` stored per call |
+| Real token tracking + cost | **BUILT** | `response.usage` stored per call, shown in Dashboard |
 | Trader risk profiling | **BUILT** | 0–100 score, full history |
 | Market impact analysis | **BUILT** | Price movement, financial harm estimate |
 | Correlated alert detection | **BUILT** | 10-minute window grouping |
-| Authentication / RBAC | Pending | JWT + analyst/supervisor/CCO roles |
-| PostgreSQL migration | Pending | Schema is drop-in compatible |
-| Real-time streaming | Pending | WebSocket / Server-Sent Events |
-| Historical backtesting | Pending | Replay detectors on archived data |
+| Authentication / RBAC | Future | JWT + analyst/supervisor/CCO roles |
+| PostgreSQL migration | Future | Schema is drop-in compatible with SQLite |
+| Real-time streaming | Future | WebSocket / Server-Sent Events |
+| Historical backtesting | Future | Replay detectors on archived data |
 | Audit trail | Partial | Escalations table logs actions; user identity not tracked |

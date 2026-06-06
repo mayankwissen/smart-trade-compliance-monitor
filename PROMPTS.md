@@ -344,6 +344,42 @@ all 6 pages working, professional layout
 
 ---
 
+## PROMPT 10 — Case Report HTML Export
+
+**Purpose:** Replace raw JSON download with a human-readable, print-ready HTML compliance report
+**Model:** Claude Sonnet 4.6 via Claude CLI
+**Estimated tokens:** ~2,000
+
+```
+also when i am downloading the file download case file its in json ??
+is it correct a non tech person cant understand
+```
+
+**Changes made:**
+- `/api/export/case/<alert_id>` in `app.py` — completely rewritten to return formatted HTML
+  instead of raw JSON with `Content-Disposition: attachment`
+- Report sections:
+  1. **Header** — black bar with case reference, export timestamp, "NSE Compliance Division"
+  2. **Meta bar** — Alert ID, Trader, Instrument, Severity in 4-column grid
+  3. **Section 1 — Pattern Detected** — stats grid (pattern type, cancel %, sigma, total orders)
+     + evidence summary + detected timestamp
+  4. **Section 2 — AI Triage Verdict** — verdict in 48px colored text (red/green), confidence
+     bar, rationale, plain-English explanation, recommended action, regulatory reference
+  5. **Section 3 — Escalation Actions** — color-coded action list with timestamps
+  6. **Section 4 — Order Evidence** — first 50 orders in a table with BUY/SELL/CANCELLED
+     color coding, price in ₹, cancel time in ms
+- "Print / Save as PDF" button at top — judges can print without any developer tools
+- `@media print` CSS rule hides the print button when printing
+- Frontend button in `AlertDetail.js` updated: label changed from "Download Case File" to
+  "Case Report (Print/PDF)", icon changed from download arrow to document icon
+
+**Output:** Non-technical judges and compliance officers can now open the case report in a
+browser, read it like a formal compliance document, and save it as PDF with one click.
+
+**Tokens used:** ~2,000
+
+---
+
 ## TOTAL AI USAGE SUMMARY
 
 | Prompt | Purpose | Est. Tokens | Time |
@@ -357,7 +393,8 @@ all 6 pages working, professional layout
 | 7 | Restructure | ~80,000 | 25 min |
 | 8 | QA Bug Fixes | ~5,000 | 10 min |
 | 9 | Advanced Features | ~40,000 | 15 min |
-| **Total** | **Full project** | **~246,500** | **~100 min** |
+| 10 | HTML Case Report | ~2,000 | 5 min |
+| **Total** | **Full project** | **~248,500** | **~105 min** |
 
 ---
 

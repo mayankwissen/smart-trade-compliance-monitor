@@ -21,7 +21,7 @@ Evidence: Trader placed 14 orders, 12 cancelled within 612ms median.
 Stats: cancel_ratio=0.857, sigma=14.14
 ```
 
-**Claude Response (claude-sonnet-4-5):**
+**Claude Response (claude-sonnet-4-6):**
 ```json
 {
   "verdict": "ESCALATE",
@@ -57,7 +57,7 @@ Stats: cancel_ratio=0.857, sigma=14.14
 - Total tokens: 486
 - Processing time: 2,847ms
 - Estimated cost: $0.000146
-- Model: claude-sonnet-4-5
+- Model: claude-sonnet-4-6
 
 ---
 
@@ -75,7 +75,7 @@ Possible price manipulation.
 Stats: cancel_ratio=0.286, sigma=2.71
 ```
 
-**Claude Response (claude-sonnet-4-5):**
+**Claude Response (claude-sonnet-4-6):**
 ```json
 {
   "verdict": "ESCALATE",
@@ -111,7 +111,7 @@ Stats: cancel_ratio=0.286, sigma=2.71
 - Total tokens: 463
 - Processing time: 2,341ms
 - Estimated cost: $0.000139
-- Model: claude-sonnet-4-5
+- Model: claude-sonnet-4-6
 
 ---
 
@@ -128,7 +128,7 @@ Evidence: Self-dealing: BUY 10000 INFY on A-3301, SELL on A-3302 within 18s.
 Stats: cancel_ratio=0.0, sigma=0.0
 ```
 
-**Claude Response (claude-sonnet-4-5):**
+**Claude Response (claude-sonnet-4-6):**
 ```json
 {
   "verdict": "ESCALATE",
@@ -164,7 +164,7 @@ Stats: cancel_ratio=0.0, sigma=0.0
 - Total tokens: 465
 - Processing time: 2,947ms
 - Estimated cost: $0.000140
-- Model: claude-sonnet-4-5
+- Model: claude-sonnet-4-6
 
 ---
 
@@ -182,7 +182,7 @@ Evidence: Trader placed 8 orders, 8 cancelled within 550ms median.
 Stats: cancel_ratio=0.857, sigma=14.14
 ```
 
-**Claude Response (claude-sonnet-4-5):**
+**Claude Response (claude-sonnet-4-6):**
 ```json
 {
   "verdict": "ESCALATE",
@@ -215,7 +215,7 @@ Stats: cancel_ratio=0.857, sigma=14.14
 - Total tokens: 476
 - Processing time: 2,654ms
 - Estimated cost: $0.000143
-- Model: claude-sonnet-4-5
+- Model: claude-sonnet-4-6
 
 ---
 
@@ -273,7 +273,7 @@ verdict, rationale, plain English explanation, and case details.
 
 | Metric | Value |
 |--------|-------|
-| Model used | claude-sonnet-4-5 |
+| Model used | claude-sonnet-4-6 (upgraded from 4-5) |
 | Avg input tokens per call | ~277 |
 | Avg output tokens per call | ~195 |
 | Avg total tokens per call | ~472 |

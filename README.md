@@ -46,6 +46,7 @@ Frontend:  https://smart-trade-compliance-monitor-1.onrender.com
 3. On Alert Detail → **Timeline** tab → see Chart.js visualization of suspicious order flow
 4. Click **Trader ID** in the overview → Trader Risk Profile (risk score, all history)
 5. If verdict is ESCALATE → **Escalations** tab → **Generate STR Filing** → print-ready FIU-IND document
+6. Click **Case Report (Print/PDF)** on any alert → human-readable HTML report judges can print or save as PDF
 
 **Reset between demos**
 - Click **Reset Demo** → wipes alerts/triage/escalations, generates fresh trade data
@@ -155,7 +156,7 @@ python -m http.server 3000       # → http://localhost:3000
 | GET | `/api/stats` | Dashboard counts |
 | GET | `/api/market-prices` | Live NSE prices from yfinance |
 | GET | `/api/token-stats` | Claude usage — calls, tokens, estimated cost |
-| GET | `/api/export/case/<id>` | Download compliance case JSON |
+| GET | `/api/export/case/<id>` | Print-ready HTML compliance case report (open in browser, save as PDF) |
 | GET | `/api/generate-str/<id>` | Generate FIU-IND STR filing (print-ready HTML) |
 | GET | `/api/trader/<trader_id>` | Trader risk profile — score, all alerts, pattern breakdown |
 | GET | `/api/market-impact/<id>` | Price movement, financial harm estimate for an alert |
@@ -203,7 +204,7 @@ EMAIL_PASSWORD=app-password        # Optional — Gmail app password
 
 ## Tech Stack
 
-- **AI**: Claude Sonnet (`claude-sonnet-4-5`) — CCO persona, SEBI domain expert
+- **AI**: Claude Sonnet (`claude-sonnet-4-6`) — CCO persona, SEBI domain expert
 - **Backend**: Python 3.12, Flask, SQLite, gunicorn
 - **Market Data**: yfinance (live NSE prices, no API key required)
 - **Frontend**: React 18 via CDN, Babel Standalone, Chart.js 4.4

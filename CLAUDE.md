@@ -70,7 +70,7 @@ python -m http.server 3000
 | Top Suspects leaderboard | ✅ |
 | NSE price panel — 20 stocks, vertical scroll, search filter, ▲/▼ change%, last-updated | ✅ |
 | Token usage stats endpoint | ✅ |
-| Export case JSON endpoint | ✅ |
+| Case Report — print-ready HTML (not raw JSON) — for judges + compliance officers | ✅ |
 | Fixed layout at 100% zoom (position:fixed sidebar + header) | ✅ |
 | Health checks auto-refresh every 30s (Settings page) | ✅ |
 | vercel.json for SPA hash routing | ✅ |
@@ -196,7 +196,7 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 | `/api/stats` | GET | Dashboard counts |
 | `/api/market-prices` | GET | Live NSE prices from yfinance |
 | `/api/token-stats` | GET | Total calls, real tokens, cost, avg time |
-| `/api/export/case/<id>` | GET | Download compliance case JSON |
+| `/api/export/case/<id>` | GET | Print-ready HTML compliance case report (open in browser, save as PDF) |
 | `/api/generate-str/<id>` | GET | Print-ready FIU-IND STR filing HTML |
 | `/api/trader/<id>` | GET | Trader risk profile (score, alerts, patterns) |
 | `/api/market-impact/<id>` | GET | Price movement + financial harm estimate |
@@ -249,9 +249,20 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 - Free tier Render spins down after 15 min idle — `/api/ping` exists for keep-alive.
 - All `datetime.utcnow()` calls replaced with `_now_iso()` across detector.py.
 
-## Pending
+## Pre-Demo Checklist (run after every Render redeploy)
 
-- [ ] Deploy frontend to Vercel/Render Static
-- [ ] Update API_BASE in frontend/js/api.js if Render URL changes
-- [ ] Full demo rehearsal before judging
-- [ ] Verify Slack webhook fires on fresh deploy
+Render wipes SQLite on every deploy. Before judges see the app, always run:
+1. Click **Reset Demo** (or POST `/api/reset`)
+2. Click **Refresh Live Data** (or POST `/api/refresh-data`)
+3. POST `/api/replay/start` — creates the 4 alerts
+4. Triage all 4 alerts (or click **Demo Mode** — does all 3 steps automatically)
+
+## Production Status — as of 2026-06-06
+
+- [x] Frontend deployed → https://smart-trade-compliance-monitor-1.onrender.com
+- [x] Backend deployed → https://smart-trade-compliance-monitor.onrender.com
+- [x] ANTHROPIC_API_KEY set in Render env vars
+- [x] Slack webhook configured
+- [x] All 22 endpoints verified working
+- [x] Case Report returns HTML (not JSON) — print/PDF ready for judges
+- [ ] Full demo rehearsal with fresh Render deploy before judging
