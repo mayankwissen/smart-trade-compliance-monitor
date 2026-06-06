@@ -1,8 +1,8 @@
 // Shared constants, themes, and utilities — loaded first, exported to window.*
 
-window.API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+window.API_BASE = window.location.hostname === 'localhost'
   ? 'http://localhost:5000'
-  : 'https://trade-surveillance-api.onrender.com';
+  : 'https://smart-trade-compliance-monitor.onrender.com';
 
 window.DARK = {
   bg: '#0a0a0a', sidebar: '#0f0f0f', card: '#141414', border: '#2a2a2a',
