@@ -24,6 +24,31 @@ CORS(app, origins=[
 with app.app_context():
     init_db()
     seed_from_csv()
+    # Auto-detect on startup so Render cold-starts have data immediately
+    try:
+        _startup_trades = load_trades()
+        _startup_pairs  = get_all_trader_instrument_pairs()
+        _startup_conn   = get_db()
+        for _tid, _ins in _startup_pairs:
+            for _alert in run_all_detectors(_tid, _ins, _startup_trades):
+                if not alert_exists(_startup_conn, _tid, _ins, _alert["pattern_type"]):
+                    _startup_conn.execute(
+                        """INSERT INTO alerts
+                          (alert_id, detected_at, trader_id, instrument, pattern_type,
+                           severity, evidence_summary, cancel_ratio, sigma, status)
+                          VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                        (
+                            _alert["alert_id"], _alert["detected_at"], _alert["trader_id"],
+                            _alert["instrument"], _alert["pattern_type"], _alert["severity"],
+                            _alert["evidence_summary"], _alert["cancel_ratio"],
+                            _alert["sigma"], _alert["status"],
+                        ),
+                    )
+        _startup_conn.commit()
+        _startup_conn.close()
+        app.logger.info("Startup auto-detection complete")
+    except Exception as _e:
+        app.logger.error(f"Startup auto-detection failed: {_e}")
 
 
 # ── Health / Ping ─────────────────────────────────────────────────────────────
@@ -44,6 +69,20 @@ def health():
 @app.route("/api/ping")
 def ping():
     return jsonify({"status": "awake", "timestamp": datetime.now(timezone.utc).isoformat()})
+
+
+@app.route("/api/warmup")
+def warmup():
+    conn = get_db()
+    trades = conn.execute("SELECT COUNT(*) FROM trades").fetchone()[0]
+    alerts = conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
+    conn.close()
+    return jsonify({
+        "status": "warm",
+        "trades": trades,
+        "alerts": alerts,
+        "ready": trades > 0 and alerts > 0,
+    })
 
 
 # ── Trades ────────────────────────────────────────────────────────────────────

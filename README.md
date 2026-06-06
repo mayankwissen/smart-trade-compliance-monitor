@@ -177,6 +177,31 @@ EMAIL_PASSWORD=app-password        # Optional — Gmail app password
 
 ---
 
+## Keeping Render Awake (Free Tier)
+
+Render free tier spins down after 15 minutes of inactivity, causing a 30–60 second cold start.
+Two things prevent this:
+
+**1. Auto-seed on startup (built in)**
+The backend automatically runs `init_db()` + `seed_from_csv()` + pattern detection on every
+process start. When Render wakes up, data is ready within seconds — no manual reset needed.
+
+**2. UptimeRobot keep-alive (5-minute ping)**
+1. Go to [uptimerobot.com](https://uptimerobot.com) → free account
+2. New Monitor → HTTP(s) monitor
+3. URL: `https://smart-trade-compliance-monitor.onrender.com/api/ping`
+4. Interval: **5 minutes**
+5. Save — Render will never spin down during the hackathon
+
+**Check readiness before demo:**
+```
+GET https://smart-trade-compliance-monitor.onrender.com/api/warmup
+→ { "status": "warm", "trades": 407, "alerts": 4, "ready": true }
+```
+If `ready` is `false`, hit `POST /api/replay/start` once.
+
+---
+
 ## Deploy to Render
 
 1. Push to GitHub
