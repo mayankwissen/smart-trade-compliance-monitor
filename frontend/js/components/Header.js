@@ -1,36 +1,81 @@
-const { useState: _huseState } = React;
+const { useState: _huseState, useEffect: _huseE } = React;
 
-window.Ticker = function Ticker({ prices }) {
-  const t = window.useT();
-  const syms = ['HDFCBANK', 'RELIANCE', 'INFY', 'TCS', 'ICICIBANK', 'WIPRO', 'SBIN'];
-  const items = syms.map(s => {
-    const d = prices[s]; if (!d) return null;
-    const up = d.current >= (d.low + (d.high - d.low) * .5);
-    return (
-      <span key={s} className="ticker-item">
-        <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 10, color: t.textMuted, letterSpacing: '.08em' }}>{s}</span>
-        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 13, color: up ? t.success : t.danger }}>{window.fmtRs(d.current)}</span>
-        <span style={{ fontSize: 10, color: up ? t.success : t.danger }}>{up ? '▲' : '▼'}</span>
-      </span>
-    );
-  }).filter(Boolean);
+// ── Vertical NSE price panel (right side) ─────────────────────────────────
+window.PricePanel = function PricePanel({ prices }) {
+  const [search, setSearch]           = _huseState('');
+  const [lastUpdated, setLastUpdated] = _huseState('');
 
-  if (!items.length) return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#525252', fontSize: 11 }}>
-      Fetching live prices…
-    </div>
-  );
+  _huseE(() => {
+    if (prices && Object.keys(prices).length > 0) {
+      setLastUpdated(new Date().toLocaleTimeString());
+    }
+  }, [prices]);
+
+  const syms     = ['HDFCBANK', 'RELIANCE', 'INFY', 'TCS', 'ICICIBANK', 'WIPRO', 'SBIN'];
+  const filtered = syms.filter(s => search === '' || s.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="ticker-wrap" style={{ flex: 1 }}>
-      <div className="ticker-track">{items}{items}</div>
+    <div id="price-panel">
+      {/* Search */}
+      <input
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        placeholder="Search..."
+        style={{
+          width: '100%', background: '#1a1a1a', border: '1px solid #2a2a2a',
+          color: '#fff', fontSize: 11, borderRadius: 4, padding: '5px 8px',
+          marginBottom: 8, fontFamily: "'Inter',sans-serif", outline: 'none',
+        }}
+      />
+
+      {/* Panel title */}
+      <div style={{
+        color: '#f0b429', fontSize: 11, fontWeight: 700, letterSpacing: '1px',
+        textTransform: 'uppercase', borderBottom: '1px solid #2a2a2a',
+        paddingBottom: 8, marginBottom: 8,
+      }}>NSE LIVE</div>
+
+      {/* Stock rows */}
+      <div style={{ flex: 1 }}>
+        {filtered.map((sym, i) => {
+          const d      = prices[sym];
+          const isLast = i === filtered.length - 1;
+          if (!d) return (
+            <div key={sym} style={{ padding: '8px 0', borderBottom: isLast ? 'none' : '1px solid #1a1a1a' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{sym}</div>
+              <div style={{ fontSize: 11, color: '#525252' }}>—</div>
+            </div>
+          );
+          const up  = d.current >= (d.low + (d.high - d.low) * 0.5);
+          const clr = up ? '#22c55e' : '#ef4444';
+          return (
+            <div key={sym} style={{ padding: '8px 0', borderBottom: isLast ? 'none' : '1px solid #1a1a1a' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 2 }}>{sym}</div>
+              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: clr, fontWeight: 700 }}>
+                ₹{Number(d.current).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div style={{ fontSize: 10, color: clr, marginTop: 1 }}>{up ? '▲' : '▼'}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Last updated */}
+      <div style={{
+        marginTop: 12, paddingTop: 8, borderTop: '1px solid #1a1a1a',
+        fontSize: 10, color: '#525252', fontFamily: "'JetBrains Mono',monospace",
+        lineHeight: 1.6,
+      }}>
+        Last updated:<br />{lastUpdated || '—'}
+      </div>
     </div>
   );
 };
 
-window.Header = function Header({ isReplaying, onStart, onStop, prices, isDark, onToggleTheme, subCount, onSubscribe }) {
+// ── Fixed header (logo left + controls right, no ticker) ──────────────────
+window.Header = function Header({ isReplaying, onStart, onStop, isDark, onToggleTheme, subCount, onSubscribe }) {
   const t = window.useT();
-  const [email, setEmail]       = _huseState('');
+  const [email, setEmail]         = _huseState('');
   const [subStatus, setSubStatus] = _huseState('');
 
   const doSubscribe = async () => {
@@ -57,7 +102,8 @@ window.Header = function Header({ isReplaying, onStart, onStop, prices, isDark, 
         </div>
       </div>
 
-      <window.Ticker prices={prices} />
+      {/* Spacer */}
+      <div style={{ flex: 1 }} />
 
       {/* Right controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>

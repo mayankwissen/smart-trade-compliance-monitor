@@ -84,12 +84,13 @@ function App() {
         isReplaying={isReplaying}
         onStart={handleStart}
         onStop={() => setIsReplaying(false)}
-        prices={prices}
         isDark={isDark}
         onToggleTheme={toggleTheme}
         subCount={subCount}
         onSubscribe={fetchSubCount}
       />
+
+      <window.PricePanel prices={prices} />
 
       <div id="app-main">
         <window.StatsBar stats={stats} />

@@ -34,7 +34,7 @@ html, body {
 /* ── Fixed Header ────────────────────────────────────────────────────────── */
 #app-header {
   position: fixed;
-  top: 0; left: 72px; right: 0;
+  top: 0; left: 72px; right: 140px;
   height: 64px; z-index: 99;
   background: #000000;
   border-bottom: 2px solid #f0b429;
@@ -44,10 +44,26 @@ html, body {
 /* ── Main Area (fills remaining viewport) ────────────────────────────────── */
 #app-main {
   position: fixed;
-  top: 64px; left: 72px; right: 0; bottom: 0;
+  top: 64px; left: 72px; right: 140px; bottom: 0;
   display: flex; flex-direction: column;
   background: var(--bg, #0a0a0a);
   overflow: hidden;
+}
+
+/* ── NSE Price Panel (fixed right side) ──────────────────────────────────── */
+#price-panel {
+  position: fixed;
+  right: 0; top: 64px;
+  width: 140px;
+  height: calc(100vh - 64px);
+  background: #0f0f0f;
+  border-left: 1px solid #2a2a2a;
+  z-index: 90;
+  padding: 12px 8px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
 /* ── Stats Grid (sticky below header, does not scroll) ───────────────────── */

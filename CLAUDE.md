@@ -63,7 +63,7 @@ python -m http.server 3000
 | Dark/light toggle (localStorage) | ✅ |
 | Chart.js: donut (patterns) + bar (severity) | ✅ |
 | Top Suspects leaderboard | ✅ |
-| Live NSE price ticker (auto-refreshes 60s) | ✅ |
+| NSE price panel — vertical right sidebar, search, ▲/▼, last-updated (auto-refreshes 60s) | ✅ |
 | Token usage stats endpoint | ✅ |
 | Export case JSON endpoint | ✅ |
 | Fixed layout at 100% zoom (position:fixed sidebar + header) | ✅ |
@@ -97,7 +97,7 @@ trade-surveillance/
 │       ├── api.js          # API_BASE (auto-switches local/prod), DARK/LIGHT themes
 │       ├── app.js          # Root App, ReactDOM.createRoot, fetchAll passed to Dashboard
 │       ├── components/
-│       │   ├── Header.js       # Fixed header, price ticker, subscribe, replay button
+│       │   ├── Header.js       # Fixed header (logo + controls) + PricePanel (vertical right sidebar)
 │       │   ├── Sidebar.js      # Fixed sidebar, 5 nav items
 │       │   ├── StatsBar.js     # 5-card stats grid (32px numbers)
 │       │   ├── Charts.js       # Chart.js donut + bar
