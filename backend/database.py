@@ -1,6 +1,7 @@
 import sqlite3
 import os
 import csv
+import logging
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "surveillance.db")
 CSV_PATH = os.path.join(os.path.dirname(__file__), "data", "trades_sample.csv")
@@ -14,6 +15,7 @@ def get_db():
 
 def init_db():
     conn = get_db()
+
     conn.execute("""CREATE TABLE IF NOT EXISTS trades (
         trade_id TEXT PRIMARY KEY,
         timestamp TEXT,
@@ -48,6 +50,11 @@ def init_db():
         confidence INTEGER,
         false_positive_probability INTEGER,
         rationale TEXT,
+        simple_explanation TEXT,
+        recommended_action TEXT,
+        risk_level TEXT,
+        regulatory_reference TEXT,
+        processing_time_ms INTEGER,
         created_at TEXT
     )""")
 
@@ -59,8 +66,36 @@ def init_db():
         created_at TEXT
     )""")
 
+    conn.execute("""CREATE TABLE IF NOT EXISTS subscribers (
+        subscriber_id TEXT PRIMARY KEY,
+        email TEXT UNIQUE,
+        active INTEGER DEFAULT 1,
+        created_at TEXT
+    )""")
+
+    # Migrate existing triage_results table
+    for col, typ in [
+        ("simple_explanation", "TEXT"),
+        ("recommended_action", "TEXT"),
+        ("risk_level", "TEXT"),
+        ("regulatory_reference", "TEXT"),
+        ("processing_time_ms", "INTEGER"),
+    ]:
+        try:
+            conn.execute(f"ALTER TABLE triage_results ADD COLUMN {col} {typ}")
+        except Exception:
+            pass
+
     conn.commit()
     conn.close()
+
+
+def alert_exists(conn, trader_id, instrument, pattern_type):
+    row = conn.execute(
+        "SELECT alert_id FROM alerts WHERE trader_id=? AND instrument=? AND pattern_type=?",
+        (trader_id, instrument, pattern_type)
+    ).fetchone()
+    return row is not None
 
 
 def _insert_trade_dicts(conn, trade_list):
@@ -83,7 +118,6 @@ def seed_from_csv():
         conn.close()
         return
 
-    # Try yfinance first, fall back to CSV
     try:
         from market_data import fetch_real_prices, generate_realistic_trades
         prices = fetch_real_prices()
@@ -94,7 +128,6 @@ def seed_from_csv():
             conn.close()
             return
     except Exception as e:
-        import logging
         logging.warning(f"yfinance seed failed, falling back to CSV: {e}")
 
     with open(CSV_PATH, newline="", encoding="utf-8") as f:

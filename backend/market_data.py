@@ -11,23 +11,23 @@ except ImportError:
     logging.warning("yfinance not available, using fallback prices")
 
 NSE_SYMBOLS = {
-    'HDFCBANK': 'HDFCBANK.NS',
-    'RELIANCE': 'RELIANCE.NS',
-    'INFY':     'INFY.NS',
-    'TCS':      'TCS.NS',
-    'ICICIBANK':'ICICIBANK.NS',
-    'WIPRO':    'WIPRO.NS',
-    'SBIN':     'SBIN.NS',
+    'HDFCBANK':  'HDFCBANK.NS',
+    'RELIANCE':  'RELIANCE.NS',
+    'INFY':      'INFY.NS',
+    'TCS':       'TCS.NS',
+    'ICICIBANK': 'ICICIBANK.NS',
+    'WIPRO':     'WIPRO.NS',
+    'SBIN':      'SBIN.NS',
 }
 
 FALLBACK_PRICES = {
-    'HDFCBANK':  1820.00,
-    'RELIANCE':  2890.00,
-    'INFY':      1845.00,
-    'TCS':       3850.00,
-    'ICICIBANK': 1125.00,
-    'WIPRO':      465.00,
-    'SBIN':       785.00,
+    'HDFCBANK':  748.00,
+    'RELIANCE':  1291.50,
+    'INFY':      1199.00,
+    'TCS':       2196.00,
+    'ICICIBANK': 1260.30,
+    'WIPRO':      198.05,
+    'SBIN':       977.00,
 }
 
 
@@ -61,7 +61,7 @@ def fetch_real_prices():
             else:
                 raise ValueError("empty history")
         except Exception as e:
-            logging.warning(f"yfinance fetch failed for {symbol}: {e}, using fallback")
+            logging.warning(f"yfinance failed for {symbol}: {e}, using fallback")
             fb = FALLBACK_PRICES.get(symbol, 1000.0)
             prices[symbol] = {
                 'current': fb,
@@ -71,46 +71,97 @@ def fetch_real_prices():
                 'history': None,
                 'source':  'fallback',
             }
-
     return prices
 
 
 def generate_realistic_trades(prices):
     trades = []
-    base_date = datetime.now().replace(hour=9, minute=15, second=0, microsecond=0)
+    symbols = list(prices.keys())
 
-    # 250 normal traders
-    for i in range(250):
-        symbol = random.choice(list(prices.keys()))
+    # 3 trading days
+    trading_days = [
+        datetime(2026, 5, 20, 9, 15, 0),
+        datetime(2026, 5, 21, 9, 15, 0),
+        datetime(2026, 5, 22, 9, 15, 0),
+    ]
+
+    # 50 normal traders, each doing 3-8 trades over 3 days
+    trader_ids = [f"T-{i:04d}" for i in range(1, 51)]
+    trade_counter = 0
+
+    for tid in trader_ids:
+        acct = f"A-{tid[2:]}"
+        num_trades = random.randint(3, 8)
+        for _ in range(num_trades):
+            day_base = random.choice(trading_days)
+            symbol = random.choice(symbols)
+            real_price = prices[symbol]['current']
+            price = round(real_price * random.uniform(0.994, 1.006), 2)
+            status_roll = random.random()
+            if status_roll < 0.65:
+                status = 'EXECUTED'
+                cancel_ms = 0
+            elif status_roll < 0.85:
+                status = 'CANCELLED'
+                cancel_ms = random.randint(900, 4000)
+            else:
+                status = 'PLACED'
+                cancel_ms = 0
+
+            trade_counter += 1
+            trades.append({
+                'trade_id':      f'TRD-N{trade_counter:04d}',
+                'timestamp':     (day_base + timedelta(
+                    minutes=random.randint(0, 375),
+                    seconds=random.randint(0, 59)
+                )).strftime('%Y-%m-%d %H:%M:%S'),
+                'trader_id':     tid,
+                'account_id':    acct,
+                'instrument':    symbol,
+                'order_type':    random.choice(['BUY', 'SELL']),
+                'order_size':    random.randint(100, 10000),
+                'price':         price,
+                'order_status':  status,
+                'cancel_time_ms': cancel_ms,
+                'session_id':    f'SES-{tid[2:]}-{random.randint(100,999)}',
+            })
+
+    # Additional 100 trades from traders T-0051 to T-0099
+    for i in range(100):
+        tid = f"T-{random.randint(51, 99):04d}"
+        acct = f"A-{tid[2:]}"
+        day_base = random.choice(trading_days)
+        symbol = random.choice(symbols)
         real_price = prices[symbol]['current']
-        price = round(real_price * random.uniform(0.995, 1.005), 2)
-        status = random.choice(['EXECUTED', 'EXECUTED', 'EXECUTED', 'CANCELLED'])
-        cancel_ms = random.randint(800, 3000) if status == 'CANCELLED' else 0
+        price = round(real_price * random.uniform(0.993, 1.007), 2)
+        status = random.choice(['EXECUTED', 'EXECUTED', 'EXECUTED', 'CANCELLED', 'PLACED'])
+        cancel_ms = random.randint(800, 3500) if status == 'CANCELLED' else 0
+        trade_counter += 1
         trades.append({
-            'trade_id':      f'TRD-{str(uuid.uuid4())[:8].upper()}',
-            'timestamp':     (base_date + timedelta(
-                                minutes=random.randint(0, 360),
-                                seconds=random.randint(0, 59)
-                              )).strftime('%Y-%m-%d %H:%M:%S'),
-            'trader_id':     f'T-{random.randint(1, 999):04d}',
-            'account_id':    f'A-{random.randint(1, 999):04d}',
+            'trade_id':      f'TRD-X{trade_counter:04d}',
+            'timestamp':     (day_base + timedelta(
+                minutes=random.randint(0, 375),
+                seconds=random.randint(0, 59)
+            )).strftime('%Y-%m-%d %H:%M:%S'),
+            'trader_id':     tid,
+            'account_id':    acct,
             'instrument':    symbol,
             'order_type':    random.choice(['BUY', 'SELL']),
             'order_size':    random.randint(100, 5000),
             'price':         price,
             'order_status':  status,
             'cancel_time_ms': cancel_ms,
-            'session_id':    f'SES-{random.randint(1000, 9999)}',
+            'session_id':    f'SES-{tid[2:]}-{random.randint(100,999)}',
         })
 
-    # LAYERING cluster at real HDFCBANK price
-    hdfcbank_price = prices.get('HDFCBANK', {}).get('current', 1820)
-    base_time = base_date.replace(hour=9, minute=44)
+    # CLUSTER A: LAYERING — T-1042 / HDFCBANK (14 orders)
+    hdfcbank_price = prices.get('HDFCBANK', {}).get('current', 748.0)
+    base_lay = datetime(2026, 5, 20, 9, 44, 0)
     for i in range(14):
         is_cancelled = i < 12
         trades.append({
             'trade_id':      f'TRD-LAY-{i:03d}',
-            'timestamp':     (base_time + timedelta(seconds=i * 10)).strftime('%Y-%m-%d %H:%M:%S'),
+            'timestamp':     (base_lay + timedelta(seconds=i * 10)).strftime('%Y-%m-%d %H:%M:%S'),
             'trader_id':     'T-1042',
             'account_id':    'A-1042',
             'instrument':    'HDFCBANK',
@@ -122,13 +173,13 @@ def generate_realistic_trades(prices):
             'session_id':    'SES-1042-A',
         })
 
-    # SPOOFING cluster at real RELIANCE price
-    reliance_price = prices.get('RELIANCE', {}).get('current', 2890)
-    base_time2 = base_date.replace(hour=10, minute=15)
+    # CLUSTER B: SPOOFING — T-2891 / RELIANCE (9 orders)
+    reliance_price = prices.get('RELIANCE', {}).get('current', 1291.5)
+    base_spf = datetime(2026, 5, 21, 10, 15, 0)
     for i in range(9):
         trades.append({
             'trade_id':      f'TRD-SPF-{i:03d}',
-            'timestamp':     (base_time2 + timedelta(seconds=i * 8)).strftime('%Y-%m-%d %H:%M:%S'),
+            'timestamp':     (base_spf + timedelta(seconds=i * 8)).strftime('%Y-%m-%d %H:%M:%S'),
             'trader_id':     'T-2891',
             'account_id':    'A-2891',
             'instrument':    'RELIANCE',
@@ -140,13 +191,13 @@ def generate_realistic_trades(prices):
             'session_id':    'SES-2891-B',
         })
 
-    # WASH TRADING at real INFY price
-    infy_price = prices.get('INFY', {}).get('current', 1845)
-    base_time3 = base_date.replace(hour=11, minute=30)
+    # CLUSTER C: WASH TRADING — T-3301 / INFY
+    infy_price = prices.get('INFY', {}).get('current', 1199.0)
+    base_wsh = datetime(2026, 5, 22, 11, 30, 0)
     trades.extend([
         {
             'trade_id':      'TRD-WSH-001',
-            'timestamp':     base_time3.strftime('%Y-%m-%d %H:%M:%S'),
+            'timestamp':     base_wsh.strftime('%Y-%m-%d %H:%M:%S'),
             'trader_id':     'T-3301',
             'account_id':    'A-3301',
             'instrument':    'INFY',
@@ -159,7 +210,7 @@ def generate_realistic_trades(prices):
         },
         {
             'trade_id':      'TRD-WSH-002',
-            'timestamp':     (base_time3 + timedelta(seconds=18)).strftime('%Y-%m-%d %H:%M:%S'),
+            'timestamp':     (base_wsh + timedelta(seconds=18)).strftime('%Y-%m-%d %H:%M:%S'),
             'trader_id':     'T-3301',
             'account_id':    'A-3302',
             'instrument':    'INFY',

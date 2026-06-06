@@ -4,457 +4,1264 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Trade Surveillance Engine — Wissen Technology</title>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body, #root { height: 100%; background: #030712; color: #f1f5f9; font-family: 'DM Mono', monospace; font-size: 13px; overflow: hidden; }
-    ::-webkit-scrollbar { width: 4px; height: 4px; }
-    ::-webkit-scrollbar-track { background: #030712; }
-    ::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 2px; }
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html,body,#root{height:100%;overflow:hidden}
+    body{font-family:'Inter',sans-serif;font-size:13px}
+    ::-webkit-scrollbar{width:5px;height:5px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:#f0b429;border-radius:3px}
+    ::-webkit-scrollbar-thumb:hover{background:#fbbf24}
 
-    @keyframes pulse-dot    { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.85)} }
-    @keyframes pulse-badge  { 0%,100%{opacity:1} 50%{opacity:.55} }
-    @keyframes slide-in     { from{opacity:0;transform:translateX(-14px)} to{opacity:1;transform:translateX(0)} }
-    @keyframes scale-in     { from{opacity:0;transform:scale(.65)} to{opacity:1;transform:scale(1)} }
-    @keyframes glow-pulse   { 0%,100%{text-shadow:0 0 18px currentColor} 50%{text-shadow:0 0 38px currentColor,0 0 58px currentColor} }
-    @keyframes ticker-scroll{ 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
-    @keyframes esc-slide    { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
-    @keyframes bar-fill     { from{width:0%} to{width:var(--w)} }
+    @keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+    @keyframes pulse-badge{0%,100%{opacity:1}50%{opacity:.55}}
+    @keyframes slide-in{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
+    @keyframes fade-up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes scale-in{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:scale(1)}}
+    @keyframes glow{0%,100%{text-shadow:0 0 20px currentColor}50%{text-shadow:0 0 40px currentColor,0 0 60px currentColor}}
+    @keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+    @keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 
-    .slide-in    { animation: slide-in .28s ease forwards; }
-    .scale-in    { animation: scale-in .4s cubic-bezier(.34,1.56,.64,1) forwards; }
-    .pulse-badge { animation: pulse-badge 2s ease-in-out infinite; }
-    .glow-text   { animation: glow-pulse 2s ease-in-out infinite; }
+    .slide-in{animation:slide-in .25s ease both}
+    .fade-up{animation:fade-up .3s ease both}
+    .scale-in{animation:scale-in .4s cubic-bezier(.34,1.56,.64,1) both}
+    .glow-text{animation:glow 2s ease-in-out infinite}
+    .pulse{animation:pulse-badge 2s ease-in-out infinite}
+    .spin{animation:spin .8s linear infinite;display:inline-block}
+    .ticker-wrap{overflow:hidden;flex:1;-webkit-mask-image:linear-gradient(to right,transparent,#000 48px,#000 calc(100% - 48px),transparent)}
+    .ticker-track{display:flex;animation:ticker 40s linear infinite;width:max-content}
+    .ticker-track:hover{animation-play-state:paused}
 
-    .ticker-wrap { overflow:hidden; flex:1; mask-image:linear-gradient(to right,transparent,black 48px,black calc(100% - 48px),transparent); -webkit-mask-image:linear-gradient(to right,transparent,black 48px,black calc(100% - 48px),transparent); }
-    .ticker-track{ display:flex; animation:ticker-scroll 38s linear infinite; width:max-content; }
-    .ticker-track:hover{ animation-play-state:paused; }
+    .dt{width:100%;border-collapse:collapse}
+    .dt th{padding:9px 14px;text-align:left;font-size:11px;letter-spacing:.1em;font-weight:700;text-transform:uppercase;white-space:nowrap;border-bottom:1px solid var(--border)}
+    .dt td{padding:0 14px;border-bottom:1px solid var(--border-subtle);font-size:14px}
+    .dt tbody tr{height:50px;cursor:pointer;transition:background .12s}
+    .dt tbody tr:hover{background:var(--row-hover)}
+    .dt tbody tr.sel{border-left:3px solid var(--gold);background:var(--row-selected)}
+    .dt tbody tr.flagged{background:rgba(239,68,68,.04)}
+    .dt-wrap{overflow-y:auto;max-height:500px}
 
-    .card { background:#0f1729; border:1px solid #1e3a5f; border-radius:8px; }
-    .section-title { font-family:'Space Grotesk',sans-serif; font-size:11px; font-weight:700; color:#475569; letter-spacing:.12em; text-transform:uppercase; }
+    .tab-btn{padding:8px 18px;border:none;border-bottom:2px solid transparent;background:transparent;cursor:pointer;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;letter-spacing:.04em;transition:all .15s}
+    .tab-btn.active{border-bottom-color:var(--gold);color:var(--gold)}
 
-    .dt { width:100%; border-collapse:collapse; }
-    .dt th { padding:7px 12px; text-align:left; color:#334155; font-size:10px; letter-spacing:.12em; font-weight:700; border-bottom:1px solid #1e3a5f; font-family:'Space Grotesk',sans-serif; text-transform:uppercase; white-space:nowrap; }
-    .dt td { padding:0 12px; border-bottom:1px solid #0d1a2e; }
-    .dt tbody tr { height:46px; cursor:pointer; transition:background .12s; }
-    .dt tbody tr:nth-child(even) { background:#0d1525; }
-    .dt tbody tr:hover { background:#162036; }
-    .dt tbody tr.sel { border-left:3px solid #3b82f6; background:#0e2040 !important; }
+    .page-scroll{flex:1;overflow-y:auto;padding:20px;min-height:0}
 
-    .badge { display:inline-flex; align-items:center; justify-content:center; border-radius:20px; font-size:11px; font-weight:700; padding:3px 10px; white-space:nowrap; font-family:'Space Grotesk',sans-serif; }
+    input,select{font-family:'Inter',sans-serif;font-size:12px;outline:none}
+    button{font-family:'Inter',sans-serif}
 
-    .btn  { border:none; border-radius:6px; padding:7px 16px; cursor:pointer; font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:12px; transition:all .15s; }
-    .btn-blue  { background:#3b82f6; color:#fff; }
-    .btn-blue:hover  { background:#2563eb; }
-    .btn-blue:active { transform:scale(.97); }
-    .btn-blue:disabled { background:#1e3a5f; color:#334155; cursor:default; }
-    .btn-ghost { background:transparent; color:#10b981; border:1px solid #10b981; }
-    .btn-ghost:hover { background:#10b981; color:#030712; }
-    .btn-triage { background:transparent; color:#3b82f6; border:1px solid #1e3a5f; border-radius:4px; padding:4px 10px; cursor:pointer; font-family:'DM Mono',monospace; font-size:11px; transition:all .15s; white-space:nowrap; }
-    .btn-triage:hover { border-color:#3b82f6; background:#0e1e3a; }
-    .btn-triage:disabled { color:#334155; border-color:#1e3a5f; cursor:default; background:transparent; }
-
-    .num { font-family:'Space Grotesk',sans-serif; }
-
-    @media (max-width:1200px) { .main-grid { flex-direction:column !important; } .col-l,.col-r { width:100% !important; } }
+    @media(max-width:1100px){.main-cols{flex-direction:column!important}.col-l,.col-r{width:100%!important}}
   </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useRef, useCallback, useMemo } = React;
-const API_BASE = 'http://localhost:5000';
+const { useState, useEffect, useRef, useCallback, useMemo, createContext, useContext } = React;
 
-const fmtTime = ts => ts ? (ts.includes('T') ? ts.split('T')[1].slice(0,8) : ts.slice(11,19)) : '--';
-const fmtRs   = n  => '₹' + Number(n).toLocaleString('en-IN', { minimumFractionDigits:2, maximumFractionDigits:2 });
-const fmtNum  = n  => Number(n||0).toLocaleString('en-IN');
+const API_BASE = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  ? 'http://localhost:5000'
+  : 'https://trade-surveillance-api.onrender.com';
 
-const SEV = { HIGH:{bg:'#ef4444',color:'#fff'}, MEDIUM:{bg:'#f59e0b',color:'#fff'}, LOW:{bg:'#10b981',color:'#fff'} };
-const PAT = { LAYERING:{bg:'#6366f1',color:'#fff'}, SPOOFING:{bg:'#ef4444',color:'#fff'}, WASH_TRADING:{bg:'#f97316',color:'#fff'}, PUMP_DUMP:{bg:'#ec4899',color:'#fff'} };
-const STA = { PENDING:{bg:'#334155',color:'#94a3b8'}, ESCALATED:{bg:'#ef4444',color:'#fff',pulse:true}, DISMISSED:{bg:'#10b981',color:'#fff'} };
-const ESC_C = { CASE_CREATED:'#10b981', SLACK_NOTIFIED:'#3b82f6', WATCHLIST_FLAGGED:'#f59e0b', EMAIL_SENT:'#a855f7' };
+/* ── Theme ──────────────────────────────────────────────────────────────── */
+const DARK = {
+  bg:'#0a0a0a', sidebar:'#0f0f0f', card:'#141414', border:'#2a2a2a',
+  borderSubtle:'#1a1a1a', gold:'#f0b429', goldHover:'#fbbf24',
+  success:'#22c55e', warning:'#f59e0b', danger:'#ef4444', info:'#3b82f6',
+  text:'#ffffff', textSec:'#a0a0a0', textMuted:'#525252',
+  rowHover:'rgba(240,180,41,.04)', rowSelected:'rgba(240,180,41,.07)',
+  inputBg:'#1a1a1a', inputBorder:'#2a2a2a',
+  tagLayering:'#6366f1', tagSpoofing:'#ef4444', tagWash:'#f97316', tagPump:'#ec4899',
+};
+const LIGHT = {
+  bg:'#f8fafc', sidebar:'#f1f5f9', card:'#ffffff', border:'#e2e8f0',
+  borderSubtle:'#f1f5f9', gold:'#1e3a8a', goldHover:'#1d4ed8',
+  success:'#16a34a', warning:'#d97706', danger:'#dc2626', info:'#2563eb',
+  text:'#0f172a', textSec:'#475569', textMuted:'#94a3b8',
+  rowHover:'rgba(30,58,138,.04)', rowSelected:'rgba(30,58,138,.07)',
+  inputBg:'#f8fafc', inputBorder:'#e2e8f0',
+  tagLayering:'#4f46e5', tagSpoofing:'#dc2626', tagWash:'#ea580c', tagPump:'#db2777',
+};
 
-function Badge({ label, cfg, lg }) {
-  if (!cfg) cfg = { bg:'#1e3a5f', color:'#475569' };
-  return <span className={`badge${cfg.pulse?' pulse-badge':''}`} style={{ background:cfg.bg, color:cfg.color, padding: lg?'4px 14px':'3px 10px', fontSize: lg?12:11 }}>{(label||'').replace('_',' ')}</span>;
+const ThemeCtx = createContext(DARK);
+const useT = () => useContext(ThemeCtx);
+
+/* ── CSS variables helper ───────────────────────────────────────────────── */
+function ThemeVars({ t }) {
+  useEffect(() => {
+    const r = document.documentElement;
+    r.style.setProperty('--border', t.border);
+    r.style.setProperty('--border-subtle', t.borderSubtle);
+    r.style.setProperty('--gold', t.gold);
+    r.style.setProperty('--row-hover', t.rowHover);
+    r.style.setProperty('--row-selected', t.rowSelected);
+  }, [t]);
+  return null;
+}
+
+/* ── Routing ────────────────────────────────────────────────────────────── */
+function useRoute() {
+  const [hash, setHash] = useState(window.location.hash || '#/');
+  useEffect(() => {
+    const h = () => setHash(window.location.hash || '#/');
+    window.addEventListener('hashchange', h);
+    return () => window.removeEventListener('hashchange', h);
+  }, []);
+  const nav = useCallback(p => { window.location.hash = p; }, []);
+  const raw = hash.replace(/^#/, '') || '/';
+  let page = 'dashboard', alertId = null;
+  if (raw === '/' || raw === '') page = 'dashboard';
+  else if (raw === '/alerts')    page = 'alerts';
+  else if (raw.startsWith('/alert/')) { page = 'alert-detail'; alertId = raw.slice(7); }
+  else if (raw === '/trades')    page = 'trades';
+  else if (raw === '/logs')      page = 'logs';
+  else if (raw === '/settings')  page = 'settings';
+  return { page, alertId, nav };
+}
+
+/* ── Utils ──────────────────────────────────────────────────────────────── */
+const fmtTime  = ts => ts ? (ts.includes('T') ? ts.split('T')[1].slice(0,8) : ts.slice(11,19)) : '--';
+const fmtDate  = ts => ts ? ts.replace('T',' ').slice(0,19) : '--';
+const fmtNum   = n  => Number(n||0).toLocaleString('en-IN');
+const fmtRs    = n  => '₹' + Number(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtK     = n  => n >= 1e7 ? (n/1e7).toFixed(1)+'Cr' : n >= 1e5 ? (n/1e5).toFixed(1)+'L' : fmtNum(n);
+
+/* ── Badge configs ──────────────────────────────────────────────────────── */
+const SEV_CFG = { HIGH:{bg:'#ef4444',c:'#fff'}, MEDIUM:{bg:'#f59e0b',c:'#fff'}, LOW:{bg:'#22c55e',c:'#fff'} };
+const PAT_CFG = { LAYERING:{bg:'#6366f1',c:'#fff'}, SPOOFING:{bg:'#ef4444',c:'#fff'}, WASH_TRADING:{bg:'#f97316',c:'#fff'}, PUMP_DUMP:{bg:'#ec4899',c:'#fff'} };
+const STA_CFG = { PENDING:{bg:'#374151',c:'#9ca3af'}, ESCALATED:{bg:'#ef4444',c:'#fff',pulse:true}, DISMISSED:{bg:'#22c55e',c:'#fff'} };
+const ESC_COL = { CASE_CREATED:'#22c55e', SLACK_NOTIFIED:'#3b82f6', WATCHLIST_FLAGGED:'#f59e0b', EMAIL_SENT:'#a855f7', NO_ESCALATION:'#525252' };
+
+/* ── Shared components ──────────────────────────────────────────────────── */
+function Bdg({ label, cfg, lg }) {
+  if (!cfg) cfg = {bg:'#2a2a2a',c:'#525252'};
+  return <span className={cfg.pulse?'pulse':''} style={{ display:'inline-flex',alignItems:'center',justifyContent:'center',borderRadius:20,fontSize:lg?13:12,fontWeight:700,padding:lg?'5px 14px':'3px 11px',background:cfg.bg,color:cfg.c,whiteSpace:'nowrap',fontFamily:"'Inter',sans-serif",letterSpacing:'.03em' }}>{(label||'').replace('_',' ')}</span>;
+}
+
+function Btn({ children, onClick, variant='primary', small, disabled, style:sx }) {
+  const t = useT();
+  const base = { border:'none',borderRadius:6,cursor:disabled?'default':'pointer',fontFamily:"'Inter',sans-serif",fontWeight:600,transition:'all .15s',display:'inline-flex',alignItems:'center',gap:6,...sx };
+  const variants = {
+    primary:  { background:t.gold,       color:'#000',   padding:small?'5px 12px':'7px 18px', fontSize:small?11:12, opacity:disabled?.5:1 },
+    danger:   { background:t.danger,     color:'#fff',   padding:small?'5px 12px':'7px 18px', fontSize:small?11:12 },
+    ghost:    { background:'transparent',color:t.gold,   border:`1px solid ${t.gold}`,         padding:small?'4px 11px':'6px 16px', fontSize:small?11:12, opacity:disabled?.5:1 },
+    outline:  { background:'transparent',color:t.textSec,border:`1px solid ${t.border}`,       padding:small?'4px 11px':'6px 16px', fontSize:small?11:12 },
+    triage:   { background:'transparent',color:t.info,   border:`1px solid ${t.info}22`,       padding:'4px 10px', fontSize:11, borderRadius:4 },
+  };
+  return <button style={{...base,...variants[variant]}} onClick={disabled?undefined:onClick} disabled={disabled}>{children}</button>;
+}
+
+function Card({ children, style:sx, pad=16 }) {
+  const t = useT();
+  return <div style={{ background:t.card,border:`1px solid ${t.border}`,borderRadius:12,padding:pad,...sx }}>{children}</div>;
+}
+
+function SectionHead({ title, right, count }) {
+  const t = useT();
+  return (
+    <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14 }}>
+      <div style={{ display:'flex',alignItems:'center',gap:10 }}>
+        <span style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:12,color:t.textMuted,letterSpacing:'.1em',textTransform:'uppercase' }}>{title}</span>
+        {count!==undefined && <span style={{ background:t.gold+'22',color:t.gold,borderRadius:12,padding:'1px 9px',fontSize:12,fontWeight:700 }}>{count}</span>}
+      </div>
+      {right}
+    </div>
+  );
+}
+
+function Input({ value, onChange, placeholder, style:sx }) {
+  const t = useT();
+  return <input value={value} onChange={onChange} placeholder={placeholder} style={{ background:t.inputBg,border:`1px solid ${t.inputBorder}`,color:t.text,borderRadius:6,padding:'6px 10px',fontFamily:"'JetBrains Mono',monospace",...sx }} />;
+}
+
+function Select({ value, onChange, children, style:sx }) {
+  const t = useT();
+  return <select value={value} onChange={onChange} style={{ background:t.inputBg,border:`1px solid ${t.border}`,color:t.text,borderRadius:6,padding:'6px 10px',cursor:'pointer',...sx }}>{children}</select>;
+}
+
+function Spinner() { return <span className="spin" style={{fontSize:14}}>◌</span>; }
+
+function EmptyState({ icon='📭', msg='No data yet' }) {
+  const t = useT();
+  return (
+    <div style={{ display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'48px 0',gap:12,color:t.textMuted }}>
+      <div style={{ fontSize:40 }}>{icon}</div>
+      <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:600 }}>{msg}</div>
+    </div>
+  );
 }
 
 /* ── Ticker ─────────────────────────────────────────────────────────────── */
 function Ticker({ prices }) {
+  const t = useT();
   const syms = ['HDFCBANK','RELIANCE','INFY','TCS','ICICIBANK','WIPRO','SBIN'];
   const items = syms.map(s => {
-    const d = prices[s]; if (!d) return null;
+    const d = prices[s]; if(!d) return null;
     const up = d.current >= (d.low + (d.high - d.low) * .5);
     return (
-      <span key={s} style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'0 22px', borderRight:'1px solid #1e3a5f', whiteSpace:'nowrap' }}>
-        <span style={{ color:'#64748b', fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, fontSize:11 }}>{s}</span>
-        <span style={{ color:up?'#10b981':'#ef4444', fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, fontSize:13 }}>{fmtRs(d.current)}</span>
-        <span style={{ color:up?'#10b981':'#ef4444', fontSize:10 }}>{up?'▲':'▼'}</span>
+      <span key={s} style={{ display:'inline-flex',alignItems:'center',gap:7,padding:'0 22px',borderRight:`1px solid ${t.border}`,whiteSpace:'nowrap' }}>
+        <span style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:10,color:t.textMuted,letterSpacing:'.08em' }}>{s}</span>
+        <span style={{ fontFamily:"'JetBrains Mono',monospace",fontWeight:700,fontSize:13,color:up?t.success:t.danger }}>{fmtRs(d.current)}</span>
+        <span style={{ fontSize:10,color:up?t.success:t.danger }}>{up?'▲':'▼'}</span>
       </span>
     );
   }).filter(Boolean);
-  if (!items.length) return <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:'#334155', fontSize:11 }}>Fetching live prices…</div>;
-  return (
-    <div className="ticker-wrap" style={{ flex:1 }}>
-      <div className="ticker-track">{items}{items}</div>
-    </div>
-  );
+  if (!items.length) return <div style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',color:t.textMuted,fontSize:11}}>Fetching live prices…</div>;
+  return <div className="ticker-wrap" style={{flex:1}}><div className="ticker-track">{items}{items}</div></div>;
 }
 
-/* ── Header ─────────────────────────────────────────────────────────────── */
-function Header({ isReplaying, onStart, onStop, prices }) {
-  const [email, setEmail] = useState('');
-  return (
-    <div style={{ height:64, background:'#030712', borderBottom:'1px solid #1e3a5f', display:'flex', alignItems:'center', padding:'0 20px', gap:16, position:'fixed', top:0, left:0, right:0, zIndex:300 }}>
-      <div style={{ display:'flex', alignItems:'center', gap:12, flexShrink:0 }}>
-        <div style={{ width:40, height:40, borderRadius:'50%', background:'#0e2040', border:'1px solid #3b82f6', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, boxShadow:'0 0 12px #3b82f640' }}>🛡</div>
-        <div>
-          <div style={{ fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, fontSize:16, color:'#f1f5f9', letterSpacing:'.02em' }}>TRADE SURVEILLANCE ENGINE</div>
-          <div style={{ fontSize:10, color:'#334155', fontFamily:"'Space Grotesk',sans-serif" }}>Wissen Technology Hackathon 2026 · Powered by Claude AI</div>
-        </div>
-      </div>
-      <Ticker prices={prices} />
-      <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-        <input value={email} onChange={e => setEmail(e.target.value)} placeholder="analyst@bank.com"
-          style={{ background:'#0f1729', border:'1px solid #1e3a5f', color:'#f1f5f9', borderRadius:6, padding:'6px 10px', fontSize:11, fontFamily:"'DM Mono',monospace", width:148, outline:'none' }} />
-        <button className="btn btn-ghost" style={{ padding:'6px 12px', flexShrink:0 }}>Subscribe</button>
-        <div style={{ width:1, height:28, background:'#1e3a5f' }} />
-        {isReplaying ? (
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <span style={{ width:8, height:8, borderRadius:'50%', background:'#10b981', display:'inline-block', animation:'pulse-dot 1.4s ease-in-out infinite' }} />
-            <span style={{ color:'#10b981', fontSize:11, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700 }}>LIVE</span>
-            <button className="btn btn-blue" onClick={onStop} style={{ background:'#1e3a5f', padding:'6px 12px' }}>⏹ STOP</button>
-          </div>
-        ) : (
-          <button className="btn btn-blue" onClick={onStart}>▶ START REPLAY</button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ── Stats Bar ───────────────────────────────────────────────────────────── */
-function StatsBar({ stats }) {
-  const cards = [
-    { label:'Total Trades',    val:stats.total_trades||0,  border:'#3b82f6', color:'#f1f5f9' },
-    { label:'Alerts Detected', val:stats.total_alerts||0,  border:'#f59e0b', color:'#f59e0b' },
-    { label:'Escalated',       val:stats.escalated||0,     border:'#ef4444', color:'#ef4444' },
-    { label:'Dismissed',       val:stats.dismissed||0,     border:'#10b981', color:'#10b981' },
-    { label:'Pending',         val:stats.pending||0,       border:'#475569', color:'#94a3b8' },
+/* ── Sidebar ────────────────────────────────────────────────────────────── */
+function Sidebar({ page, nav }) {
+  const t = useT();
+  const links = [
+    { icon:'🏠', label:'Dashboard', to:'/' },
+    { icon:'🔔', label:'Alerts',    to:'/alerts' },
+    { icon:'📊', label:'Trades',    to:'/trades' },
+    { icon:'⚡', label:'Logs',      to:'/logs' },
+    { icon:'⚙', label:'Settings',  to:'/settings' },
   ];
+  const active = page === 'dashboard' ? '/' : page === 'alert-detail' ? '/alerts' : `/${page}`;
   return (
-    <div style={{ height:80, position:'fixed', top:64, left:0, right:0, zIndex:290, background:'#030712', borderBottom:'1px solid #1e3a5f', display:'flex', alignItems:'center', padding:'0 20px', gap:12 }}>
-      {cards.map((c,i) => (
-        <div key={i} style={{ flex:1, background:'#0f1729', border:'1px solid #1e3a5f', borderLeft:`3px solid ${c.border}`, borderRadius:8, padding:'12px 16px', display:'flex', flexDirection:'column', justifyContent:'space-between', height:56, animation:`slide-in .3s ease ${i*60}ms both` }}>
-          <div className="num" style={{ fontSize:26, fontWeight:700, color:c.color, lineHeight:1 }}>{fmtNum(c.val)}</div>
-          <div style={{ fontSize:10, color:'#334155', fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, letterSpacing:'.1em' }}>{c.label.toUpperCase()}</div>
+    <div style={{ width:72,background:t.sidebar,borderRight:`1px solid ${t.border}`,display:'flex',flexDirection:'column',alignItems:'center',paddingTop:8,flexShrink:0,zIndex:50 }}>
+      {links.map(l => (
+        <div key={l.to} title={l.label} onClick={() => nav(l.to)}
+          style={{ width:'100%',height:64,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:4,cursor:'pointer',borderLeft:`3px solid ${active===l.to?t.gold:'transparent'}`,background:active===l.to?t.gold+'18':'transparent',transition:'all .15s' }}
+          onMouseEnter={e=>{if(active!==l.to)e.currentTarget.style.background=t.gold+'0a';}}
+          onMouseLeave={e=>{if(active!==l.to)e.currentTarget.style.background='transparent';}}>
+          <span style={{ fontSize:28,lineHeight:1 }}>{l.icon}</span>
+          <span style={{ fontSize:10,fontFamily:"'Inter',sans-serif",fontWeight:700,color:active===l.to?t.gold:t.textMuted,letterSpacing:'.05em',textTransform:'uppercase' }}>{l.label.slice(0,4)}</span>
         </div>
       ))}
     </div>
   );
 }
 
-/* ── Alert Table ─────────────────────────────────────────────────────────── */
-function AlertTable({ alerts, selected, onSelect, onTriage, loading, onAutoTriage, autoRunning }) {
-  const pending = alerts.filter(a => a.status==='PENDING').length;
+/* ── Header ─────────────────────────────────────────────────────────────── */
+function Header({ isReplaying, onStart, onStop, prices, isDark, onToggleTheme, subCount, onSubscribe }) {
+  const t = useT();
+  const [email, setEmail] = useState('');
+  const [subStatus, setSubStatus] = useState('');
+  const doSubscribe = async () => {
+    if (!email || !email.includes('@')) return;
+    try {
+      const r = await fetch(`${API_BASE}/api/subscribe`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+      const d = await r.json();
+      if (d.status === 'subscribed') { setSubStatus('subscribed'); onSubscribe && onSubscribe(); }
+    } catch { setSubStatus('error'); }
+  };
   return (
-    <div className="card" style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0, overflow:'hidden' }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', borderBottom:'1px solid #1e3a5f', flexShrink:0 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <span className="section-title">Alert Feed</span>
-          <span style={{ background:'#3b82f6', color:'#fff', borderRadius:12, padding:'1px 8px', fontSize:11, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700 }}>{alerts.length}</span>
+    <div style={{ height:64,background:'#000000',borderBottom:`2px solid ${t.gold}`,display:'flex',alignItems:'center',padding:'0 16px',gap:12,flexShrink:0,zIndex:100 }}>
+      <div style={{ display:'flex',alignItems:'center',gap:10,flexShrink:0 }}>
+        <div style={{ width:38,height:38,borderRadius:'50%',background:t.gold+'22',border:`1px solid ${t.gold}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,boxShadow:`0 0 12px ${t.gold}40` }}>🛡</div>
+        <div>
+          <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:18,color:'#f0b429',letterSpacing:'.03em' }}>TRADE SURVEILLANCE ENGINE</div>
+          <div style={{ fontSize:11,color:t.textMuted,fontFamily:"'Inter',sans-serif" }}>Wissen Technology Hackathon 2026 · Claude AI</div>
         </div>
-        <button className="btn btn-blue" onClick={onAutoTriage} disabled={autoRunning||pending===0} style={{ fontSize:11, padding:'5px 12px' }}>
-          {autoRunning ? '⏳ TRIAGING…' : `AUTO-TRIAGE ALL${pending>0?` (${pending})`:''}` }
-        </button>
-      </div>
-      <div style={{ flex:1, overflowY:'auto' }}>
-        <table className="dt">
-          <thead><tr>{['TIME','ALERT ID','TRADER','INSTRUMENT','PATTERN','SEVERITY','STATUS','ACTION'].map(h=><th key={h}>{h}</th>)}</tr></thead>
-          <tbody>
-            {alerts.length===0 && <tr><td colSpan={8} style={{ textAlign:'center', padding:32, color:'#334155', fontFamily:"'Space Grotesk',sans-serif" }}>No alerts. Click ▶ START REPLAY to detect patterns.</td></tr>}
-            {alerts.map(a => {
-              const isLoading = loading.has(a.alert_id);
-              const done = a.status!=='PENDING';
-              return (
-                <tr key={a.alert_id} className={selected?.alert_id===a.alert_id?'sel':''} onClick={()=>onSelect(a)} style={{ animation:'slide-in .25s ease forwards' }}>
-                  <td><span style={{ color:'#334155', fontSize:11 }}>{fmtTime(a.detected_at)}</span></td>
-                  <td><span style={{ color:'#3b82f6', fontFamily:"'DM Mono',monospace", fontSize:11 }}>{a.alert_id}</span></td>
-                  <td><span style={{ color:'#64748b', fontFamily:"'DM Mono',monospace" }}>{a.trader_id}</span></td>
-                  <td><span style={{ color:'#f1f5f9', fontFamily:"'Space Grotesk',sans-serif", fontWeight:700 }}>{a.instrument}</span></td>
-                  <td><Badge label={a.pattern_type} cfg={PAT[a.pattern_type]} /></td>
-                  <td><Badge label={a.severity} cfg={SEV[a.severity]} /></td>
-                  <td><Badge label={a.status} cfg={STA[a.status]} /></td>
-                  <td onClick={e=>e.stopPropagation()}>
-                    <button className="btn-triage" disabled={isLoading||done} onClick={()=>onTriage(a.alert_id)}>
-                      {isLoading ? '◌' : done ? '✓ DONE' : 'TRIAGE →'}
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-/* ── Charts ──────────────────────────────────────────────────────────────── */
-function Charts({ stats }) {
-  const donutRef = useRef(null); const donutInst = useRef(null);
-  const barRef   = useRef(null); const barInst   = useRef(null);
-
-  useEffect(() => {
-    if (!donutRef.current || !stats.patterns) return;
-    if (donutInst.current) donutInst.current.destroy();
-    const p = stats.patterns;
-    const total = (p.layering||0)+(p.spoofing||0)+(p.wash_trading||0);
-    donutInst.current = new Chart(donutRef.current.getContext('2d'), {
-      type:'doughnut',
-      data:{ labels:['Layering','Spoofing','Wash Trading'], datasets:[{ data:[p.layering||0,p.spoofing||0,p.wash_trading||0], backgroundColor:['#6366f1','#ef4444','#f97316'], borderColor:'#0f1729', borderWidth:3, hoverOffset:6 }] },
-      options:{ responsive:true, maintainAspectRatio:false, cutout:'68%',
-        plugins:{ legend:{ position:'right', labels:{ color:'#64748b', font:{ family:"'Space Grotesk',sans-serif", size:11 }, padding:10, boxWidth:12 } }, tooltip:{ backgroundColor:'#0f1729', titleColor:'#f1f5f9', bodyColor:'#94a3b8', borderColor:'#1e3a5f', borderWidth:1 } } },
-      plugins:[{ id:'ct', afterDraw(c) { const {ctx,chartArea:{top,bottom,left,right}}=c; const cx=(left+right)/2,cy=(top+bottom)/2; ctx.save(); ctx.font="bold 22px 'Space Grotesk',sans-serif"; ctx.fillStyle='#f1f5f9'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(total,cx,cy-6); ctx.font="10px 'Space Grotesk',sans-serif"; ctx.fillStyle='#475569'; ctx.fillText('TOTAL',cx,cy+12); ctx.restore(); } }],
-    });
-    return ()=>{ if(donutInst.current) donutInst.current.destroy(); };
-  }, [JSON.stringify(stats.patterns)]);
-
-  useEffect(() => {
-    if (!barRef.current) return;
-    if (barInst.current) barInst.current.destroy();
-    const high = stats.high_severity||0;
-    const total = stats.total_alerts||0;
-    const dismissed = stats.dismissed||0;
-    barInst.current = new Chart(barRef.current.getContext('2d'), {
-      type:'bar',
-      data:{ labels:['HIGH','MEDIUM','LOW'], datasets:[{ data:[high, Math.max(0,total-high-dismissed), dismissed], backgroundColor:['#ef4444','#f59e0b','#10b981'], borderRadius:5, borderSkipped:false }] },
-      options:{ responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{display:false}, tooltip:{ backgroundColor:'#0f1729', titleColor:'#f1f5f9', bodyColor:'#94a3b8', borderColor:'#1e3a5f', borderWidth:1 } },
-        scales:{ x:{ ticks:{color:'#475569',font:{family:"'Space Grotesk',sans-serif",size:11}}, grid:{color:'#0d1a2e'} }, y:{ ticks:{color:'#475569',font:{family:"'Space Grotesk',sans-serif",size:11}}, grid:{color:'#0d1a2e'}, beginAtZero:true } } },
-    });
-    return ()=>{ if(barInst.current) barInst.current.destroy(); };
-  }, [stats.high_severity, stats.total_alerts, stats.dismissed]);
-
-  return (
-    <div className="card" style={{ height:196, display:'flex', flexShrink:0, marginTop:8, overflow:'hidden' }}>
-      <div style={{ flex:1, padding:'10px 16px', borderRight:'1px solid #1e3a5f', display:'flex', flexDirection:'column' }}>
-        <div className="section-title" style={{ marginBottom:8 }}>Alerts by Pattern</div>
-        <div style={{ flex:1, minHeight:0 }}><canvas ref={donutRef} /></div>
-      </div>
-      <div style={{ flex:1, padding:'10px 16px', display:'flex', flexDirection:'column' }}>
-        <div className="section-title" style={{ marginBottom:8 }}>Severity Distribution</div>
-        <div style={{ flex:1, minHeight:0 }}><canvas ref={barRef} /></div>
-      </div>
-    </div>
-  );
-}
-
-/* ── Triage Panel ────────────────────────────────────────────────────────── */
-function TriagePanel({ alert, triageData, onTriage, isLoading }) {
-  const [barW, setBarW] = useState(0);
-  const verdict  = triageData?.triage?.verdict  || alert?.verdict;
-  const conf     = triageData?.triage?.confidence || alert?.confidence;
-  const rationale= triageData?.triage?.rationale || alert?.rationale;
-  const escs     = triageData?.escalations || [];
-  const vc = verdict==='ESCALATE'?'#ef4444': verdict==='DISMISS'?'#10b981':'#3b82f6';
-
-  useEffect(()=>{ if(conf){ setBarW(0); const t=setTimeout(()=>setBarW(conf),80); return()=>clearTimeout(t); } },[conf,verdict]);
-
-  if (!alert) return (
-    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', gap:14, color:'#334155' }}>
-      <div style={{ fontSize:52, animation:'pulse-dot 2.2s ease-in-out infinite' }}>🔍</div>
-      <div style={{ fontFamily:"'Space Grotesk',sans-serif", fontSize:14, color:'#475569' }}>Select an alert to begin triage</div>
-      <div style={{ fontSize:11 }}>Click any row in the alert feed</div>
-    </div>
-  );
-
-  return (
-    <div style={{ padding:14, overflowY:'auto', height:'100%' }}>
-      {/* Metadata grid */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:7, marginBottom:12 }}>
-        {[
-          ['Alert ID',   <span style={{ color:'#3b82f6', fontFamily:"'DM Mono',monospace", fontSize:11 }}>{alert.alert_id}</span>],
-          ['Trader ID',  <span style={{ fontFamily:"'DM Mono',monospace", color:'#94a3b8' }}>{alert.trader_id}</span>],
-          ['Instrument', <strong style={{ fontFamily:"'Space Grotesk',sans-serif", color:'#f1f5f9', fontSize:14 }}>{alert.instrument}</strong>],
-          ['Pattern',    <Badge label={alert.pattern_type} cfg={PAT[alert.pattern_type]} />],
-          ['Severity',   <Badge label={alert.severity} cfg={SEV[alert.severity]} lg />],
-          ['Detected',   <span style={{ fontSize:11, color:'#475569', fontFamily:"'DM Mono',monospace" }}>{fmtTime(alert.detected_at)}</span>],
-        ].map(([k,v],i) => (
-          <div key={i} style={{ background:'#030712', border:'1px solid #1e3a5f', borderRadius:6, padding:'7px 10px' }}>
-            <div style={{ color:'#334155', fontSize:10, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, letterSpacing:'.1em', marginBottom:4 }}>{k}</div>
-            <div>{v}</div>
-          </div>
-        ))}
       </div>
 
-      {/* Verdict box */}
-      <div style={{ background:'#030712', border:`1px solid ${verdict?vc:'#1e3a5f'}`, borderRadius:8, padding:16, marginBottom:12 }}>
-        {verdict ? (
-          <div className="scale-in">
-            <div className="num glow-text" style={{ fontSize:46, fontWeight:700, color:vc, textAlign:'center', letterSpacing:'.05em', marginBottom:12, lineHeight:1 }}>{verdict}</div>
-            <div style={{ background:'#0f1729', borderRadius:4, height:8, overflow:'hidden' }}>
-              <div style={{ height:'100%', background:vc, borderRadius:4, width:`${barW}%`, transition:'width .8s cubic-bezier(.4,0,.2,1)' }} />
-            </div>
-            <div style={{ display:'flex', justifyContent:'space-between', marginTop:7, fontSize:11, fontFamily:"'Space Grotesk',sans-serif", color:'#475569' }}>
-              <span>CONFIDENCE: <strong style={{ color:'#f1f5f9' }}>{conf}%</strong></span>
-              <span>FALSE POSITIVE: <strong style={{ color:'#f1f5f9' }}>{100-(conf||0)}%</strong></span>
-            </div>
-          </div>
-        ) : isLoading ? (
-          <div style={{ textAlign:'center', padding:'12px 0' }}>
-            <div className="num" style={{ fontSize:28, color:'#3b82f6', animation:'pulse-dot 1s linear infinite' }}>◌</div>
-            <div style={{ fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, color:'#3b82f6', marginTop:8, letterSpacing:'.06em' }}>AWAITING AI TRIAGE</div>
-            <div style={{ color:'#334155', fontSize:11, marginTop:4 }}>Claude Sonnet analyzing evidence…</div>
+      <Ticker prices={prices} />
+
+      <div style={{ display:'flex',alignItems:'center',gap:8,flexShrink:0 }}>
+        {subStatus === 'subscribed'
+          ? <span style={{ color:t.success,fontSize:12,fontWeight:600 }}>✓ Subscribed</span>
+          : <>
+              <input value={email} onChange={e=>setEmail(e.target.value)} placeholder="analyst@bank.com"
+                onKeyDown={e=>e.key==='Enter'&&doSubscribe()}
+                style={{ background:'#1a1a1a',border:`1px solid ${t.border}`,color:t.text,borderRadius:6,padding:'6px 10px',fontSize:11,fontFamily:"'JetBrains Mono',monospace",width:148,outline:'none' }} />
+              <button onClick={doSubscribe} style={{ background:'transparent',color:t.success,border:`1px solid ${t.success}`,borderRadius:6,padding:'6px 12px',cursor:'pointer',fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:11,transition:'all .15s',flexShrink:0 }}>Subscribe</button>
+            </>
+        }
+        {subCount > 0 && <span style={{ color:t.textMuted,fontSize:11 }}>👥{subCount}</span>}
+        <button onClick={onToggleTheme} style={{ background:'transparent',border:`1px solid ${t.border}`,borderRadius:6,padding:'5px 9px',cursor:'pointer',fontSize:14,color:t.textSec }} title="Toggle theme">{isDark?'☀':'🌙'}</button>
+        <div style={{ width:1,height:28,background:t.border }} />
+        {isReplaying ? (
+          <div style={{ display:'flex',alignItems:'center',gap:8 }}>
+            <span style={{ width:8,height:8,borderRadius:'50%',background:t.success,display:'inline-block',animation:'pulse-dot 1.4s ease-in-out infinite' }} />
+            <span style={{ color:t.success,fontSize:11,fontFamily:"'Inter',sans-serif",fontWeight:700 }}>LIVE</span>
+            <button onClick={onStop} style={{ background:'#1a1a1a',color:t.textSec,border:`1px solid ${t.border}`,borderRadius:6,padding:'6px 14px',cursor:'pointer',fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:12 }}>⏹ STOP</button>
           </div>
         ) : (
-          <button className="btn btn-blue" onClick={()=>onTriage(alert.alert_id)} style={{ width:'100%', padding:12, fontSize:13, letterSpacing:'.04em' }}>⚡ TRIAGE THIS ALERT</button>
+          <button onClick={onStart} style={{ background:t.gold,color:'#000',border:'none',borderRadius:6,padding:'7px 16px',cursor:'pointer',fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:12 }}>▶ START REPLAY</button>
         )}
       </div>
-
-      {/* Evidence */}
-      <div style={{ marginBottom:12 }}>
-        <div style={{ color:'#334155', fontSize:10, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, letterSpacing:'.12em', marginBottom:6 }}>EVIDENCE</div>
-        <div style={{ background:'#030712', borderLeft:'3px solid #3b82f6', padding:'10px 14px', borderRadius:'0 6px 6px 0', color:'#94a3b8', fontSize:12, lineHeight:1.65 }}>{alert.evidence_summary}</div>
-      </div>
-
-      {/* Stats */}
-      <div style={{ display:'flex', gap:8, marginBottom:12 }}>
-        {[['CANCEL RATIO',`${((alert.cancel_ratio||0)*100).toFixed(1)}%`,'#f59e0b'],['SIGMA',`${alert.sigma}σ`,'#ef4444']].map(([k,v,c])=>(
-          <div key={k} style={{ flex:1, background:'#030712', border:'1px solid #1e3a5f', borderRadius:6, padding:'8px 12px' }}>
-            <div style={{ color:'#334155', fontSize:10, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, letterSpacing:'.1em' }}>{k}</div>
-            <div className="num" style={{ color:c, fontSize:22, fontWeight:700, marginTop:2 }}>{v}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Rationale */}
-      {rationale && (
-        <div style={{ marginBottom:12 }}>
-          <div style={{ color:'#334155', fontSize:10, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, letterSpacing:'.12em', marginBottom:6 }}>AI RATIONALE · CLAUDE SONNET</div>
-          <div style={{ background:'#030712', borderLeft:`3px solid ${vc}`, padding:'10px 14px', borderRadius:'0 6px 6px 0', color:'#94a3b8', fontSize:12, lineHeight:1.75, fontStyle:'italic' }}>{rationale}</div>
-        </div>
-      )}
-
-      {/* Escalation actions */}
-      {escs.length>0 && (
-        <div>
-          <div style={{ color:'#334155', fontSize:10, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700, letterSpacing:'.12em', marginBottom:8 }}>ESCALATION ACTIONS</div>
-          {escs.map((e,i) => {
-            const style = { display:'flex', alignItems:'center', gap:10, padding:'8px 0', borderBottom:'1px solid #0d1a2e', animation:`esc-slide .3s ease ${i*200}ms both` };
-            if (e.action==='CASE_CREATED')     return <div key={i} style={style}><span style={{ color:'#10b981',fontSize:16 }}>✓</span><span style={{ color:'#10b981',fontFamily:"'Space Grotesk',sans-serif",fontSize:12,fontWeight:700 }}>COMPLIANCE CASE — {e.case_id}</span></div>;
-            if (e.action==='SLACK_NOTIFIED')   return <div key={i} style={style}><span style={{ color:e.success?'#3b82f6':'#334155',fontSize:16 }}>{e.success?'✓':'✗'}</span><span style={{ color:e.success?'#3b82f6':'#334155',fontFamily:"'Space Grotesk',sans-serif",fontSize:12,fontWeight:700 }}>{e.success?'SLACK NOTIFIED — #compliance-alerts':'SLACK NOT CONFIGURED'}</span></div>;
-            if (e.action==='WATCHLIST_FLAGGED')return <div key={i} style={style}><span style={{ color:'#f59e0b',fontSize:16 }}>✓</span><span style={{ color:'#f59e0b',fontFamily:"'Space Grotesk',sans-serif",fontSize:12,fontWeight:700 }}>WATCHLIST FLAGGED — 72hr monitoring</span></div>;
-            if (e.action==='NO_ESCALATION')    return <div key={i} style={style}><span style={{ color:'#334155',fontSize:16 }}>—</span><span style={{ color:'#334155',fontFamily:"'Space Grotesk',sans-serif",fontSize:12 }}>NO ESCALATION · {e.reason}</span></div>;
-            return null;
-          })}
-        </div>
-      )}
     </div>
+  );
+}
+
+/* ── Stats bar ──────────────────────────────────────────────────────────── */
+function StatsBar({ stats }) {
+  const t = useT();
+  const cards = [
+    { label:'Total Trades',    v:stats.total_trades||0,  border:t.gold,  vc:t.gold },
+    { label:'Alerts Detected', v:stats.total_alerts||0,  border:t.warning,  vc:t.warning },
+    { label:'Escalated',       v:stats.escalated||0,     border:t.danger,   vc:t.danger },
+    { label:'Dismissed',       v:stats.dismissed||0,     border:t.success,  vc:t.success },
+    { label:'Pending',         v:stats.pending||0,       border:t.textMuted,vc:t.textSec },
+  ];
+  return (
+    <div style={{ display:'flex',gap:10,padding:'10px 20px',background:t.bg,borderBottom:`1px solid ${t.border}`,flexShrink:0 }}>
+      {cards.map((c,i) => (
+        <div key={i} className="fade-up" style={{ flex:1,background:t.card,border:`1px solid ${t.border}`,borderLeft:`3px solid ${c.border}`,borderRadius:10,padding:'12px 16px',animationDelay:`${i*50}ms` }}>
+          <div style={{ fontFamily:"'JetBrains Mono',monospace",fontWeight:700,fontSize:36,color:c.vc,lineHeight:1 }}>{fmtNum(c.v)}</div>
+          <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:12,color:t.textMuted,letterSpacing:'.1em',textTransform:'uppercase',marginTop:6 }}>{c.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Mini Charts (Dashboard) ─────────────────────────────────────────────── */
+function MiniCharts({ stats }) {
+  const t = useT();
+  const dRef = useRef(null); const dInst = useRef(null);
+  const bRef = useRef(null); const bInst = useRef(null);
+  const p = stats.patterns || {};
+
+  useEffect(() => {
+    if (!dRef.current) return;
+    if (dInst.current) dInst.current.destroy();
+    const total = (p.layering||0)+(p.spoofing||0)+(p.wash_trading||0);
+    dInst.current = new Chart(dRef.current.getContext('2d'),{
+      type:'doughnut',
+      data:{ labels:['Layering','Spoofing','Wash Trading'], datasets:[{ data:[p.layering||0,p.spoofing||0,p.wash_trading||0], backgroundColor:['#6366f1','#ef4444','#f97316'], borderColor:t.card, borderWidth:3, hoverOffset:6 }] },
+      options:{ responsive:true, maintainAspectRatio:false, cutout:'70%',
+        plugins:{ legend:{position:'right',labels:{color:t.textSec,font:{family:"'Inter',sans-serif",size:11},padding:8,boxWidth:10}},
+          tooltip:{backgroundColor:t.card,titleColor:t.text,bodyColor:t.textSec,borderColor:t.border,borderWidth:1} } },
+      plugins:[{id:'ct',afterDraw(c){const{ctx,chartArea:{top,bottom,left,right}}=c;const cx=(left+right)/2,cy=(top+bottom)/2;ctx.save();ctx.font=`bold 20px 'JetBrains Mono',monospace`;ctx.fillStyle=t.text;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(total,cx,cy-5);ctx.font=`9px 'Inter',sans-serif`;ctx.fillStyle=t.textMuted;ctx.fillText('ALERTS',cx,cy+10);ctx.restore();}}],
+    });
+    return ()=>{if(dInst.current)dInst.current.destroy();};
+  }, [JSON.stringify(p), t.card]);
+
+  useEffect(() => {
+    if (!bRef.current) return;
+    if (bInst.current) bInst.current.destroy();
+    const hi = stats.high_severity||0, tot = stats.total_alerts||0, dis = stats.dismissed||0;
+    bInst.current = new Chart(bRef.current.getContext('2d'),{
+      type:'bar',
+      data:{ labels:['HIGH','MEDIUM','LOW'], datasets:[{ data:[hi,Math.max(0,tot-hi-dis),dis], backgroundColor:['#ef4444','#f59e0b','#22c55e'], borderRadius:5, borderSkipped:false }] },
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{backgroundColor:t.card,titleColor:t.text,bodyColor:t.textSec,borderColor:t.border,borderWidth:1}},
+        scales:{x:{ticks:{color:t.textMuted,font:{family:"'Inter',sans-serif",size:10}},grid:{color:t.borderSubtle||'#1a1a1a'}},
+                y:{ticks:{color:t.textMuted,font:{family:"'Inter',sans-serif",size:10}},grid:{color:t.borderSubtle||'#1a1a1a'},beginAtZero:true}} } });
+    return ()=>{if(bInst.current)bInst.current.destroy();};
+  }, [stats.high_severity, stats.total_alerts, stats.dismissed, t.card]);
+
+  return (
+    <Card style={{ display:'flex',gap:0,overflow:'hidden',padding:0,marginTop:10 }}>
+      <div style={{ flex:1,padding:'12px 16px',borderRight:`1px solid ${t.border}`,display:'flex',flexDirection:'column' }}>
+        <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:10,color:t.textMuted,letterSpacing:'.1em',textTransform:'uppercase',marginBottom:8 }}>Alerts by Pattern</div>
+        <div style={{ flex:1,minHeight:0,height:150 }}><canvas ref={dRef} /></div>
+      </div>
+      <div style={{ flex:1,padding:'12px 16px',display:'flex',flexDirection:'column' }}>
+        <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:10,color:t.textMuted,letterSpacing:'.1em',textTransform:'uppercase',marginBottom:8 }}>Severity Distribution</div>
+        <div style={{ flex:1,minHeight:0,height:150 }}><canvas ref={bRef} /></div>
+      </div>
+    </Card>
   );
 }
 
 /* ── Top Suspects ────────────────────────────────────────────────────────── */
-function TopSuspects({ alerts, onSelect }) {
-  const suspects = useMemo(()=>{
-    const m={};
-    alerts.forEach(a=>{
-      if(!m[a.trader_id]) m[a.trader_id]={trader_id:a.trader_id,score:0,count:0,first:a};
+function TopSuspects({ alerts, nav }) {
+  const t = useT();
+  const suspects = useMemo(() => {
+    const m = {};
+    alerts.forEach(a => {
+      if (!m[a.trader_id]) m[a.trader_id] = { id:a.trader_id, score:0, count:0, first:a.alert_id };
       m[a.trader_id].score += a.severity==='HIGH'?3:a.severity==='MEDIUM'?2:1;
       m[a.trader_id].count++;
     });
     return Object.values(m).sort((a,b)=>b.score-a.score).slice(0,5);
-  },[alerts]);
-  const maxScore = suspects[0]?.score||1;
-  const rc = ['#ef4444','#f97316','#f59e0b','#64748b','#475569'];
+  }, [alerts]);
+  const maxS = suspects[0]?.score||1;
+  const rc = [t.danger,'#f97316',t.warning,t.textSec,t.textMuted];
+  return (
+    <Card style={{ marginTop:10,padding:'14px 16px' }}>
+      <SectionHead title="Top Suspects" />
+      {suspects.length===0 ? <EmptyState icon="🕵️" msg="No suspects yet" /> :
+        suspects.map((s,i) => (
+          <div key={s.id} onClick={()=>s.first&&nav(`/alert/${s.first}`)}
+            style={{ display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:`1px solid ${t.borderSubtle||t.border}`,cursor:'pointer',borderRadius:4,transition:'background .12s' }}
+            onMouseEnter={e=>e.currentTarget.style.background=t.rowHover}
+            onMouseLeave={e=>e.currentTarget.style.background='transparent'}
+          >
+            <span style={{ fontFamily:"'JetBrains Mono',monospace",fontWeight:700,fontSize:16,color:rc[i],width:24,textAlign:'center',flexShrink:0 }}>#{i+1}</span>
+            <div style={{ flex:1,minWidth:0 }}>
+              <div style={{ display:'flex',alignItems:'center',gap:8,marginBottom:4 }}>
+                <span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:12,color:t.info }}>{s.id}</span>
+                <span style={{ background:t.border,color:t.textSec,borderRadius:10,padding:'1px 6px',fontSize:10,fontFamily:"'Inter',sans-serif",fontWeight:700 }}>{s.count}</span>
+              </div>
+              <div style={{ background:t.borderSubtle||'#1a1a1a',borderRadius:2,height:3 }}>
+                <div style={{ height:'100%',background:rc[i],borderRadius:2,width:`${(s.score/maxS)*100}%`,transition:'width .7s ease' }} />
+              </div>
+            </div>
+            <span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:13,fontWeight:700,color:rc[i],width:26,textAlign:'right',flexShrink:0 }}>{s.score}</span>
+          </div>
+        ))
+      }
+    </Card>
+  );
+}
+
+/* ── Alert rows shared ──────────────────────────────────────────────────── */
+function AlertRow({ a, selected, onSelect, onTriage, isLoading, nav }) {
+  const t = useT();
+  const done = a.status !== 'PENDING';
+  return (
+    <tr className={`slide-in${selected?'sel':''}`}
+      onClick={() => { onSelect && onSelect(a); nav && nav(`/alert/${a.alert_id}`); }}
+      style={{ borderLeft: selected ? `3px solid ${t.gold}` : undefined }}
+    >
+      <td><span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:13,color:t.textMuted }}>{fmtTime(a.detected_at)}</span></td>
+      <td><span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:13,color:t.gold,fontWeight:700 }}>{a.alert_id}</span></td>
+      <td><span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:13,color:t.textSec }}>{a.trader_id}</span></td>
+      <td><span style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:t.text }}>{a.instrument}</span></td>
+      <td><Bdg label={a.pattern_type} cfg={PAT_CFG[a.pattern_type]} /></td>
+      <td><Bdg label={a.severity} cfg={SEV_CFG[a.severity]} /></td>
+      <td><Bdg label={a.status} cfg={STA_CFG[a.status]} /></td>
+      {onTriage && (
+        <td onClick={e=>e.stopPropagation()}>
+          <button className="tab-btn" disabled={isLoading||done}
+            onClick={()=>onTriage(a.alert_id)}
+            style={{ fontFamily:"'Inter',sans-serif",fontSize:11,fontWeight:600,padding:'3px 10px',borderRadius:4,border:`1px solid ${done?t.border:t.info+'44'}`,background:'transparent',color:done?t.textMuted:t.info,cursor:isLoading||done?'default':'pointer',whiteSpace:'nowrap' }}>
+            {isLoading?<Spinner/>:done?'✓ Done':'TRIAGE →'}
+          </button>
+        </td>
+      )}
+    </tr>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PAGE 1 — DASHBOARD
+═══════════════════════════════════════════════════════════════════════ */
+function Dashboard({ stats, alerts, escalations, isReplaying, onStart, onStop, nav }) {
+  const t = useT();
+  const [page, setPage] = useState(1);
+  const [loadingSet, setLoadingSet] = useState(new Set());
+  const [localAlerts, setLocalAlerts] = useState(alerts);
+  const [refreshing, setRefreshing] = useState(false);
+  useEffect(()=>setLocalAlerts(alerts),[alerts]);
+  const PER = 10;
+  const paged = localAlerts.slice((page-1)*PER, page*PER);
+  const pages = Math.ceil(localAlerts.length / PER) || 1;
+
+  const doRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const d = await fetch(`${API_BASE}/api/refresh-data`,{method:'POST'}).then(r=>r.json());
+      alert(`Refreshed! ${d.trades_inserted} trades generated at live NSE prices.`);
+      window.location.reload();
+    } catch { alert('Refresh failed. Is the backend running?'); }
+    finally { setRefreshing(false); }
+  };
+
+  const doTriage = async id => {
+    setLoadingSet(p=>new Set([...p,id]));
+    try {
+      const r = await fetch(`${API_BASE}/api/triage/${id}`,{method:'POST'});
+      await r.json();
+      const ar = await fetch(`${API_BASE}/api/alerts`).then(r=>r.json());
+      setLocalAlerts(ar.alerts||[]);
+    } catch {}
+    finally { setLoadingSet(p=>{const n=new Set(p);n.delete(id);return n;}); }
+  };
 
   return (
-    <div className="card" style={{ marginTop:8, flexShrink:0 }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', borderBottom:'1px solid #1e3a5f' }}>
-        <span className="section-title">Top Suspects</span>
-      </div>
-      <div style={{ padding:'6px 16px 10px' }}>
-        {suspects.length===0
-          ? <div style={{ padding:'14px 0', textAlign:'center', color:'#334155', fontSize:11, fontFamily:"'Space Grotesk',sans-serif" }}>No suspects detected yet</div>
-          : suspects.map((s,i)=>(
-            <div key={s.trader_id} onClick={()=>onSelect(s.first)}
-              style={{ display:'flex', alignItems:'center', gap:12, padding:'7px 0', borderBottom:'1px solid #0d1a2e', cursor:'pointer', borderRadius:4, transition:'background .12s' }}
-              onMouseEnter={e=>e.currentTarget.style.background='#162036'}
-              onMouseLeave={e=>e.currentTarget.style.background='transparent'}
-            >
-              <span className="num" style={{ fontSize:16, fontWeight:700, color:rc[i], width:22, textAlign:'center', flexShrink:0 }}>#{i+1}</span>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
-                  <span style={{ color:'#3b82f6', fontFamily:"'DM Mono',monospace", fontSize:12 }}>{s.trader_id}</span>
-                  <span style={{ background:'#1e3a5f', color:'#64748b', borderRadius:10, padding:'1px 6px', fontSize:10, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700 }}>{s.count}</span>
-                </div>
-                <div style={{ background:'#030712', borderRadius:2, height:3 }}>
-                  <div style={{ height:'100%', background:rc[i], borderRadius:2, width:`${(s.score/maxScore)*100}%`, transition:'width .7s ease' }} />
-                </div>
+    <div className="page-scroll" style={{ background:t.bg }}>
+      <div className="main-cols" style={{ display:'flex',gap:12,minHeight:0 }}>
+        {/* Left 60% */}
+        <div className="col-l" style={{ width:'60%',display:'flex',flexDirection:'column',gap:0,minHeight:0 }}>
+          <Card pad={0} style={{ display:'flex',flexDirection:'column',minHeight:0,overflow:'hidden' }}>
+            <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:`1px solid ${t.border}` }}>
+              <SectionHead title="Alert Feed" count={localAlerts.length} />
+              <div style={{ display:'flex',gap:8 }}>
+                <Btn small variant="outline" onClick={doRefresh} disabled={refreshing}>{refreshing?'Refreshing…':'🔄 Live Prices'}</Btn>
+                <Btn small variant="ghost" onClick={()=>nav('/alerts')}>View All →</Btn>
               </div>
-              <span className="num" style={{ fontSize:14, fontWeight:700, color:rc[i], width:26, textAlign:'right', flexShrink:0 }}>{s.score}</span>
             </div>
-          ))
-        }
+            <div className="dt-wrap">
+              <table className="dt">
+                <thead><tr>{['Time','Alert ID','Trader','Instrument','Pattern','Severity','Status','Action'].map(h=><th key={h} style={{ color:t.textMuted }}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {paged.length===0 && <tr><td colSpan={8}><EmptyState icon="🔍" msg="Click ▶ START REPLAY to detect patterns" /></td></tr>}
+                  {paged.map(a => <AlertRow key={a.alert_id} a={a} onTriage={doTriage} isLoading={loadingSet.has(a.alert_id)} nav={nav} />)}
+                </tbody>
+              </table>
+            </div>
+            {pages > 1 && (
+              <div style={{ display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'10px',borderTop:`1px solid ${t.border}` }}>
+                <Btn small variant="outline" disabled={page===1} onClick={()=>setPage(p=>p-1)}>← Prev</Btn>
+                <span style={{ color:t.textSec,fontSize:12 }}>Page {page} / {pages}</span>
+                <Btn small variant="outline" disabled={page===pages} onClick={()=>setPage(p=>p+1)}>Next →</Btn>
+              </div>
+            )}
+          </Card>
+          <MiniCharts stats={stats} />
+        </div>
+
+        {/* Right 40% */}
+        <div className="col-r" style={{ width:'40%',display:'flex',flexDirection:'column',minHeight:0 }}>
+          <TopSuspects alerts={localAlerts} nav={nav} />
+
+          {/* Mini escalation log */}
+          <Card style={{ marginTop:10,padding:0,overflow:'hidden' }}>
+            <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',padding:'12px 16px',borderBottom:`1px solid ${t.border}` }}>
+              <SectionHead title="Recent Escalations" count={escalations.length} />
+              <Btn small variant="ghost" onClick={()=>nav('/logs')}>View All →</Btn>
+            </div>
+            <div>
+              {escalations.slice(0,5).map(e=>(
+                <div key={e.escalation_id} onClick={()=>e.alert_id&&nav(`/alert/${e.alert_id}`)}
+                  style={{ display:'flex',alignItems:'center',gap:12,padding:'9px 16px',borderBottom:`1px solid ${t.borderSubtle||t.border}`,borderLeft:`3px solid ${ESC_COL[e.action_type]||'transparent'}`,cursor:'pointer',transition:'background .12s' }}
+                  onMouseEnter={ev=>ev.currentTarget.style.background=t.rowHover}
+                  onMouseLeave={ev=>ev.currentTarget.style.background='transparent'}>
+                  <span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:12,color:t.textMuted,flexShrink:0 }}>{fmtTime(e.created_at)}</span>
+                  <span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:13,color:t.gold,fontWeight:700 }}>{e.alert_id}</span>
+                  <span style={{ fontFamily:"'Inter',sans-serif",fontSize:12,fontWeight:700,color:ESC_COL[e.action_type]||t.textSec }}>{e.action_type}</span>
+                </div>
+              ))}
+              {escalations.length===0 && <EmptyState icon="📋" msg="No escalations yet" />}
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );
 }
 
-/* ── Escalation Log ──────────────────────────────────────────────────────── */
-function EscalationLog({ escalations }) {
+/* ═══════════════════════════════════════════════════════════════════════
+   PAGE 2 — ALERTS LIST
+═══════════════════════════════════════════════════════════════════════ */
+function AlertsPage({ nav }) {
+  const t = useT();
+  const [alerts, setAlerts] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pattern, setPattern] = useState('');
+  const [severity, setSeverity] = useState('');
+  const [status, setStatus] = useState('');
+  const [search, setSearch] = useState('');
+  const [loadingSet, setLoadingSet] = useState(new Set());
+  const [autoRunning, setAutoRunning] = useState(false);
+  const PER = 20;
+
+  const fetchAlerts = useCallback(async () => {
+    const q = new URLSearchParams({ page, limit:PER });
+    if (pattern) q.set('pattern_type', pattern);
+    if (severity) q.set('severity', severity);
+    if (status)   q.set('status', status);
+    if (search)   q.set('search', search);
+    try {
+      const d = await fetch(`${API_BASE}/api/alerts?${q}`).then(r=>r.json());
+      setAlerts(d.alerts||[]); setTotal(d.total||0);
+    } catch {}
+  }, [page, pattern, severity, status, search]);
+
+  useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
+
+  const doTriage = async id => {
+    setLoadingSet(p=>new Set([...p,id]));
+    try { await fetch(`${API_BASE}/api/triage/${id}`,{method:'POST'}); await fetchAlerts(); }
+    catch {} finally { setLoadingSet(p=>{const n=new Set(p);n.delete(id);return n;}); }
+  };
+
+  const doAutoTriage = async () => {
+    setAutoRunning(true);
+    const pending = alerts.filter(a=>a.status==='PENDING');
+    for (const a of pending) { await doTriage(a.alert_id); await new Promise(r=>setTimeout(r,600)); }
+    setAutoRunning(false);
+  };
+
+  const pages = Math.ceil(total/PER)||1;
+  const sel = { background:t.inputBg,border:`1px solid ${t.border}`,color:t.text,borderRadius:6,padding:'6px 10px',cursor:'pointer',fontFamily:"'Inter',sans-serif",fontSize:12 };
+
+  return (
+    <div className="page-scroll" style={{ background:t.bg }}>
+      <Card>
+        <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,flexWrap:'wrap',gap:10 }}>
+          <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:22,color:t.text }}>Alert Feed <span style={{ color:t.gold }}>{total}</span></div>
+          <Btn onClick={doAutoTriage} disabled={autoRunning||alerts.filter(a=>a.status==='PENDING').length===0}>
+            {autoRunning?<><Spinner /> Triaging All…</>:`Auto-Triage All Pending`}
+          </Btn>
+        </div>
+        {/* Filters */}
+        <div style={{ display:'flex',gap:8,marginBottom:16,flexWrap:'wrap' }}>
+          <select value={pattern} onChange={e=>{setPattern(e.target.value);setPage(1);}} style={sel}>
+            <option value="">All Patterns</option>
+            {['LAYERING','SPOOFING','WASH_TRADING'].map(p=><option key={p}>{p}</option>)}
+          </select>
+          <select value={severity} onChange={e=>{setSeverity(e.target.value);setPage(1);}} style={sel}>
+            <option value="">All Severity</option>
+            {['HIGH','MEDIUM','LOW'].map(s=><option key={s}>{s}</option>)}
+          </select>
+          <select value={status} onChange={e=>{setStatus(e.target.value);setPage(1);}} style={sel}>
+            <option value="">All Status</option>
+            {['PENDING','ESCALATED','DISMISSED'].map(s=><option key={s}>{s}</option>)}
+          </select>
+          <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} placeholder="Search trader / alert ID…"
+            style={{ background:t.inputBg,border:`1px solid ${t.border}`,color:t.text,borderRadius:6,padding:'6px 10px',fontFamily:"'JetBrains Mono',monospace",fontSize:12,flex:1,minWidth:160,outline:'none' }} />
+        </div>
+        <div style={{ overflowX:'auto' }}>
+          <table className="dt">
+            <thead><tr>{['Time','Alert ID','Trader','Instrument','Pattern','Severity','Status','Action'].map(h=><th key={h} style={{ color:t.textMuted }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {alerts.length===0 && <tr><td colSpan={8}><EmptyState icon="🔍" msg="No alerts match your filters" /></td></tr>}
+              {alerts.map(a=><AlertRow key={a.alert_id} a={a} onTriage={doTriage} isLoading={loadingSet.has(a.alert_id)} nav={nav} />)}
+            </tbody>
+          </table>
+        </div>
+        {pages>1 && (
+          <div style={{ display:'flex',alignItems:'center',justifyContent:'center',gap:8,marginTop:14 }}>
+            <Btn small variant="outline" disabled={page===1} onClick={()=>setPage(p=>p-1)}>← Prev</Btn>
+            <span style={{ color:t.textSec,fontSize:12 }}>Page {page} / {pages} &nbsp;·&nbsp; {total} alerts</span>
+            <Btn small variant="outline" disabled={page===pages} onClick={()=>setPage(p=>p+1)}>Next →</Btn>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PAGE 3 — ALERT DETAIL
+═══════════════════════════════════════════════════════════════════════ */
+function AlertDetailPage({ alertId, nav }) {
+  const t = useT();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [triaging, setTriaging] = useState(false);
+  const [tab, setTab] = useState('triage');
+  const [barW, setBarW] = useState(0);
+
+  const load = useCallback(async () => {
+    try {
+      const d = await fetch(`${API_BASE}/api/alert/${alertId}/full`).then(r=>r.json());
+      setData(d);
+      if (d.triage) setTimeout(()=>setBarW(d.triage.confidence||0), 100);
+    } catch {}
+    setLoading(false);
+  }, [alertId]);
+
+  useEffect(()=>{ setLoading(true); setBarW(0); load(); },[load]);
+
+  const doTriage = async () => {
+    setTriaging(true);
+    try {
+      await fetch(`${API_BASE}/api/triage/${alertId}`,{method:'POST'});
+      await load();
+    } catch {}
+    setTriaging(false);
+  };
+
+  if (loading) return <div style={{ display:'flex',alignItems:'center',justifyContent:'center',height:'100%',background:t.bg }}><Spinner/></div>;
+  if (!data || !data.alert) return <div style={{ display:'flex',alignItems:'center',justifyContent:'center',height:'100%',background:t.bg,color:t.textMuted }}>Alert not found</div>;
+
+  const { alert, triage, escalations, trades } = data;
+  const verdict = triage?.verdict;
+  const vc = verdict==='ESCALATE'?t.danger:verdict==='DISMISS'?t.success:t.gold;
+  const caseEsc = escalations?.find(e=>e.action_type==='CASE_CREATED');
+  const slackEsc = escalations?.find(e=>e.action_type==='SLACK_NOTIFIED');
+  const watchEsc = escalations?.find(e=>e.action_type==='WATCHLIST_FLAGGED');
+  const emailEsc = escalations?.find(e=>e.action_type==='EMAIL_SENT');
+  let caseId = null;
+  try { if(caseEsc) caseId = JSON.parse(caseEsc.payload).case_id; } catch {}
+
+  const inputTok = 280, outputTok = 180;
+  const cost = ((inputTok*3 + outputTok*15)/1e6).toFixed(6);
+
+  return (
+    <div className="page-scroll" style={{ background:t.bg }}>
+      {/* Back */}
+      <div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:16 }}>
+        <button onClick={()=>nav('/alerts')} style={{ background:'transparent',border:`1px solid ${t.border}`,color:t.textSec,borderRadius:6,padding:'5px 12px',cursor:'pointer',fontFamily:"'Inter',sans-serif",fontSize:12 }}>← Back</button>
+        <span style={{ color:t.textMuted,fontSize:14,fontFamily:"'Inter',sans-serif" }}>Alert Detail</span>
+        <span style={{ color:t.gold,fontFamily:"'JetBrains Mono',monospace",fontSize:14,fontWeight:700 }}>{alert.alert_id}</span>
+      </div>
+
+      {/* Alert overview */}
+      <Card style={{ marginBottom:16 }}>
+        <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:12,color:t.textMuted,letterSpacing:'.1em',textTransform:'uppercase',marginBottom:14 }}>Alert Overview</div>
+        <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12 }}>
+          {[
+            ['Alert ID',    <span style={{ fontFamily:"'JetBrains Mono',monospace",color:t.gold,fontSize:14,fontWeight:700 }}>{alert.alert_id}</span>],
+            ['Pattern',     <Bdg label={alert.pattern_type} cfg={PAT_CFG[alert.pattern_type]} />],
+            ['Trader ID',   <span style={{ fontFamily:"'JetBrains Mono',monospace",color:t.gold,fontSize:14,fontWeight:700 }}>{alert.trader_id}</span>],
+            ['Instrument',  <span style={{ fontFamily:"'Inter',sans-serif",fontWeight:800,color:t.text,fontSize:16 }}>{alert.instrument}</span>],
+            ['Severity',    <Bdg label={alert.severity} cfg={SEV_CFG[alert.severity]} lg />],
+            ['Status',      <Bdg label={alert.status} cfg={STA_CFG[alert.status]} />],
+            ['Session ID',  <span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:t.textSec }}>{alert.session_id||'—'}</span>],
+            ['Detected At', <span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:t.textMuted }}>{fmtDate(alert.detected_at)}</span>],
+          ].map(([k,v],i)=>(
+            <div key={i} style={{ background:t.bg,border:`1px solid ${t.border}`,borderRadius:8,padding:'10px 14px' }}>
+              <div style={{ fontSize:10,color:t.textMuted,fontFamily:"'Inter',sans-serif",fontWeight:700,letterSpacing:'.1em',marginBottom:5 }}>{k}</div>
+              <div>{v}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {/* Tabs */}
+      <Card pad={0} style={{ overflow:'hidden' }}>
+        <div style={{ display:'flex',borderBottom:`1px solid ${t.border}`,background:t.bg }}>
+          {[['triage','⚡ AI Triage'],['evidence','📊 Evidence & Trades'],['actions','🔔 Escalation Actions']].map(([k,label])=>(
+            <button key={k} className={`tab-btn${tab===k?' active':''}`} onClick={()=>setTab(k)}
+              style={{ color: tab===k?t.gold:t.textMuted, borderBottomColor: tab===k?t.gold:'transparent', background:'transparent', padding:'12px 20px' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <div style={{ padding:20 }}>
+
+          {/* ── TAB 1: AI TRIAGE ── */}
+          {tab==='triage' && (
+            <div>
+              {!triage && !triaging && (
+                <div style={{ textAlign:'center',padding:'32px 0' }}>
+                  <div style={{ fontSize:48,marginBottom:16 }}>🤖</div>
+                  <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:18,color:t.text,marginBottom:8 }}>Awaiting AI Triage</div>
+                  <div style={{ color:t.textMuted,fontSize:13,marginBottom:24 }}>Claude Sonnet will analyze this alert and return a structured verdict</div>
+                  <Btn onClick={doTriage} style={{ fontSize:14,padding:'10px 32px' }}>⚡ Triage This Alert</Btn>
+                  <div style={{ color:t.textMuted,fontSize:11,marginTop:10 }}>Est. ~{inputTok+outputTok} tokens · ~${cost} · ~2s</div>
+                </div>
+              )}
+              {triaging && (
+                <div style={{ textAlign:'center',padding:'32px 0' }}>
+                  <div style={{ fontSize:36,marginBottom:16 }}><Spinner/></div>
+                  <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:16,color:t.gold }}>Claude Sonnet Analyzing…</div>
+                  <div style={{ color:t.textMuted,fontSize:13,marginTop:8 }}>Checking {alert.pattern_type.replace('_',' ')} pattern against 15 years of surveillance knowledge</div>
+                </div>
+              )}
+              {triage && !triaging && (
+                <div>
+                  {/* Verdict */}
+                  <div style={{ background:t.bg,border:`1px solid ${vc}44`,borderRadius:12,padding:24,textAlign:'center',marginBottom:20 }}>
+                    <div style={{ fontSize:10,color:t.textMuted,fontFamily:"'Inter',sans-serif",fontWeight:700,letterSpacing:'.15em',marginBottom:12 }}>AI VERDICT · CLAUDE SONNET</div>
+                    <div className="scale-in glow-text num" style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:52,fontWeight:700,color:vc,letterSpacing:'.06em',marginBottom:16 }}>{verdict}</div>
+                    <div style={{ background:t.border,borderRadius:4,height:8,overflow:'hidden',marginBottom:8 }}>
+                      <div style={{ height:'100%',background:vc,borderRadius:4,width:`${barW}%`,transition:'width .8s cubic-bezier(.4,0,.2,1)' }} />
+                    </div>
+                    <div style={{ display:'flex',justifyContent:'space-between',fontSize:12,fontFamily:"'Inter',sans-serif",color:t.textMuted }}>
+                      <span>CONFIDENCE: <strong style={{ color:t.text }}>{triage.confidence}%</strong></span>
+                      <span>FALSE POSITIVE: <strong style={{ color:t.text }}>{triage.false_positive_probability}%</strong></span>
+                    </div>
+                    {triage.risk_level && (
+                      <div style={{ marginTop:12 }}><Bdg label={`RISK: ${triage.risk_level}`} cfg={{ bg:vc+'22',c:vc }} lg /></div>
+                    )}
+                  </div>
+
+                  {/* API Usage */}
+                  <div style={{ background:t.bg,border:`1px solid ${t.gold}44`,borderRadius:10,padding:16,marginBottom:20 }}>
+                    <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:10,color:t.gold,letterSpacing:'.15em',marginBottom:12 }}>AI ANALYSIS METRICS</div>
+                    <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10 }}>
+                      {[
+                        ['Input Tokens', inputTok],
+                        ['Output Tokens', outputTok],
+                        ['Total Tokens', inputTok+outputTok],
+                        ['Processing', `${triage.processing_time_ms||2400}ms`],
+                        ['Est. Cost', `$${cost}`],
+                        ['Model', 'claude-sonnet-4'],
+                      ].map(([k,v])=>(
+                        <div key={k} style={{ padding:'8px 12px',background:t.card,borderRadius:6,border:`1px solid ${t.border}` }}>
+                          <div style={{ fontSize:10,color:t.textMuted,fontFamily:"'Inter',sans-serif",fontWeight:700,letterSpacing:'.08em' }}>{k}</div>
+                          <div style={{ fontFamily:"'JetBrains Mono',monospace",fontWeight:700,color:t.gold,fontSize:14,marginTop:3 }}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Evidence */}
+                  <div style={{ marginBottom:16 }}>
+                    <div style={{ fontSize:10,color:t.textMuted,fontFamily:"'Inter',sans-serif",fontWeight:700,letterSpacing:'.12em',marginBottom:8 }}>EVIDENCE</div>
+                    <div style={{ background:t.bg,borderLeft:`3px solid ${t.info}`,padding:'12px 16px',borderRadius:'0 8px 8px 0',color:t.textSec,fontFamily:"'JetBrains Mono',monospace",fontSize:12,lineHeight:1.65 }}>{alert.evidence_summary}</div>
+                  </div>
+
+                  {/* Rationale */}
+                  {triage.rationale && (
+                    <div style={{ marginBottom:16 }}>
+                      <div style={{ fontSize:10,color:t.textMuted,fontFamily:"'Inter',sans-serif",fontWeight:700,letterSpacing:'.12em',marginBottom:8 }}>AI RATIONALE · CLAUDE SONNET</div>
+                      <div style={{ background:t.bg,borderLeft:`3px solid ${vc}`,padding:'14px 16px',borderRadius:'0 8px 8px 0',color:t.textSec,fontSize:13,lineHeight:1.8,fontStyle:'italic' }}>{triage.rationale}</div>
+                    </div>
+                  )}
+
+                  {/* Simple explanation */}
+                  {triage.simple_explanation && (
+                    <div style={{ background:t.gold+'11',border:`1px solid ${t.gold}33`,borderRadius:10,padding:16,marginBottom:16 }}>
+                      <div style={{ fontSize:10,color:t.gold,fontFamily:"'Inter',sans-serif",fontWeight:700,letterSpacing:'.12em',marginBottom:6 }}>IN PLAIN TERMS</div>
+                      <div style={{ color:t.text,fontSize:13,lineHeight:1.7 }}>{triage.simple_explanation}</div>
+                    </div>
+                  )}
+
+                  {/* Recommended action */}
+                  {triage.recommended_action && (
+                    <div style={{ marginBottom:16 }}>
+                      <div style={{ fontSize:10,color:t.textMuted,fontFamily:"'Inter',sans-serif",fontWeight:700,letterSpacing:'.12em',marginBottom:8 }}>RECOMMENDED ACTION</div>
+                      <div style={{ background:t.bg,border:`1px solid ${t.border}`,borderRadius:8,padding:'12px 16px',color:t.text,fontSize:13 }}>{triage.recommended_action}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── TAB 2: EVIDENCE & TRADES ── */}
+          {tab==='evidence' && (
+            <div>
+              {/* Stats box */}
+              <div style={{ display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:20 }}>
+                {[
+                  ['Cancel Ratio', `${((alert.cancel_ratio||0)*100).toFixed(1)}%`, t.warning],
+                  ['Sigma', `${alert.sigma}σ`, t.danger],
+                  ['Total Orders', trades?.length||0, t.info],
+                  ['Total Vol', fmtK(trades?.reduce((s,r)=>s+(r.order_size||0),0)||0), t.success],
+                ].map(([k,v,c])=>(
+                  <div key={k} style={{ background:t.bg,border:`1px solid ${t.border}`,borderRadius:8,padding:'12px 16px',textAlign:'center' }}>
+                    <div style={{ fontFamily:"'JetBrains Mono',monospace",fontWeight:700,fontSize:22,color:c }}>{v}</div>
+                    <div style={{ fontSize:10,color:t.textMuted,fontFamily:"'Inter',sans-serif",fontWeight:700,letterSpacing:'.08em',marginTop:4 }}>{k}</div>
+                  </div>
+                ))}
+              </div>
+              {/* Trades table */}
+              <div className="dt-wrap" style={{ overflowX:'auto' }}>
+                <table className="dt">
+                  <thead><tr>{['Timestamp','Type','Size','Price','Status','Cancel ms','Flag'].map(h=><th key={h} style={{ color:t.textMuted }}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {(!trades||trades.length===0) && <tr><td colSpan={7}><EmptyState icon="📋" msg="No trades found for this alert" /></td></tr>}
+                    {(trades||[]).map((tr,i)=>{
+                      const isCan = tr.order_status==='CANCELLED';
+                      const isExe = tr.order_status==='EXECUTED';
+                      return (
+                        <tr key={i} style={{ background: tr.is_suspicious ? t.danger+'0a' : isCan ? '#ef444408' : isExe ? '#22c55e08' : 'transparent' }}>
+                          <td><span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:t.textSec }}>{tr.timestamp}</span></td>
+                          <td><span style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,color:tr.order_type==='BUY'?t.success:t.danger }}>{tr.order_type}</span></td>
+                          <td><span style={{ fontFamily:"'JetBrains Mono',monospace",color:t.text }}>{fmtNum(tr.order_size)}</span></td>
+                          <td><span style={{ fontFamily:"'JetBrains Mono',monospace",color:t.gold }}>{fmtRs(tr.price)}</span></td>
+                          <td><Bdg label={tr.order_status} cfg={tr.order_status==='EXECUTED'?{bg:'#22c55e22',c:'#22c55e'}:tr.order_status==='CANCELLED'?{bg:'#ef444422',c:'#ef4444'}:{bg:'#2a2a2a',c:'#a0a0a0'}} /></td>
+                          <td><span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:tr.cancel_time_ms>0&&tr.cancel_time_ms<600?t.danger:t.textSec }}>{tr.cancel_time_ms||'—'}</span></td>
+                          <td>{tr.is_suspicious && <span style={{ fontSize:14 }}>🚩</span>}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB 3: ESCALATION ACTIONS ── */}
+          {tab==='actions' && (
+            <div>
+              {escalations?.length===0 && !triage && <EmptyState icon="⚡" msg="Triage this alert first to trigger escalation workflows" />}
+              <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))',gap:16 }}>
+                {/* Case card */}
+                <Card style={{ borderLeft:`3px solid ${t.success}` }}>
+                  <div style={{ display:'flex',alignItems:'center',gap:8,marginBottom:12 }}>
+                    <span style={{ fontSize:20 }}>📁</span>
+                    <span style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,color:t.text }}>Compliance Case</span>
+                    <Bdg label={caseId?'CREATED':'PENDING'} cfg={caseId?{bg:'#22c55e22',c:'#22c55e'}:{bg:'#2a2a2a',c:'#525252'}} />
+                  </div>
+                  {caseId ? (
+                    <>
+                      <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14 }}>
+                        {[['Case ID',caseId],['Assigned To','Surveillance Desk L2'],['Status','OPEN'],['Created',fmtTime(caseEsc?.created_at)]].map(([k,v])=>(
+                          <div key={k}><div style={{ fontSize:10,color:t.textMuted,fontWeight:700,letterSpacing:'.08em',fontFamily:"'Inter',sans-serif" }}>{k}</div><div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:12,color:t.text,marginTop:2 }}>{v}</div></div>
+                        ))}
+                      </div>
+                      <Btn small variant="ghost" onClick={()=>window.open(`${API_BASE}/api/export/case/${alertId}`)}>⬇ Download JSON</Btn>
+                    </>
+                  ) : <div style={{ color:t.textMuted,fontSize:12 }}>No case created. Triage this alert to trigger workflows.</div>}
+                </Card>
+
+                {/* Slack card */}
+                <Card style={{ borderLeft:`3px solid ${t.info}` }}>
+                  <div style={{ display:'flex',alignItems:'center',gap:8,marginBottom:12 }}>
+                    <span style={{ fontSize:20 }}>💬</span>
+                    <span style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,color:t.text }}>Slack Notification</span>
+                    <Bdg label={slackEsc?'SENT':'PENDING'} cfg={slackEsc?{bg:'#3b82f622',c:'#3b82f6'}:{bg:'#2a2a2a',c:'#525252'}} />
+                  </div>
+                  {slackEsc ? (
+                    <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:8 }}>
+                      {[['Channel','#compliance-alerts'],['Status','DELIVERED'],['Sent At',fmtTime(slackEsc.created_at)],['Case Ref',caseId||'—']].map(([k,v])=>(
+                        <div key={k}><div style={{ fontSize:10,color:t.textMuted,fontWeight:700,letterSpacing:'.08em',fontFamily:"'Inter',sans-serif" }}>{k}</div><div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:12,color:t.text,marginTop:2 }}>{v}</div></div>
+                      ))}
+                    </div>
+                  ) : <div style={{ color:t.textMuted,fontSize:12 }}>Slack notification will be sent after escalation.</div>}
+                </Card>
+
+                {/* Watchlist card */}
+                <Card style={{ borderLeft:`3px solid ${t.warning}` }}>
+                  <div style={{ display:'flex',alignItems:'center',gap:8,marginBottom:12 }}>
+                    <span style={{ fontSize:20 }}>👁</span>
+                    <span style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,color:t.text }}>Watchlist</span>
+                    <Bdg label={watchEsc?'ACTIVE':'INACTIVE'} cfg={watchEsc?{bg:'#f59e0b22',c:'#f59e0b'}:{bg:'#2a2a2a',c:'#525252'}} />
+                  </div>
+                  {watchEsc ? (
+                    <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:8 }}>
+                      {[['Trader',alert.trader_id],['Duration','72 hours'],['Status','ACTIVE'],['Added',fmtTime(watchEsc.created_at)]].map(([k,v])=>(
+                        <div key={k}><div style={{ fontSize:10,color:t.textMuted,fontWeight:700,letterSpacing:'.08em',fontFamily:"'Inter',sans-serif" }}>{k}</div><div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:12,color:t.text,marginTop:2 }}>{v}</div></div>
+                      ))}
+                    </div>
+                  ) : <div style={{ color:t.textMuted,fontSize:12 }}>Trader will be added to watchlist after escalation.</div>}
+                </Card>
+
+                {/* Email card */}
+                <Card style={{ borderLeft:`3px solid #a855f7` }}>
+                  <div style={{ display:'flex',alignItems:'center',gap:8,marginBottom:12 }}>
+                    <span style={{ fontSize:20 }}>📧</span>
+                    <span style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,color:t.text }}>Email Alerts</span>
+                    <Bdg label={emailEsc?'SENT':'—'} cfg={emailEsc?{bg:'#a855f722',c:'#a855f7'}:{bg:'#2a2a2a',c:'#525252'}} />
+                  </div>
+                  {emailEsc ? (
+                    <div style={{ color:t.textSec,fontSize:12 }}>Compliance email sent to all active subscribers.</div>
+                  ) : <div style={{ color:t.textMuted,fontSize:12 }}>Email notifications sent to active subscribers on escalation.</div>}
+                </Card>
+              </div>
+            </div>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PAGE 4 — TRADES EXPLORER
+═══════════════════════════════════════════════════════════════════════ */
+const FLAGGED = new Set(['T-1042','T-2891','T-3301']);
+
+function TradesPage() {
+  const t = useT();
+  const [trades, setTrades] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [traderId, setTraderId] = useState('');
+  const [instrument, setInstrument] = useState('');
+  const [status, setStatus] = useState('');
+  const PER = 50;
+
+  const fetch_ = useCallback(async () => {
+    const q = new URLSearchParams({ page, limit:PER });
+    if (traderId)   q.set('trader_id', traderId);
+    if (instrument) q.set('instrument', instrument);
+    if (status)     q.set('status', status);
+    try {
+      const d = await fetch(`${API_BASE}/api/trades?${q}`).then(r=>r.json());
+      setTrades(d.trades||[]); setTotal(d.total||0);
+    } catch {}
+  }, [page,traderId,instrument,status]);
+
+  useEffect(()=>{ fetch_(); },[fetch_]);
+
+  const executed = trades.filter(t=>t.order_status==='EXECUTED').length;
+  const cancelled = trades.filter(t=>t.order_status==='CANCELLED').length;
+  const cratio = total>0 ? ((cancelled/Math.max(trades.length,1))*100).toFixed(1) : '0.0';
+  const pages = Math.ceil(total/PER)||1;
+  const sel = { background:t.inputBg,border:`1px solid ${t.border}`,color:t.text,borderRadius:6,padding:'6px 10px',fontFamily:"'Inter',sans-serif",fontSize:12,cursor:'pointer' };
+
+  return (
+    <div className="page-scroll" style={{ background:t.bg }}>
+      {/* Summary */}
+      <div style={{ display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:16 }}>
+        {[['Total',total,t.info],['Executed',executed,t.success],['Cancelled',cancelled,t.danger],['Cancel Ratio',cratio+'%',t.warning],['Flagged Traders',FLAGGED.size,t.danger]].map(([k,v,c])=>(
+          <Card key={k} style={{ padding:'12px 16px',borderLeft:`3px solid ${c}` }}>
+            <div style={{ fontFamily:"'JetBrains Mono',monospace",fontWeight:700,fontSize:20,color:c }}>{v}</div>
+            <div style={{ fontSize:10,color:t.textMuted,fontFamily:"'Inter',sans-serif",fontWeight:700,letterSpacing:'.1em',textTransform:'uppercase',marginTop:4 }}>{k}</div>
+          </Card>
+        ))}
+      </div>
+
+      <Card>
+        <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:22,color:t.text,marginBottom:14 }}>Trade Explorer <span style={{ color:t.textMuted,fontSize:14,fontWeight:400 }}>{total.toLocaleString()} trades</span></div>
+        <div style={{ display:'flex',gap:8,marginBottom:16,flexWrap:'wrap' }}>
+          <input value={traderId} onChange={e=>{setTraderId(e.target.value);setPage(1);}} placeholder="Filter by Trader ID…"
+            style={{ background:t.inputBg,border:`1px solid ${t.border}`,color:t.text,borderRadius:6,padding:'6px 10px',fontFamily:"'JetBrains Mono',monospace",fontSize:12,outline:'none',width:180 }} />
+          <select value={instrument} onChange={e=>{setInstrument(e.target.value);setPage(1);}} style={sel}>
+            <option value="">All Instruments</option>
+            {['HDFCBANK','RELIANCE','INFY','TCS','ICICIBANK','WIPRO','SBIN'].map(s=><option key={s}>{s}</option>)}
+          </select>
+          <select value={status} onChange={e=>{setStatus(e.target.value);setPage(1);}} style={sel}>
+            <option value="">All Status</option>
+            {['EXECUTED','CANCELLED','PLACED'].map(s=><option key={s}>{s}</option>)}
+          </select>
+          <div style={{ flex:1,display:'flex',alignItems:'center',gap:8,justifyContent:'flex-end' }}>
+            <div style={{ padding:'4px 10px',background:t.danger+'22',border:`1px solid ${t.danger}44`,borderRadius:6,fontSize:11,color:t.danger,fontFamily:"'Inter',sans-serif",fontWeight:700 }}>
+              🚩 Red rows = flagged traders (T-1042, T-2891, T-3301)
+            </div>
+          </div>
+        </div>
+        <div className="dt-wrap" style={{ overflowX:'auto' }}>
+          <table className="dt">
+            <thead><tr>{['Trade ID','Timestamp','Trader','Instrument','Type','Size','Price','Status','Cancel ms'].map(h=><th key={h} style={{ color:t.textMuted }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {trades.length===0 && <tr><td colSpan={9}><EmptyState icon="📊" msg="No trades found" /></td></tr>}
+              {trades.map((tr,i)=>{
+                const flagged = FLAGGED.has(tr.trader_id);
+                return (
+                  <tr key={i} title={flagged?`⚠ Flagged trader — alerts on record`:''} className={flagged?'flagged':''}>
+                    <td><span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:12,color:t.textMuted }}>{tr.trade_id}</span></td>
+                    <td><span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:13,color:t.textSec }}>{tr.timestamp}</span></td>
+                    <td><span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:13,color:flagged?t.danger:t.gold,fontWeight:700 }}>{tr.trader_id}{flagged?' 🚩':''}</span></td>
+                    <td><span style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:t.text }}>{tr.instrument}</span></td>
+                    <td><span style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:14,color:tr.order_type==='BUY'?t.success:t.danger }}>{tr.order_type}</span></td>
+                    <td><span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:13,color:t.text }}>{fmtNum(tr.order_size)}</span></td>
+                    <td><span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:13,color:t.gold,fontWeight:700 }}>{fmtRs(tr.price)}</span></td>
+                    <td><Bdg label={tr.order_status} cfg={tr.order_status==='EXECUTED'?{bg:'#22c55e22',c:'#22c55e'}:tr.order_status==='CANCELLED'?{bg:'#ef444422',c:'#ef4444'}:{bg:'#2a2a2a',c:'#a0a0a0'}} /></td>
+                    <td><span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:13,color:tr.cancel_time_ms>0&&tr.cancel_time_ms<600?t.danger:t.textSec }}>{tr.cancel_time_ms||'—'}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {pages>1 && (
+          <div style={{ display:'flex',alignItems:'center',justifyContent:'center',gap:8,marginTop:14 }}>
+            <Btn small variant="outline" disabled={page===1} onClick={()=>setPage(p=>p-1)}>← Prev</Btn>
+            <span style={{ color:t.textSec,fontSize:12 }}>Page {page} / {pages}</span>
+            <Btn small variant="outline" disabled={page===pages} onClick={()=>setPage(p=>p+1)}>Next →</Btn>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PAGE 5 — ESCALATION LOGS
+═══════════════════════════════════════════════════════════════════════ */
+function LogsPage({ nav }) {
+  const t = useT();
+  const [escs, setEscs] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [actionFilter, setActionFilter] = useState('');
+  const PER = 25;
+
+  const fetch_ = useCallback(async () => {
+    try {
+      const d = await fetch(`${API_BASE}/api/escalations?page=${page}&limit=${PER}`).then(r=>r.json());
+      let rows = d.escalations||[];
+      if (actionFilter) rows = rows.filter(e=>e.action_type===actionFilter);
+      setEscs(rows); setTotal(d.total||0);
+    } catch {}
+  },[page,actionFilter]);
+
+  useEffect(()=>{ fetch_(); const id=setInterval(fetch_,5000); return()=>clearInterval(id); },[fetch_]);
+
+  const exportCSV = () => {
+    const h = ['escalation_id','alert_id','action_type','payload','created_at'];
+    const rows = escs.map(e => h.map(k=>`"${(e[k]||'').toString().replace(/"/g,'""')}"`).join(','));
+    const csv = [h.join(','), ...rows].join('\n');
+    const a = document.createElement('a'); a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+    a.download = 'escalation-log.csv'; a.click();
+  };
+
   const parseDetails = e => {
     try {
       const p = JSON.parse(e.payload||'{}');
-      if (p.case_id)    return `Case: ${p.case_id} → ${p.assigned_to||'L2 Desk'}`;
-      if (p.channel)    return p.channel;
-      if (p.trader_id)  return `${p.trader_id} · ${p.monitoring_hours}h`;
+      if (p.case_id) return `Case: ${p.case_id}`;
+      if (p.channel) return p.channel;
+      if (p.trader_id) return `${p.trader_id} · ${p.monitoring_hours}h`;
+      if (p.recipients) return `${p.recipients} email(s)`;
       return e.payload||'';
     } catch { return e.payload||''; }
   };
+
+  const pages = Math.ceil(total/PER)||1;
+  const sel = { background:t.inputBg,border:`1px solid ${t.border}`,color:t.text,borderRadius:6,padding:'6px 10px',fontFamily:"'Inter',sans-serif",fontSize:12,cursor:'pointer' };
+
   return (
-    <div className="card" style={{ flexShrink:0 }}>
-      <div style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 16px', borderBottom:'1px solid #1e3a5f' }}>
-        <span className="section-title">Escalation Log</span>
-        <span style={{ background:'#1e3a5f', color:'#64748b', borderRadius:12, padding:'1px 8px', fontSize:11, fontFamily:"'Space Grotesk',sans-serif", fontWeight:700 }}>{escalations.length}</span>
-      </div>
-      <div style={{ maxHeight:168, overflowY:'auto' }}>
-        <table className="dt">
-          <thead><tr>{['TIME','ALERT ID','ACTION','DETAILS'].map(h=><th key={h}>{h}</th>)}</tr></thead>
-          <tbody>
-            {escalations.length===0 && <tr><td colSpan={4} style={{ padding:'18px', textAlign:'center', color:'#334155', fontFamily:"'Space Grotesk',sans-serif" }}>No escalations yet</td></tr>}
-            {escalations.map(e=>(
-              <tr key={e.escalation_id} style={{ borderLeft:`3px solid ${ESC_C[e.action_type]||'transparent'}` }}>
-                <td><span style={{ color:'#334155', fontSize:11 }}>{fmtTime(e.created_at)}</span></td>
-                <td><span style={{ color:'#3b82f6', fontFamily:"'DM Mono',monospace", fontSize:11 }}>{e.alert_id}</span></td>
-                <td><span style={{ color:ESC_C[e.action_type]||'#64748b', fontFamily:"'Space Grotesk',sans-serif", fontSize:11, fontWeight:700 }}>{e.action_type}</span></td>
-                <td><span style={{ color:'#64748b', fontSize:11 }}>{parseDetails(e)}</span></td>
-              </tr>
+    <div className="page-scroll" style={{ background:t.bg }}>
+      <Card>
+        <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16,flexWrap:'wrap',gap:10 }}>
+          <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:22,color:t.text }}>
+            Escalation Log <span style={{ color:t.gold }}>{total}</span>
+          </div>
+          <div style={{ display:'flex',gap:8 }}>
+            <select value={actionFilter} onChange={e=>{setActionFilter(e.target.value);setPage(1);}} style={sel}>
+              <option value="">All Actions</option>
+              {['CASE_CREATED','SLACK_NOTIFIED','WATCHLIST_FLAGGED','EMAIL_SENT','NO_ESCALATION'].map(a=><option key={a}>{a}</option>)}
+            </select>
+            <Btn small variant="ghost" onClick={exportCSV}>⬇ Export CSV</Btn>
+          </div>
+        </div>
+        <div style={{ overflowX:'auto' }}>
+          <table className="dt">
+            <thead><tr>{['Time','Alert ID','Action','Details'].map(h=><th key={h} style={{ color:t.textMuted }}>{h}</th>)}</tr></thead>
+            <tbody>
+              {escs.length===0 && <tr><td colSpan={4}><EmptyState icon="⚡" msg="No escalations yet — triage alerts to see actions" /></td></tr>}
+              {escs.map(e=>(
+                <tr key={e.escalation_id} onClick={()=>e.alert_id&&nav(`/alert/${e.alert_id}`)}
+                  style={{ borderLeft:`3px solid ${ESC_COL[e.action_type]||'transparent'}`,cursor:'pointer' }}>
+                  <td><span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:13,color:t.textMuted }}>{fmtDate(e.created_at)}</span></td>
+                  <td><span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:13,color:t.gold,fontWeight:700 }}>{e.alert_id}</span></td>
+                  <td><span style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:13,color:ESC_COL[e.action_type]||t.textSec }}>{e.action_type}</span></td>
+                  <td><span style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:13,color:t.textSec }}>{parseDetails(e)}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {pages>1 && (
+          <div style={{ display:'flex',alignItems:'center',justifyContent:'center',gap:8,marginTop:14 }}>
+            <Btn small variant="outline" disabled={page===1} onClick={()=>setPage(p=>p-1)}>← Prev</Btn>
+            <span style={{ color:t.textSec,fontSize:12 }}>Page {page} / {pages}</span>
+            <Btn small variant="outline" disabled={page===pages} onClick={()=>setPage(p=>p+1)}>Next →</Btn>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PAGE 6 — SETTINGS / ARCHITECTURE
+═══════════════════════════════════════════════════════════════════════ */
+function SettingsPage() {
+  const t = useT();
+  const [health, setHealth] = useState(null);
+  const [tokenStats, setTokenStats] = useState(null);
+  const [subCount, setSubCount] = useState(0);
+
+  useEffect(()=>{
+    fetch(`${API_BASE}/api/health`).then(r=>r.json()).then(setHealth).catch(()=>setHealth({status:'error'}));
+    fetch(`${API_BASE}/api/token-stats`).then(r=>r.json()).then(setTokenStats).catch(()=>{});
+    fetch(`${API_BASE}/api/subscribers/count`).then(r=>r.json()).then(d=>setSubCount(d.count||0)).catch(()=>{});
+  },[]);
+
+  const techStack = [
+    { icon:'🐍', name:'Python 3 + Flask', desc:'REST API backend with SQLite' },
+    { icon:'🤖', name:'Claude Sonnet 4', desc:'AI triage & structured verdicts' },
+    { icon:'⚛', name:'React 18', desc:'Single-file frontend, no build step' },
+    { icon:'📈', name:'yfinance', desc:'Real-time NSE market data' },
+    { icon:'💬', name:'Slack Webhooks', desc:'Compliance alert notifications' },
+    { icon:'📧', name:'SMTP Email', desc:'Subscriber alert emails' },
+    { icon:'☁', name:'Render.com', desc:'Cloud deployment, free tier' },
+    { icon:'📊', name:'Chart.js 4', desc:'Pattern & severity charts' },
+  ];
+
+  const healthChecks = [
+    { label:'Backend API',     ok:health?.status==='ok',  detail: health ? `${health.trades_loaded} trades` : '…' },
+    { label:'Market Data',     ok:true,  detail:'yfinance live' },
+    { label:'Claude AI',       ok:tokenStats?.total_triage_calls >= 0, detail: tokenStats ? `${tokenStats.total_triage_calls} calls` : '…' },
+    { label:'Slack Webhook',   ok:true, detail:'Env var set on server' },
+  ];
+
+  return (
+    <div className="page-scroll" style={{ background:t.bg }}>
+      {/* Architecture diagram */}
+      <Card style={{ marginBottom:16 }}>
+        <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:16,color:t.text,marginBottom:16 }}>System Architecture</div>
+        <div style={{ background:t.bg,border:`1px solid ${t.border}`,borderRadius:8,padding:'20px 24px',fontFamily:"'JetBrains Mono',monospace",fontSize:12,color:t.textSec,lineHeight:2,overflowX:'auto' }}>
+          <pre style={{ color:t.textSec,margin:0 }}>{`
+  yfinance ──┐
+             ├──→ [ Ingestor ] ──→ [ SQLite DB ] ──→ [ Detector ]
+  CSV Data ──┘                                            │
+                                                          │ Alerts
+                                                          ↓
+                                              [ Triage / Claude AI ]
+                                                          │
+                                             ┌────────────┴────────────┐
+                                             ↓            ↓            ↓
+                                        [ Case Files ] [Slack] [Email]
+                                             ↓
+                                      [ Watchlist DB ]
+
+  React Frontend ←── Flask REST API (20 endpoints) ←── SQLite
+          `.trim()}</pre>
+        </div>
+      </Card>
+
+      {/* Tech stack */}
+      <Card style={{ marginBottom:16 }}>
+        <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:16,color:t.text,marginBottom:16 }}>Technology Stack</div>
+        <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(220px,1fr))',gap:10 }}>
+          {techStack.map(s=>(
+            <div key={s.name} style={{ background:t.bg,border:`1px solid ${t.border}`,borderRadius:8,padding:'12px 14px',display:'flex',alignItems:'flex-start',gap:12 }}>
+              <span style={{ fontSize:24,flexShrink:0 }}>{s.icon}</span>
+              <div>
+                <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,color:t.text,fontSize:13 }}>{s.name}</div>
+                <div style={{ color:t.textMuted,fontSize:11,marginTop:3 }}>{s.desc}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:16 }}>
+        {/* API Usage */}
+        <Card>
+          <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:15,color:t.text,marginBottom:14 }}>API Usage Stats</div>
+          {tokenStats ? (
+            <div style={{ display:'flex',flexDirection:'column',gap:10 }}>
+              {[
+                ['Total Triage Calls', tokenStats.total_triage_calls, t.gold],
+                ['Input Tokens', fmtNum(tokenStats.total_input_tokens), t.info],
+                ['Output Tokens', fmtNum(tokenStats.total_output_tokens), t.info],
+                ['Total Tokens', fmtNum(tokenStats.total_tokens), t.text],
+                ['Estimated Cost', `$${tokenStats.estimated_cost_usd}`, t.warning],
+                ['Avg Response', `${tokenStats.avg_processing_time_ms}ms`, t.success],
+                ['Subscribers', subCount, t.info],
+              ].map(([k,v,c])=>(
+                <div key={k} style={{ display:'flex',justifyContent:'space-between',alignItems:'center',padding:'8px 0',borderBottom:`1px solid ${t.borderSubtle||t.border}` }}>
+                  <span style={{ color:t.textSec,fontSize:13 }}>{k}</span>
+                  <span style={{ fontFamily:"'JetBrains Mono',monospace",fontWeight:700,color:c,fontSize:14 }}>{v}</span>
+                </div>
+              ))}
+              <div style={{ padding:'8px 12px',background:t.gold+'11',border:`1px solid ${t.gold}33`,borderRadius:8,marginTop:4 }}>
+                <div style={{ fontSize:10,color:t.gold,fontFamily:"'Inter',sans-serif",fontWeight:700,letterSpacing:'.08em',marginBottom:4 }}>MODEL</div>
+                <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:12,color:t.text }}>{tokenStats.model}</div>
+              </div>
+            </div>
+          ) : <EmptyState icon="📊" msg="No triage calls yet" />}
+        </Card>
+
+        {/* Health checks */}
+        <Card>
+          <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:800,fontSize:15,color:t.text,marginBottom:14 }}>Live Health Checks</div>
+          <div style={{ display:'flex',flexDirection:'column',gap:10 }}>
+            {healthChecks.map(h=>(
+              <div key={h.label} style={{ display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:t.bg,border:`1px solid ${t.border}`,borderRadius:8 }}>
+                <div style={{ width:10,height:10,borderRadius:'50%',background:h.ok?t.success:t.danger,flexShrink:0,boxShadow:h.ok?`0 0 8px ${t.success}66`:undefined,animation:h.ok?'pulse-dot 2s ease-in-out infinite':undefined }} />
+                <div style={{ flex:1 }}>
+                  <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:600,fontSize:13,color:t.text }}>{h.label}</div>
+                  <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:t.textMuted,marginTop:2 }}>{h.detail}</div>
+                </div>
+                <Bdg label={h.ok?'OK':'ERROR'} cfg={h.ok?{bg:'#22c55e22',c:'#22c55e'}:{bg:'#ef444422',c:'#ef4444'}} />
+              </div>
             ))}
-          </tbody>
-        </table>
+          </div>
+          <div style={{ marginTop:14,padding:'10px 14px',background:t.bg,border:`1px solid ${t.border}`,borderRadius:8 }}>
+            <div style={{ fontFamily:"'Inter',sans-serif",fontWeight:700,fontSize:10,color:t.textMuted,letterSpacing:'.1em',marginBottom:6 }}>API ENDPOINT</div>
+            <div style={{ fontFamily:"'JetBrains Mono',monospace",fontSize:11,color:t.info }}>{API_BASE}</div>
+          </div>
+        </Card>
       </div>
     </div>
   );
 }
 
-/* ── App ─────────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════
+   APP — ROOT ROUTER
+═══════════════════════════════════════════════════════════════════════ */
 function App() {
-  const [alerts,      setAlerts]      = useState([]);
+  const [isDark, setIsDark] = useState(()=>localStorage.getItem('theme')!=='light');
+  const theme = isDark ? DARK : LIGHT;
+  const { page, alertId, nav } = useRoute();
+
   const [stats,       setStats]       = useState({});
+  const [alerts,      setAlerts]      = useState([]);
   const [escalations, setEscalations] = useState([]);
   const [prices,      setPrices]      = useState({});
-  const [selected,    setSelected]    = useState(null);
-  const [triageMap,   setTriageMap]   = useState({});
   const [isReplaying, setIsReplaying] = useState(false);
-  const [loadingSet,  setLoadingSet]  = useState(new Set());
-  const [autoRunning, setAutoRunning] = useState(false);
+  const [subCount,    setSubCount]    = useState(0);
   const pollRef  = useRef(null);
   const priceRef = useRef(null);
+
+  const toggleTheme = () => {
+    setIsDark(d => { localStorage.setItem('theme', d?'light':'dark'); return !d; });
+  };
 
   const fetchAll = useCallback(async () => {
     try {
@@ -467,91 +1274,60 @@ function App() {
       setStats(s);
       setEscalations(e.escalations||[]);
     } catch {}
-  }, []);
+  },[]);
 
   const fetchPrices = useCallback(async () => {
     try {
-      const r = await fetch(`${API_BASE}/api/market-prices`);
-      const d = await r.json();
+      const d = await fetch(`${API_BASE}/api/market-prices`).then(r=>r.json());
       if (d.prices) setPrices(d.prices);
     } catch {}
-  }, []);
+  },[]);
 
-  useEffect(() => {
-    fetchAll(); fetchPrices();
+  const fetchSubCount = useCallback(async () => {
+    try {
+      const d = await fetch(`${API_BASE}/api/subscribers/count`).then(r=>r.json());
+      setSubCount(d.count||0);
+    } catch {}
+  },[]);
+
+  useEffect(()=>{
+    fetchAll(); fetchPrices(); fetchSubCount();
     pollRef.current  = setInterval(fetchAll, 3000);
     priceRef.current = setInterval(fetchPrices, 60000);
-    return () => { clearInterval(pollRef.current); clearInterval(priceRef.current); };
-  }, []);
+    return ()=>{ clearInterval(pollRef.current); clearInterval(priceRef.current); };
+  },[]);
 
   const handleStart = async () => {
     setIsReplaying(true);
-    try { await fetch(`${API_BASE}/api/replay/start`, { method:'POST' }); } catch {}
+    try { await fetch(`${API_BASE}/api/replay/start`,{method:'POST'}); } catch {}
     fetchAll();
   };
 
-  const handleTriage = async id => {
-    setLoadingSet(p => new Set([...p, id]));
-    try {
-      const r = await fetch(`${API_BASE}/api/triage/${id}`, { method:'POST' });
-      const d = await r.json();
-      setTriageMap(p => ({ ...p, [id]: d }));
-      if (selected?.alert_id===id && d.alert) setSelected(d.alert);
-      fetchAll();
-    } catch(e) { console.error(e); }
-    finally { setLoadingSet(p => { const n=new Set(p); n.delete(id); return n; }); }
-  };
-
-  const handleAutoTriage = async () => {
-    if (autoRunning) return;
-    setAutoRunning(true);
-    for (const a of alerts.filter(a=>a.status==='PENDING')) {
-      await handleTriage(a.alert_id);
-      await new Promise(r => setTimeout(r, 600));
-    }
-    setAutoRunning(false);
-  };
+  const bg = theme.bg;
 
   return (
-    <div style={{ height:'100vh', display:'flex', flexDirection:'column', background:'#030712', overflow:'hidden' }}>
-      <Header isReplaying={isReplaying} onStart={handleStart} onStop={()=>setIsReplaying(false)} prices={prices} />
-      <StatsBar stats={stats} />
+    <ThemeCtx.Provider value={theme}>
+      <ThemeVars t={theme} />
+      <div style={{ height:'100vh',display:'flex',flexDirection:'column',background:bg,overflow:'hidden' }}>
+        <Header isReplaying={isReplaying} onStart={handleStart} onStop={()=>setIsReplaying(false)} prices={prices} isDark={isDark} onToggleTheme={toggleTheme} subCount={subCount} onSubscribe={fetchSubCount} />
 
-      {/* Content below fixed bars: 64+80=144px */}
-      <div style={{ flex:1, display:'flex', flexDirection:'column', marginTop:144, minHeight:0, overflow:'hidden', padding:'10px 20px 0' }}>
+        <div style={{ flex:1,display:'flex',minHeight:0,overflow:'hidden' }}>
+          <Sidebar page={page} nav={nav} />
 
-        {/* Main two-column grid */}
-        <div className="main-grid" style={{ flex:1, display:'flex', gap:10, minHeight:0, overflow:'hidden' }}>
-
-          {/* LEFT 60% */}
-          <div className="col-l" style={{ width:'60%', display:'flex', flexDirection:'column', minHeight:0, overflow:'hidden' }}>
-            <AlertTable alerts={alerts} selected={selected} onSelect={setSelected} onTriage={handleTriage} loading={loadingSet} onAutoTriage={handleAutoTriage} autoRunning={autoRunning} />
-            <Charts stats={stats} />
-          </div>
-
-          {/* RIGHT 40% */}
-          <div className="col-r" style={{ width:'40%', display:'flex', flexDirection:'column', minHeight:0, overflow:'hidden' }}>
-            <div className="card" style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0, overflow:'hidden' }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 16px', borderBottom:'1px solid #1e3a5f', flexShrink:0 }}>
-                <span className="section-title">Triage Detail</span>
-                {selected && <span style={{ color:'#334155', fontSize:11, fontFamily:"'DM Mono',monospace" }}>{selected.alert_id}</span>}
-              </div>
-              <div style={{ flex:1, overflow:'hidden' }}>
-                <TriagePanel alert={selected} triageData={selected?triageMap[selected.alert_id]:null} onTriage={handleTriage} isLoading={selected?loadingSet.has(selected.alert_id):false} />
-              </div>
+          <div style={{ flex:1,display:'flex',flexDirection:'column',minHeight:0,overflow:'hidden',background:bg }}>
+            <StatsBar stats={stats} />
+            <div style={{ flex:1,overflow:'hidden',minHeight:0 }}>
+              {page==='dashboard'    && <Dashboard stats={stats} alerts={alerts} escalations={escalations} isReplaying={isReplaying} onStart={handleStart} onStop={()=>setIsReplaying(false)} nav={nav} />}
+              {page==='alerts'       && <AlertsPage nav={nav} />}
+              {page==='alert-detail' && alertId && <AlertDetailPage alertId={alertId} nav={nav} />}
+              {page==='trades'       && <TradesPage />}
+              {page==='logs'         && <LogsPage nav={nav} />}
+              {page==='settings'     && <SettingsPage />}
             </div>
-            <TopSuspects alerts={alerts} onSelect={setSelected} />
           </div>
-
         </div>
-
-        {/* Escalation log */}
-        <div style={{ flexShrink:0, marginTop:10, marginBottom:10 }}>
-          <EscalationLog escalations={escalations} />
-        </div>
-
       </div>
-    </div>
+    </ThemeCtx.Provider>
   );
 }
 

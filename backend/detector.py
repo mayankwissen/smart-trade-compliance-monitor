@@ -1,6 +1,5 @@
 import uuid
 from datetime import datetime
-from itertools import combinations
 
 
 def detect_layering(trades):
