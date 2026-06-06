@@ -27,6 +27,24 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
     return () => clearInterval(id);
   }, []);
 
+  // Auto-populate on first visit — judges see live data immediately, no manual click needed
+  _duseE(() => {
+    if (localAlerts.length === 0) {
+      (async () => {
+        try {
+          setRefreshing(true);
+          setRefreshStep('Loading data...');
+          await fetch(`${window.API_BASE}/api/refresh-data`, { method: 'POST' });
+          setRefreshStep('Detecting patterns...');
+          await fetch(`${window.API_BASE}/api/replay/start`, { method: 'POST' });
+          setRefreshStep('');
+          if (onRefreshComplete) await onRefreshComplete();
+        } catch {}
+        finally { setRefreshing(false); setRefreshStep(''); }
+      })();
+    }
+  }, []); // mount-only
+
   const PER   = 10;
   const paged = localAlerts.slice((page - 1) * PER, page * PER);
   const pages = Math.ceil(localAlerts.length / PER) || 1;
@@ -50,8 +68,8 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
       await fetch(`${window.API_BASE}/api/replay/start`, { method: 'POST' });
       setRefreshStep('');
       if (onRefreshComplete) await onRefreshComplete();
-    } catch { alert('Refresh failed — is the backend running?'); }
-    finally { setRefreshing(false); setRefreshStep(''); }
+    } catch { setRefreshStep('Backend unavailable — retry'); setTimeout(() => setRefreshStep(''), 3000); }
+    finally { setRefreshing(false); }
   };
 
   // Demo Mode: refresh → detect → triage first HIGH alert

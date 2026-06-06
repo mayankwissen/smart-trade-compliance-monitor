@@ -95,9 +95,9 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
       <window.Card pad={0} style={{ overflow: 'hidden' }}>
         <div style={{ display: 'flex', borderBottom: `1px solid ${t.border}`, background: t.bg }}>
           {[
-            ['triage',   '⚡ AI Triage'],
-            ['evidence', '📊 Evidence & Trades'],
-            ['actions',  '🔔 Escalation Actions'],
+            ['triage',   'AI Triage'],
+            ['evidence', 'Evidence'],
+            ['actions',  'Escalations'],
           ].map(([k, label]) => (
             <button key={k} className={`tab-btn${tab === k ? ' active' : ''}`} onClick={() => setTab(k)}>{label}</button>
           ))}
@@ -109,31 +109,53 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
           {tab === 'triage' && (
             <div>
               {!triage && !triaging && (
-                <div style={{ textAlign: 'center', padding: '32px 0' }}>
-                  <div style={{ fontSize: 48, marginBottom: 16 }}>🤖</div>
-                  <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 18, color: t.text, marginBottom: 8 }}>Awaiting AI Triage</div>
-                  <div style={{ color: t.textMuted, fontSize: 13, marginBottom: 24 }}>Chief Compliance Officer (Claude Sonnet) will analyze this alert and return a SEBI-grade verdict</div>
-                  <window.Btn onClick={doTriage} style={{ fontSize: 14, padding: '10px 32px' }}>⚡ Triage This Alert</window.Btn>
-                  <div style={{ color: t.textMuted, fontSize: 11, marginTop: 10 }}>Est. ~{inputTok + outputTok} tokens · ~${cost} · ~2s</div>
+                <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    width: 60, height: 60, borderRadius: '50%',
+                    border: `1px solid ${t.gold}44`, background: `${t.gold}08`, marginBottom: 20,
+                  }}>
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={t.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                  </div>
+                  <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 18, color: t.text, marginBottom: 8 }}>
+                    Ready for AI Triage
+                  </div>
+                  <div style={{ color: t.textMuted, fontSize: 13, marginBottom: 24, maxWidth: 420, margin: '0 auto 24px', lineHeight: 1.6 }}>
+                    Claude Sonnet will act as NSE Chief Compliance Officer and return a SEBI-grade verdict with regulatory citations.
+                  </div>
+                  <window.Btn onClick={doTriage} style={{ fontSize: 13, padding: '10px 32px' }}>Run AI Triage</window.Btn>
+                  <div style={{ color: t.textMuted, fontSize: 11, marginTop: 10, fontFamily: "'JetBrains Mono',monospace" }}>
+                    ~{inputTok + outputTok} tokens · ~${cost} · ~3s
+                  </div>
                 </div>
               )}
 
               {triaging && (
                 <div style={{ textAlign: 'center', padding: '48px 0' }}>
-                  <div style={{ fontSize: 56, marginBottom: 20 }}>🤖</div>
-                  <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 20, color: t.gold, marginBottom: 8 }}>
-                    Claude AI is analyzing this alert
+                  <div style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    width: 60, height: 60, borderRadius: '50%',
+                    border: `2px solid ${t.gold}`, background: `${t.gold}0a`,
+                    marginBottom: 24, animation: 'pulse-dot 1.8s ease-in-out infinite',
+                  }}>
+                    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={t.gold} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
                   </div>
-                  <div style={{ color: t.textSec, fontSize: 13, marginBottom: 6 }}>
-                    Acting as NSE Chief Compliance Officer
+                  <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 20, color: t.gold, marginBottom: 6 }}>
+                    Analyzing Alert
                   </div>
-                  <div style={{ color: t.textMuted, fontSize: 13, marginBottom: 20, fontFamily: "'JetBrains Mono',monospace" }}>
-                    Reviewing {alert.pattern_type.replace(/_/g, ' ')} pattern against SEBI PFUTP Regulations<span className="spin-anim" style={{ marginLeft: 4 }}>…</span>
+                  <div style={{ color: t.textSec, fontSize: 13, marginBottom: 4 }}>
+                    NSE Chief Compliance Officer · Claude Sonnet
                   </div>
-                  <div style={{ display: 'inline-block', background: t.card, border: `1px solid ${t.border}`, borderRadius: 8, padding: '10px 24px' }}>
-                    <div style={{ color: t.textMuted, fontSize: 12, marginBottom: 4 }}>Estimated time: 3–5 seconds</div>
+                  <div style={{ color: t.textMuted, fontSize: 12, marginBottom: 24, fontFamily: "'JetBrains Mono',monospace" }}>
+                    {alert.pattern_type.replace(/_/g, ' ')} · SEBI PFUTP Review
+                  </div>
+                  <div style={{ display: 'inline-block', background: t.card, border: `1px solid ${t.border}`, borderRadius: 6, padding: '10px 24px' }}>
                     <div style={{ color: '#525252', fontSize: 11, fontFamily: "'JetBrains Mono',monospace" }}>
-                      Using claude-sonnet-4-5 · ~280 tokens · ~$0.00014
+                      claude-sonnet-4-5 · ~280 tokens · ~$0.00014
                     </div>
                   </div>
                 </div>
@@ -263,7 +285,7 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                   </thead>
                   <tbody>
                     {(!trades || trades.length === 0) && (
-                      <tr><td colSpan={7}><window.EmptyState icon="📋" msg="No trades found for this alert" /></td></tr>
+                      <tr><td colSpan={7}><window.EmptyState msg="No trades found for this alert" /></td></tr>
                     )}
                     {(trades || []).map((tr, i) => {
                       const isCan = tr.order_status === 'CANCELLED';
@@ -286,7 +308,7 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                                  :           { bg: '#2a2a2a',   c: '#a0a0a0' }} />
                           </td>
                           <td><span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: tr.cancel_time_ms > 0 && tr.cancel_time_ms < 600 ? t.danger : t.textSec }}>{tr.cancel_time_ms || '—'}</span></td>
-                          <td>{tr.is_suspicious && <span style={{ fontSize: 14 }}>🚩</span>}</td>
+                          <td>{tr.is_suspicious && <span style={{ display: 'inline-block', background: '#ef444418', color: '#ef4444', borderRadius: 3, padding: '1px 6px', fontSize: 9, fontWeight: 700, letterSpacing: '.05em', fontFamily: "'Inter',sans-serif" }}>FLAG</span>}</td>
                         </tr>
                       );
                     })}
@@ -299,14 +321,14 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
           {/* ── TAB 3: ESCALATION ACTIONS ── */}
           {tab === 'actions' && (
             <div>
-              {!triage && <window.EmptyState icon="⚡" msg="Triage this alert first to trigger escalation workflows" />}
+              {!triage && <window.EmptyState msg="Run triage first to trigger escalation workflows" />}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 16 }}>
 
                 {/* Case file */}
                 <window.Card style={{ borderLeft: `3px solid ${t.success}` }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                    <span style={{ fontSize: 20 }}>📁</span>
-                    <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, color: t.text }}>Compliance Case</span>
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: t.success, flexShrink: 0 }} />
+                    <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, color: t.text }}>Compliance Case</span>
                     <window.Bdg label={caseId ? 'CREATED' : 'PENDING'} cfg={caseId ? { bg: '#22c55e22', c: '#22c55e' } : { bg: '#2a2a2a', c: '#525252' }} />
                   </div>
                   {caseId ? (
@@ -326,7 +348,7 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                       </div>
                       <window.Btn small variant="ghost"
                         onClick={() => window.open(`${window.API_BASE}/api/export/case/${alertId}`)}>
-                        ⬇ Download Case JSON
+                        Download Case File
                       </window.Btn>
                     </>
                   ) : (
@@ -337,8 +359,8 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                 {/* Slack */}
                 <window.Card style={{ borderLeft: `3px solid ${t.info}` }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                    <span style={{ fontSize: 20 }}>💬</span>
-                    <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, color: t.text }}>Slack Notification</span>
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: t.info, flexShrink: 0 }} />
+                    <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, color: t.text }}>Slack Notification</span>
                     <window.Bdg label={slackEsc ? 'SENT' : 'PENDING'} cfg={slackEsc ? { bg: '#3b82f622', c: '#3b82f6' } : { bg: '#2a2a2a', c: '#525252' }} />
                   </div>
                   {slackEsc ? (
@@ -361,8 +383,8 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                 {/* Watchlist */}
                 <window.Card style={{ borderLeft: `3px solid ${t.warning}` }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                    <span style={{ fontSize: 20 }}>👁</span>
-                    <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, color: t.text }}>Watchlist</span>
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: t.warning, flexShrink: 0 }} />
+                    <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, color: t.text }}>Watchlist</span>
                     <window.Bdg label={watchEsc ? 'ACTIVE' : 'INACTIVE'} cfg={watchEsc ? { bg: '#f59e0b22', c: '#f59e0b' } : { bg: '#2a2a2a', c: '#525252' }} />
                   </div>
                   {watchEsc ? (
@@ -385,8 +407,8 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                 {/* Email */}
                 <window.Card style={{ borderLeft: '3px solid #a855f7' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                    <span style={{ fontSize: 20 }}>📧</span>
-                    <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, color: t.text }}>Email Alerts</span>
+                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#a855f7', flexShrink: 0 }} />
+                    <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, color: t.text }}>Email Alerts</span>
                     <window.Bdg label={emailEsc ? 'SENT' : '—'} cfg={emailEsc ? { bg: '#a855f722', c: '#a855f7' } : { bg: '#2a2a2a', c: '#525252' }} />
                   </div>
                   <div style={{ color: t.textSec, fontSize: 12 }}>
