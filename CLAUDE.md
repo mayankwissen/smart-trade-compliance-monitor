@@ -8,7 +8,7 @@ ESCALATE/DISMISS verdicts with full compliance workflows.
 Built for Wissen Technology Hackathon 2026.
 
 ## Model in use
-- **Triage AI**: `claude-sonnet-4-5-20251001` (hardcoded in `backend/triage.py`)
+- **Triage AI**: `claude-sonnet-4-5` (hardcoded in `backend/triage.py`)
 - **Claude Code session**: Sonnet 4.6 (default) — change with `/model` in the CLI
 
 ## Current Status — as of 2026-06-06

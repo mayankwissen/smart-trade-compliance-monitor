@@ -56,7 +56,7 @@ and flags the trader for 72-hour enhanced monitoring — all in a single API cal
 │                         AI TRIAGE LAYER                      ★ KEY       │
 │                                                                          │
 │   triage.py                                                              │
-│   └─ Claude Sonnet (claude-sonnet-4-5-20251001)                          │
+│   └─ Claude Sonnet (claude-sonnet-4-5)                          │
 │                                                                          │
 │   System Persona:                                                        │
 │   "You are Chief Compliance Officer at NSE with 20 years experience      │
@@ -295,7 +295,7 @@ Cluster C: T-3301 / INFY
 
 | Layer | Technology | Why |
 |-------|-----------|-----|
-| AI | Claude Sonnet (claude-sonnet-4-5-20251001) | Best reasoning quality for compliance decisions |
+| AI | Claude Sonnet (claude-sonnet-4-5) | Best reasoning quality for compliance decisions |
 | Backend | Python 3.12 + Flask | Fast iteration, strong financial library ecosystem |
 | Database | SQLite | Zero-config for demo; schema is drop-in compatible with PostgreSQL |
 | Market Data | yfinance | Free live NSE prices, no API key required |

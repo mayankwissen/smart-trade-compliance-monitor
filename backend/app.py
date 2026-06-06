@@ -34,7 +34,7 @@ def health():
         "status": "ok",
         "trades_loaded": count,
         "version": "2.0.0",
-        "model": "claude-sonnet-4-5-20251001",
+        "model": "claude-sonnet-4-5",
     })
 
 
@@ -311,7 +311,7 @@ def token_stats():
         "total_tokens": total_tokens,
         "estimated_cost_usd": cost_usd,
         "avg_processing_time_ms": avg_time,
-        "model": "claude-sonnet-4-5-20251001",
+        "model": "claude-sonnet-4-5",
     })
 
 

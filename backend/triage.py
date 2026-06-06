@@ -56,7 +56,7 @@ def triage_alert(alert):
 
     start_ms = int(time.time() * 1000)
     response = client.messages.create(
-        model="claude-sonnet-4-5-20251001",
+        model="claude-sonnet-4-5",
         max_tokens=600,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": build_prompt(alert)}],
