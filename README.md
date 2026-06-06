@@ -35,19 +35,22 @@ Frontend:  Deploy frontend/ to Vercel or run locally (see Setup)
 
 ### One-Click Demo Flow
 
-1. Open the dashboard → click **🔄 Refresh Live Data**
-   - Fetches live NSE prices via yfinance
-   - Generates ~407 trades with today's timestamps
-   - Automatically detects 5 alerts (2 LAYERING, 2 SPOOFING, 1 WASH_TRADING)
+**Option A — Demo Mode (easiest for live demos)**
+1. Click **🎬 Demo Mode** on the Dashboard
+   - Automatically: fetches live prices → generates trades → detects 6 alerts → triages first HIGH alert
+   - Button shows live step progress: "📡 Fetching live prices..." → "🔍 Detecting patterns..." → "🤖 Claude analyzing..." → "✅ Demo Complete!"
 
-2. Click any alert row → **⚡ Triage This Alert**
-   - Claude Sonnet analyzes in ~2.5 seconds
-   - Returns: verdict, confidence %, rationale, plain-English box, regulatory reference
-   - If ESCALATE: creates case file, fires Slack, emails subscribers, flags watchlist
+**Option B — Manual**
+1. Click **🔄 Refresh Live Data** → generates ~414 trades at live NSE prices + auto-detects 6 alerts
+2. Click any alert row → **⚡ Triage This Alert** → Claude analyzes in ~2.5s → SEBI-quality verdict
+3. Click **AUTO-TRIAGE ALL** on Alerts page → triages all pending in sequence
 
-3. Click **AUTO-TRIAGE ALL** on Alerts page → all pending alerts triaged in sequence
+**Reset between demos**
+- Click **🔄 Reset Demo** → confirms → wipes alerts/triage/escalations, generates fresh trade data
 
-4. Visit **Settings** → see live token consumption (~$0.00014/call, 460 tokens total)
+**Check AI usage**
+- Token bar at top of Dashboard shows: triage calls · tokens used · estimated cost · model name
+- Visit **Settings** for full health checks + API stats (auto-refresh every 30s)
 
 ---
 
@@ -96,13 +99,14 @@ All 8 fields are required JSON. No prose. This means every verdict is:
 
 ## Suspicious Clusters in the Data
 
-Three injected patterns that always trigger detection:
+Four injected patterns that always trigger detection:
 
 | Cluster | Trader | Instrument | Pattern | Evidence |
 |---------|--------|------------|---------|---------|
-| A | T-1042 | HDFCBANK | LAYERING | 14 orders, 12 BUY cancelled in 420–780ms, 2 SELLs executed at +0.8% |
+| A | T-1042 | HDFCBANK | LAYERING | 14 orders, 12 BUY cancelled in 420–780ms, 2 SELLs at +0.8% |
 | B | T-2891 | RELIANCE | SPOOFING | 8×80,000-share orders cancelled in 180–490ms, sell at elevated price |
 | C | T-3301 | INFY | WASH TRADING | BUY on A-3301, SELL on A-3302, same size, 18 seconds apart |
+| D | T-4401 | TCS | PUMP AND DUMP | 5×22K shares accumulated in 14min, 2×55K sold within 4min at +1.2% |
 
 ---
 
@@ -130,7 +134,8 @@ python -m http.server 3000       # → http://localhost:3000
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/refresh-data` | Wipe DB + generate fresh trades at live NSE prices |
-| POST | `/api/replay/start` | Run all 3 detectors across all trade pairs |
+| POST | `/api/replay/start` | Run all 4 detectors across all trade pairs |
+| POST | `/api/reset` | Delete alerts + triage + escalations (keep trades) |
 | POST | `/api/triage/<id>` | AI triage + full escalation workflow |
 | GET | `/api/alert/<id>/full` | Complete alert + triage + escalations + trades |
 | GET | `/api/stats` | Dashboard counts |

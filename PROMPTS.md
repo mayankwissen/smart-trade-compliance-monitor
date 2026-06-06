@@ -22,7 +22,7 @@ API efficiency (10%), and documentation (5%).
 TECH STACK:
 - Backend: Python 3, Flask, SQLite (via sqlite3), anthropic SDK
 - Frontend: Single-file React 18 app via CDN (no build step), dark navy/indigo theme
-- Claude API model: claude-sonnet-4-20250514
+- Claude API model: claude-sonnet-4-5
 - API key: loaded from .env file as ANTHROPIC_API_KEY
 
 PROJECT STRUCTURE:

@@ -31,10 +31,11 @@ window.SEV_CFG = {
 };
 
 window.PAT_CFG = {
-  LAYERING:    { bg: '#6366f1', c: '#fff' },
-  SPOOFING:    { bg: '#ef4444', c: '#fff' },
-  WASH_TRADING: { bg: '#f97316', c: '#fff' },
-  PUMP_DUMP:   { bg: '#ec4899', c: '#fff' },
+  LAYERING:      { bg: '#6366f1', c: '#fff' },
+  SPOOFING:      { bg: '#ef4444', c: '#fff' },
+  WASH_TRADING:  { bg: '#f97316', c: '#fff' },
+  PUMP_AND_DUMP: { bg: '#ec4899', c: '#fff' },
+  PUMP_DUMP:     { bg: '#ec4899', c: '#fff' },
 };
 
 window.STA_CFG = {

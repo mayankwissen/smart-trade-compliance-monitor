@@ -110,7 +110,9 @@ window.AlertRow = function AlertRow({ a, nav, onTriage, isLoading }) {
   const t = window.useT();
   const done = a.status !== 'PENDING';
   return (
-    <tr className="slide-in" onClick={() => nav && nav(`/alert/${a.alert_id}`)}>
+    <tr className="slide-in"
+      onClick={() => nav && nav(`/alert/${a.alert_id}`)}
+      style={{ opacity: isLoading ? 0.75 : 1, transition: 'opacity .2s' }}>
       <td><span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: t.textMuted }}>{window.fmtTime(a.detected_at)}</span></td>
       <td><span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: t.gold, fontWeight: 700 }}>{a.alert_id}</span></td>
       <td><span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: t.textSec }}>{a.trader_id}</span></td>
@@ -124,14 +126,17 @@ window.AlertRow = function AlertRow({ a, nav, onTriage, isLoading }) {
             onClick={() => !done && !isLoading && onTriage(a.alert_id)}
             disabled={done || isLoading}
             style={{
-              background: 'transparent',
-              color: done ? t.textMuted : t.info,
+              background: isLoading ? t.info + '11' : 'transparent',
+              color: done ? t.textMuted : isLoading ? t.info : t.info,
               border: `1px solid ${done ? t.border : t.info + '44'}`,
               borderRadius: 4, padding: '4px 10px',
               cursor: done || isLoading ? 'default' : 'pointer',
               fontFamily: "'Inter',sans-serif", fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+              minWidth: 110,
             }}>
-            {isLoading ? <window.Spinner /> : done ? '✓ Done' : 'TRIAGE →'}
+            {isLoading
+              ? <span style={{ display:'flex', alignItems:'center', gap:5 }}><window.Spinner />Claude analyzing…</span>
+              : done ? '✓ Done' : 'TRIAGE →'}
           </button>
         </td>
       )}

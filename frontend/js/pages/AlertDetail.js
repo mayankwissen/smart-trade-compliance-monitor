@@ -119,10 +119,23 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
               )}
 
               {triaging && (
-                <div style={{ textAlign: 'center', padding: '32px 0' }}>
-                  <div style={{ fontSize: 36, marginBottom: 16 }}><window.Spinner /></div>
-                  <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 16, color: t.gold }}>Claude Sonnet Analyzing…</div>
-                  <div style={{ color: t.textMuted, fontSize: 13, marginTop: 8 }}>Chief Compliance Officer reviewing {alert.pattern_type.replace(/_/g, ' ')} pattern against SEBI PFUTP Regulations</div>
+                <div style={{ textAlign: 'center', padding: '48px 0' }}>
+                  <div style={{ fontSize: 56, marginBottom: 20 }}>🤖</div>
+                  <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 20, color: t.gold, marginBottom: 8 }}>
+                    Claude AI is analyzing this alert
+                  </div>
+                  <div style={{ color: t.textSec, fontSize: 13, marginBottom: 6 }}>
+                    Acting as NSE Chief Compliance Officer
+                  </div>
+                  <div style={{ color: t.textMuted, fontSize: 13, marginBottom: 20, fontFamily: "'JetBrains Mono',monospace" }}>
+                    Reviewing {alert.pattern_type.replace(/_/g, ' ')} pattern against SEBI PFUTP Regulations<span className="spin-anim" style={{ marginLeft: 4 }}>…</span>
+                  </div>
+                  <div style={{ display: 'inline-block', background: t.card, border: `1px solid ${t.border}`, borderRadius: 8, padding: '10px 24px' }}>
+                    <div style={{ color: t.textMuted, fontSize: 12, marginBottom: 4 }}>Estimated time: 3–5 seconds</div>
+                    <div style={{ color: '#525252', fontSize: 11, fontFamily: "'JetBrains Mono',monospace" }}>
+                      Using claude-sonnet-4-5 · ~280 tokens · ~$0.00014
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -205,7 +218,7 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                     <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 10, color: t.gold, letterSpacing: '.15em', marginBottom: 12 }}>AI METRICS</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }}>
                       {[
-                        ['Model',          'claude-sonnet-4-20250514'],
+                        ['Model',          'claude-sonnet-4-5'],
                         ['Input Tokens',   `~${inputTok}`],
                         ['Output Tokens',  `~${outputTok}`],
                         ['Total Tokens',   `~${inputTok + outputTok}`],

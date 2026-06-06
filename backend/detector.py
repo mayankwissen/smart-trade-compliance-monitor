@@ -119,6 +119,57 @@ def detect_wash_trading(all_trades, trader_id):
     return None
 
 
+def detect_pump_and_dump(all_trades, trader_id):
+    trader_trades = [t for t in all_trades if t['trader_id'] == trader_id]
+    instruments = set(t['instrument'] for t in trader_trades)
+
+    for instrument in instruments:
+        inst_trades = [t for t in trader_trades
+                       if t['instrument'] == instrument
+                       and t['order_status'] == 'EXECUTED']
+
+        buys  = [t for t in inst_trades if t['order_type'] == 'BUY']
+        sells = [t for t in inst_trades if t['order_type'] == 'SELL']
+
+        if not buys or not sells:
+            continue
+
+        from datetime import datetime as dt
+        buy_times  = [dt.fromisoformat(t['timestamp']) for t in buys]
+        sell_times = [dt.fromisoformat(t['timestamp']) for t in sells]
+
+        earliest_buy  = min(buy_times)
+        latest_buy    = max(buy_times)
+        earliest_sell = min(sell_times)
+
+        buy_window_min = (latest_buy - earliest_buy).total_seconds() / 60
+        sell_delay_min = (earliest_sell - latest_buy).total_seconds() / 60
+
+        total_buy_size = sum(t['order_size'] for t in buys)
+
+        if (total_buy_size > 100000
+                and buy_window_min <= 20
+                and 0 <= sell_delay_min <= 10):
+            return {
+                "alert_id":        "ALT-" + str(uuid.uuid4())[:8].upper(),
+                "detected_at":     datetime.utcnow().isoformat(),
+                "trader_id":       trader_id,
+                "instrument":      instrument,
+                "pattern_type":    "PUMP_AND_DUMP",
+                "severity":        "HIGH",
+                "evidence_summary": (
+                    f"Trader accumulated {total_buy_size:,}"
+                    f" shares of {instrument} in "
+                    f"{buy_window_min:.0f}min, sold within"
+                    f" {sell_delay_min:.0f}min. "
+                    f"Pump and dump signature."),
+                "cancel_ratio":    0.0,
+                "sigma":           round(total_buy_size / 50000, 2),
+                "status":          "PENDING",
+            }
+    return None
+
+
 def run_all_detectors(trader_id, instrument, all_trades):
     from ingestor import get_trade_window
     window = get_trade_window(trader_id, instrument)
@@ -135,5 +186,9 @@ def run_all_detectors(trader_id, instrument, all_trades):
     r3 = detect_wash_trading(all_trades, trader_id)
     if r3:
         alerts.append(r3)
+
+    r4 = detect_pump_and_dump(all_trades, trader_id)
+    if r4:
+        alerts.append(r4)
 
     return alerts

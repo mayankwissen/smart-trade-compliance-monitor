@@ -12,13 +12,18 @@ Built for Wissen Technology Hackathon 2026.
 - **Claude Code session**: Sonnet 4.6 (default) — change with `/model` in the CLI
 
 ## Current Status — as of 2026-06-06
-- **Backend**: Flask + SQLite, 18 endpoints, all working, no Pylance errors
+- **Backend**: Flask + SQLite, 20 endpoints, all working, no Pylance errors
 - **Frontend**: Multi-file React 18, 6 pages, gold/black Bloomberg theme, fully restructured
-- **Triage**: Claude Sonnet CCO persona, 8-field SEBI-quality JSON
+- **Triage**: Claude Sonnet CCO persona, 8-field SEBI-quality JSON, model: claude-sonnet-4-5
 - **Layout**: Fixed sidebar + header, per-page scrolling, works at 100% zoom
 - **Refresh button**: One click does refresh-data → replay/start → updates state (no reload)
+- **Demo Mode button**: Full auto-demo in one click (refresh → detect → triage first HIGH alert)
+- **Reset Demo button**: Fresh trades + wipe alerts/triage/escalations
 - **Timestamps**: Dynamic — always uses last 3 real trading days (Mon–Fri)
-- **Deployment**: Backend on Render, frontend on Vercel/Render Static
+- **4 patterns**: LAYERING, SPOOFING, WASH_TRADING, PUMP_AND_DUMP (T-4401/TCS)
+- **Token usage bar**: Live AI usage shown in Dashboard (calls, tokens, cost)
+- **CORS**: Explicit origins for Render frontend + localhost
+- **Deployment**: Backend on Render, frontend on Render Static
 
 ## How to run locally
 
@@ -43,13 +48,16 @@ python -m http.server 3000
 |---------|--------|
 | ~407 synthetic trades with real NSE prices (yfinance) | ✅ |
 | Dynamic timestamps — last 3 real trading days | ✅ |
-| 3 pattern detectors: LAYERING, SPOOFING, WASH_TRADING | ✅ |
+| 4 pattern detectors: LAYERING, SPOOFING, WASH_TRADING, PUMP_AND_DUMP | ✅ |
 | Claude Sonnet triage — 8-field SEBI-quality verdict | ✅ |
 | Slack notifications on ESCALATE | ✅ |
 | Email notifications to subscribers | ✅ |
 | Compliance case file creation (COMP-XXXX.json) | ✅ |
 | 72-hour watchlist flagging | ✅ |
 | Refresh Live Data → auto-detects patterns in one click | ✅ |
+| Demo Mode button → full auto-demo (refresh+detect+triage) | ✅ |
+| Reset Demo button → fresh trades + clear alerts | ✅ |
+| Token usage bar on Dashboard (calls, tokens, cost) | ✅ |
 | Multi-page hash routing: #/ #/alerts #/alert/:id #/trades #/logs #/settings | ✅ |
 | Gold/black Bloomberg terminal theme | ✅ |
 | Dark/light toggle (localStorage) | ✅ |
@@ -156,6 +164,7 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 | A | T-1042 | HDFCBANK | LAYERING — 14 orders, 12 cancelled 420–780ms |
 | B | T-2891 | RELIANCE | SPOOFING — 8×80K orders cancelled 180–490ms |
 | C | T-3301 | INFY | WASH TRADING — BUY A-3301 / SELL A-3302, 18s |
+| D | T-4401 | TCS | PUMP_AND_DUMP — 5×22K BUY in 14min, 2×55K SELL in next 4min |
 
 ## API Endpoints Quick Reference
 
@@ -175,6 +184,7 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 | `/api/token-stats` | GET | Total calls, tokens, cost, avg time |
 | `/api/export/case/<id>` | GET | Download compliance case JSON |
 | `/api/subscribe` | POST | Subscribe email to alerts |
+| `/api/reset` | POST | Delete alerts + triage + escalations (keep trades) |
 | `/api/ping` | GET | Keep-alive for Render free tier |
 
 ## Claude AI Triage

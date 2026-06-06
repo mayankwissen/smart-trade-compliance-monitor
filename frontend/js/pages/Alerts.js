@@ -61,7 +61,7 @@ window.AlertsPage = function AlertsPage({ nav }) {
         <div style={{ display:'flex', gap:8, marginBottom:16, flexWrap:'wrap' }}>
           <select value={pattern} onChange={e=>{setPattern(e.target.value);setPage(1);}} style={sel}>
             <option value="">All Patterns</option>
-            {['LAYERING','SPOOFING','WASH_TRADING'].map(p=><option key={p}>{p}</option>)}
+            {['LAYERING','SPOOFING','WASH_TRADING','PUMP_AND_DUMP'].map(p=><option key={p}>{p}</option>)}
           </select>
           <select value={severity} onChange={e=>{setSeverity(e.target.value);setPage(1);}} style={sel}>
             <option value="">All Severity</option>

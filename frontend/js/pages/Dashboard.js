@@ -2,14 +2,32 @@ const { useState: _duseS, useEffect: _duseE } = React;
 
 window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefreshComplete }) {
   const t = window.useT();
-  const [page, setPage] = _duseS(1);
+  const [page, setPage]           = _duseS(1);
   const [loadingSet, setLoadingSet] = _duseS(new Set());
   const [localAlerts, setLocalAlerts] = _duseS(alerts);
-  const [refreshing, setRefreshing] = _duseS(false);
+  const [refreshing, setRefreshing]   = _duseS(false);
   const [refreshStep, setRefreshStep] = _duseS('');
+  const [demoRunning, setDemoRunning] = _duseS(false);
+  const [demoStep, setDemoStep]       = _duseS('');
+  const [resetting, setResetting]     = _duseS(false);
+  const [tokenStats, setTokenStats]   = _duseS(null);
+
   _duseE(() => setLocalAlerts(alerts), [alerts]);
 
-  const PER = 10;
+  // Token usage bar — poll every 30s
+  _duseE(() => {
+    const fetchTok = async () => {
+      try {
+        const d = await fetch(`${window.API_BASE}/api/token-stats`).then(r => r.json());
+        setTokenStats(d);
+      } catch {}
+    };
+    fetchTok();
+    const id = setInterval(fetchTok, 30000);
+    return () => clearInterval(id);
+  }, []);
+
+  const PER   = 10;
   const paged = localAlerts.slice((page - 1) * PER, page * PER);
   const pages = Math.ceil(localAlerts.length / PER) || 1;
 
@@ -36,10 +54,71 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
     finally { setRefreshing(false); setRefreshStep(''); }
   };
 
+  // Demo Mode: refresh → detect → triage first HIGH alert
+  const runDemoMode = async () => {
+    setDemoRunning(true);
+    try {
+      setDemoStep('📡 Fetching live prices...');
+      await fetch(`${window.API_BASE}/api/refresh-data`, { method: 'POST' });
+      await new Promise(r => setTimeout(r, 2000));
+
+      setDemoStep('🔍 Detecting patterns...');
+      await fetch(`${window.API_BASE}/api/replay/start`, { method: 'POST' });
+      await new Promise(r => setTimeout(r, 2000));
+
+      const res     = await fetch(`${window.API_BASE}/api/alerts`).then(r => r.json());
+      const pending = (res.alerts || []).filter(a => a.severity === 'HIGH' && a.status === 'PENDING');
+
+      if (pending.length > 0) {
+        setDemoStep('🤖 Claude analyzing...');
+        await fetch(`${window.API_BASE}/api/triage/${pending[0].alert_id}`, { method: 'POST' });
+        await new Promise(r => setTimeout(r, 2000));
+      }
+
+      setDemoStep('✅ Demo Complete!');
+      if (onRefreshComplete) await onRefreshComplete();
+      setTimeout(() => { setDemoRunning(false); setDemoStep(''); }, 3000);
+    } catch {
+      setDemoStep('❌ Error — retry');
+      setDemoRunning(false);
+    }
+  };
+
+  // Reset Demo: generate fresh trades + clear all alerts/triage/escalations
+  const doReset = async () => {
+    if (!window.confirm('Reset all data for fresh demo?')) return;
+    setResetting(true);
+    try {
+      await fetch(`${window.API_BASE}/api/refresh-data`, { method: 'POST' });
+      await fetch(`${window.API_BASE}/api/reset`, { method: 'POST' });
+      if (onRefreshComplete) await onRefreshComplete();
+    } catch {}
+    finally { setResetting(false); }
+  };
+
+  const busy = refreshing || demoRunning || resetting;
+
   return (
     <div className="page-scroll" style={{ background: t.bg }}>
+
+      {/* ── Token usage bar ── */}
+      {tokenStats && (
+        <div style={{
+          background: '#0a0a0a', borderBottom: `1px solid ${t.border}`,
+          padding: '6px 20px', fontSize: 11, color: '#525252',
+          fontFamily: "'JetBrains Mono',monospace",
+          display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center',
+        }}>
+          <span>🤖 AI Usage:</span>
+          <span><strong style={{ color: '#a0a0a0' }}>{tokenStats.total_triage_calls}</strong> triage calls</span>
+          <span><strong style={{ color: '#a0a0a0' }}>{(tokenStats.total_tokens || 0).toLocaleString()}</strong> tokens</span>
+          <span>Est. cost: <strong style={{ color: '#f0b429' }}>${tokenStats.estimated_cost_usd}</strong></span>
+          <span>Model: <strong style={{ color: '#a0a0a0' }}>claude-sonnet-4-5</strong></span>
+        </div>
+      )}
+
       <div className="main-cols">
-        {/* Left 60% */}
+        {/* ── Left 60% ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
           <window.Card pad={0} style={{ overflow: 'hidden' }}>
             <div className="card-header">
@@ -47,18 +126,42 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
                 <span className="section-title">Alert Feed</span>
                 <span style={{ background: t.gold + '22', color: t.gold, borderRadius: 12, padding: '1px 9px', fontSize: 12, fontWeight: 700 }}>{localAlerts.length}</span>
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <window.Btn small variant="outline" onClick={doRefresh} disabled={refreshing}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                <window.Btn small variant="outline" onClick={doRefresh} disabled={busy}>
                   {refreshing ? (refreshStep || '⏳ Working…') : '🔄 Refresh Live Data'}
                 </window.Btn>
+                <button
+                  onClick={runDemoMode}
+                  disabled={busy}
+                  style={{
+                    background: '#1a1a1a', border: `1px solid ${t.gold}`,
+                    color: t.gold, padding: '5px 12px', borderRadius: 6,
+                    cursor: busy ? 'default' : 'pointer',
+                    fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 11,
+                    opacity: demoRunning ? 0.85 : 1, whiteSpace: 'nowrap',
+                  }}>
+                  {demoRunning ? (demoStep || '⏳ Running...') : '🎬 Demo Mode'}
+                </button>
+                <button
+                  onClick={doReset}
+                  disabled={busy}
+                  style={{
+                    background: '#1a1a1a', border: '1px solid #525252',
+                    color: '#525252', padding: '5px 12px', borderRadius: 6,
+                    cursor: busy ? 'default' : 'pointer',
+                    fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 11,
+                    whiteSpace: 'nowrap',
+                  }}>
+                  {resetting ? '⏳ Resetting…' : '🔄 Reset Demo'}
+                </button>
                 <window.Btn small variant="ghost" onClick={() => nav('/alerts')}>View All →</window.Btn>
               </div>
             </div>
             <div className="dt-wrap-xl">
               <table className="dt">
-                <thead><tr>{['Time', 'Alert ID', 'Trader', 'Instrument', 'Pattern', 'Severity', 'Status', 'Action'].map(h => <th key={h}>{h}</th>)}</tr></thead>
+                <thead><tr>{['Time','Alert ID','Trader','Instrument','Pattern','Severity','Status','Action'].map(h=><th key={h}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {paged.length === 0 && <tr><td colSpan={8}><window.EmptyState icon="🔍" msg="Click ▶ START REPLAY to detect patterns" /></td></tr>}
+                  {paged.length === 0 && <tr><td colSpan={8}><window.EmptyState icon="🔍" msg="Click ▶ START REPLAY or 🎬 Demo Mode to detect patterns" /></td></tr>}
                   {paged.map(a => (
                     <window.AlertRow key={a.alert_id} a={a} nav={nav}
                       onTriage={doTriage} isLoading={loadingSet.has(a.alert_id)} />
@@ -77,7 +180,7 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
           <window.MiniCharts stats={stats} />
         </div>
 
-        {/* Right 40% */}
+        {/* ── Right 40% ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
           <window.TopSuspects alerts={localAlerts} nav={nav} />
 

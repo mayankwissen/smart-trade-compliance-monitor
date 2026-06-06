@@ -225,4 +225,36 @@ def generate_realistic_trades(prices):
         },
     ])
 
+    # CLUSTER D: PUMP AND DUMP — T-4401 / TCS
+    tcs_price = prices.get('TCS', {}).get('current', 2196.0)
+    base_pnd = trading_days[1].replace(hour=10, minute=0, second=0)
+    for i, offset in enumerate([0, 210, 420, 630, 840]):
+        trades.append({
+            'trade_id':       f'TRD-PND-B{i:02d}',
+            'timestamp':      (base_pnd + timedelta(seconds=offset)).strftime('%Y-%m-%d %H:%M:%S'),
+            'trader_id':      'T-4401',
+            'account_id':     'A-4401',
+            'instrument':     'TCS',
+            'order_type':     'BUY',
+            'order_size':     22000,
+            'price':          round(tcs_price, 2),
+            'order_status':   'EXECUTED',
+            'cancel_time_ms': 0,
+            'session_id':     'SES-4401-D',
+        })
+    for i, offset in enumerate([1080, 1320]):
+        trades.append({
+            'trade_id':       f'TRD-PND-S{i:02d}',
+            'timestamp':      (base_pnd + timedelta(seconds=offset)).strftime('%Y-%m-%d %H:%M:%S'),
+            'trader_id':      'T-4401',
+            'account_id':     'A-4401',
+            'instrument':     'TCS',
+            'order_type':     'SELL',
+            'order_size':     55000,
+            'price':          round(tcs_price * 1.012, 2),
+            'order_status':   'EXECUTED',
+            'cancel_time_ms': 0,
+            'session_id':     'SES-4401-D',
+        })
+
     return sorted(trades, key=lambda x: x['timestamp'])

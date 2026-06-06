@@ -16,7 +16,11 @@ from workflows import run_escalation_workflow
 from market_data import fetch_real_prices, generate_realistic_trades
 
 app = Flask(__name__)
-CORS(app, origins="*")
+CORS(app, origins=[
+    "http://localhost:3000",
+    "https://smart-trade-compliance-monitor-1.onrender.com",
+    "*",
+])
 
 with app.app_context():
     init_db()
@@ -280,12 +284,13 @@ def get_stats():
     layering      = conn.execute("SELECT COUNT(*) FROM alerts WHERE pattern_type='LAYERING'").fetchone()[0]
     spoofing      = conn.execute("SELECT COUNT(*) FROM alerts WHERE pattern_type='SPOOFING'").fetchone()[0]
     wash          = conn.execute("SELECT COUNT(*) FROM alerts WHERE pattern_type='WASH_TRADING'").fetchone()[0]
+    pump          = conn.execute("SELECT COUNT(*) FROM alerts WHERE pattern_type='PUMP_AND_DUMP'").fetchone()[0]
     conn.close()
     return jsonify({
         "total_trades": total_trades, "total_alerts": total_alerts,
         "escalated": escalated, "dismissed": dismissed, "pending": pending,
         "high_severity": high,
-        "patterns": {"layering": layering, "spoofing": spoofing, "wash_trading": wash},
+        "patterns": {"layering": layering, "spoofing": spoofing, "wash_trading": wash, "pump_and_dump": pump},
     })
 
 
@@ -351,6 +356,19 @@ def refresh_data():
     except Exception as e:
         app.logger.error(f"Refresh data error: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+# ── Demo Reset ───────────────────────────────────────────────────────────────
+
+@app.route("/api/reset", methods=["POST"])
+def reset_demo():
+    conn = get_db()
+    conn.execute("DELETE FROM alerts")
+    conn.execute("DELETE FROM triage_results")
+    conn.execute("DELETE FROM escalations")
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "reset", "message": "Demo reset complete. Ready for fresh run."})
 
 
 # ── Subscribers ───────────────────────────────────────────────────────────────
