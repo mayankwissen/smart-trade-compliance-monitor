@@ -1,10 +1,11 @@
 import anthropic
+from anthropic.types import TextBlock
 import os
 import json
 import uuid
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from database import get_db
 
 SYSTEM_PROMPT = """You are a Chief Compliance Officer at NSE (National Stock \
@@ -55,14 +56,17 @@ def triage_alert(alert):
 
     start_ms = int(time.time() * 1000)
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-5-20251001",
         max_tokens=600,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": build_prompt(alert)}],
     )
     processing_time_ms = int(time.time() * 1000) - start_ms
 
-    raw = response.content[0].text.strip()
+    block = response.content[0]
+    if not isinstance(block, TextBlock):
+        raise ValueError(f"Claude returned unexpected content type: {type(block)}")
+    raw = block.text.strip()
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
@@ -93,7 +97,7 @@ def triage_alert(alert):
             result.get("risk_level"),
             result.get("regulatory_reference"),
             processing_time_ms,
-            datetime.utcnow().isoformat(),
+            datetime.now(timezone.utc).isoformat(),
         ),
     )
 

@@ -6,7 +6,7 @@ AI-powered NSE trade surveillance system. Ingests trade data, detects manipulati
 Built for Wissen Technology Hackathon 2026.
 
 ## Model in use
-- **Triage AI**: `claude-sonnet-4-20250514` (hardcoded in `backend/triage.py`)
+- **Triage AI**: `claude-sonnet-4-5-20251001` (hardcoded in `backend/triage.py`)
 - **Claude Code session**: Sonnet 4.6 (default) — change with `/model` in the CLI
 
 ## Current Status — as of last session
