@@ -1,5 +1,71 @@
 const { useState: _aduseS, useEffect: _aduseE, useCallback: _aduseC } = React;
 
+function _AlertTimelineChart({ trades }) {
+  const t = window.useT();
+  const canvasRef = React.useRef(null);
+  const chartRef = React.useRef(null);
+  React.useEffect(() => {
+    if (!canvasRef.current || !trades || !trades.length) return;
+    if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; }
+    const ctx = canvasRef.current.getContext('2d');
+    const bgColors = trades.map(tr => {
+      if (tr.order_status === 'CANCELLED') return '#f59e0b66';
+      if (tr.order_type === 'BUY') return '#22c55e99';
+      return '#ef444499';
+    });
+    const borderColors = trades.map(tr => {
+      if (tr.order_status === 'CANCELLED') return '#f59e0b';
+      if (tr.order_type === 'BUY') return '#22c55e';
+      return '#ef4444';
+    });
+    chartRef.current = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: trades.map((_, i) => '#' + (i + 1)),
+        datasets: [{
+          label: 'Order Size (BUY=green, SELL=red, CANCELLED=amber)',
+          data: trades.map(tr => tr.order_size),
+          backgroundColor: bgColors,
+          borderColor: borderColors,
+          borderWidth: 1,
+        }],
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { labels: { color: t.text, font: { family: 'Inter', size: 11 } } },
+          tooltip: {
+            callbacks: {
+              title: (items) => {
+                const tr = trades[items[0].dataIndex];
+                return (tr.timestamp || '').slice(11, 19) || 'Trade ' + (items[0].dataIndex + 1);
+              },
+              afterBody: (items) => {
+                const tr = trades[items[0].dataIndex];
+                const lines = [tr.order_type + ' · ' + tr.order_status];
+                if (tr.cancel_time_ms > 0) lines.push('Cancelled in ' + tr.cancel_time_ms + 'ms');
+                if (tr.price) lines.push('Price: ₹' + Number(tr.price).toFixed(2));
+                return lines;
+              },
+            },
+          },
+        },
+        scales: {
+          x: { ticks: { color: t.textMuted, font: { size: 9 } }, grid: { color: t.border + '33' } },
+          y: { ticks: { color: t.textMuted, font: { size: 9 } }, grid: { color: t.border + '33' }, title: { display: true, text: 'Order Size', color: t.textMuted, font: { size: 10 } } },
+        },
+      },
+    });
+    return () => { if (chartRef.current) { chartRef.current.destroy(); chartRef.current = null; } };
+  }, [trades]);
+  if (!trades || !trades.length) return React.createElement('div', { style: { color: t.textMuted, textAlign: 'center', padding: '40px 0', fontSize: 13 } }, 'No trade data for this alert');
+  return React.createElement('div', null,
+    React.createElement('div', { style: { color: t.textMuted, fontSize: 11, fontFamily: "'Inter',sans-serif", marginBottom: 12, letterSpacing: '.08em' } },
+      'TRADE SEQUENCE — ' + trades.length + ' orders · BUY (green) · SELL (red) · CANCELLED (amber)'),
+    React.createElement('canvas', { ref: canvasRef, style: { maxHeight: 280, width: '100%' } })
+  );
+}
+
 window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
   const t = window.useT();
   const [data, setData]       = _aduseS(null);
@@ -76,7 +142,7 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
           {[
             ['Alert ID',    <span style={{ fontFamily: "'JetBrains Mono',monospace", color: t.gold, fontSize: 14, fontWeight: 700 }}>{alert.alert_id}</span>],
             ['Pattern',     <window.Bdg label={alert.pattern_type} cfg={window.PAT_CFG[alert.pattern_type]} />],
-            ['Trader ID',   <span style={{ fontFamily: "'JetBrains Mono',monospace", color: t.gold, fontSize: 14, fontWeight: 700 }}>{alert.trader_id}</span>],
+            ['Trader ID',   <span onClick={() => nav('/trader/' + alert.trader_id)} style={{ fontFamily: "'JetBrains Mono',monospace", color: t.gold, fontSize: 14, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }} title="View trader profile">{alert.trader_id}</span>],
             ['Instrument',  <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, color: t.text, fontSize: 16 }}>{alert.instrument}</span>],
             ['Severity',    <window.Bdg label={alert.severity} cfg={window.SEV_CFG[alert.severity]} lg />],
             ['Status',      <window.Bdg label={alert.status}   cfg={window.STA_CFG[alert.status]} />],
@@ -98,6 +164,7 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
             ['triage',   'AI Triage'],
             ['evidence', 'Evidence'],
             ['actions',  'Escalations'],
+            ['timeline', 'Timeline'],
           ].map(([k, label]) => (
             <button key={k} className={`tab-btn${tab === k ? ' active' : ''}`} onClick={() => setTab(k)}>{label}</button>
           ))}
@@ -318,6 +385,44 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
             </div>
           )}
 
+          {/* ── TAB 4: TIMELINE ── */}
+          {tab === 'timeline' && (
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, color: t.text }}>Order Flow Visualization</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: t.textMuted, fontFamily: "'Inter',sans-serif" }}>
+                    <span style={{ width: 9, height: 9, borderRadius: 2, background: '#22c55e', display: 'inline-block' }} />BUY
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: t.textMuted, fontFamily: "'Inter',sans-serif" }}>
+                    <span style={{ width: 9, height: 9, borderRadius: 2, background: '#ef4444', display: 'inline-block' }} />SELL
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: t.textMuted, fontFamily: "'Inter',sans-serif" }}>
+                    <span style={{ width: 9, height: 9, borderRadius: 2, background: '#f59e0b', display: 'inline-block' }} />CANCELLED
+                  </span>
+                </div>
+              </div>
+              <_AlertTimelineChart trades={trades} />
+              <div style={{ color: t.textMuted, fontSize: 11, fontFamily: "'Inter',sans-serif", marginTop: 10, textAlign: 'center' }}>
+                Each bar represents one order. Height = order size. Hover for details.
+              </div>
+              {alert && (() => {
+                const insightMap = {
+                  LAYERING: 'The chart above shows the classic layering signature: a wall of cancelled orders (amber) used to create artificial price pressure before the executed sell (red).',
+                  SPOOFING: 'Large orders placed and immediately cancelled (amber spikes) to manipulate the perceived order book depth.',
+                  WASH_TRADING: 'Matched buy and sell orders of near-identical size between related accounts.',
+                  PUMP_AND_DUMP: 'Rapid accumulation phase (green cluster) followed by concentrated distribution (red).',
+                };
+                const msg = insightMap[alert.pattern_type] || 'Order flow analysis for this manipulation pattern.';
+                return (
+                  <div style={{ fontStyle: 'italic', color: t.textSec, fontSize: 12, lineHeight: 1.7, padding: '12px 16px', background: t.bg, border: `1px solid ${t.border}88`, borderRadius: 8, marginTop: 12 }}>
+                    {msg}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
           {/* ── TAB 3: ESCALATION ACTIONS ── */}
           {tab === 'actions' && (
             <div>
@@ -350,6 +455,11 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                         onClick={() => window.open(`${window.API_BASE}/api/export/case/${alertId}`)}>
                         Download Case File
                       </window.Btn>
+                      {triage && verdict === 'ESCALATE' && <window.Btn small variant="ghost"
+                        onClick={() => window.open(window.API_BASE + '/api/generate-str/' + alertId)}
+                        style={{ marginLeft: 8 }}>
+                        Generate STR Filing
+                      </window.Btn>}
                     </>
                   ) : (
                     <div style={{ color: t.textMuted, fontSize: 12 }}>No case yet — triage to trigger workflows.</div>

@@ -13,14 +13,15 @@ window.useRoute = function useRoute() {
   }, []);
   const nav = useCallback(p => { window.location.hash = p; }, []);
   const raw = hash.replace(/^#/, '') || '/';
-  let page = 'dashboard', alertId = null;
+  let page = 'dashboard', alertId = null, traderId = null;
   if (raw === '/' || raw === '')       page = 'dashboard';
   else if (raw === '/alerts')          page = 'alerts';
   else if (raw.startsWith('/alert/')) { page = 'alert-detail'; alertId = raw.slice(7); }
   else if (raw === '/trades')          page = 'trades';
   else if (raw === '/logs')            page = 'logs';
   else if (raw === '/settings')        page = 'settings';
-  return { page, alertId, nav };
+  else if (raw.startsWith('/trader/')) { page = 'trader-profile'; traderId = raw.slice(8); }
+  return { page, alertId, traderId, nav };
 };
 
 // Sets CSS variables for theme-aware classes (dt-wrap borders, etc.)

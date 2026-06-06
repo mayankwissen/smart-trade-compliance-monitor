@@ -116,6 +116,28 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
 
   const busy = refreshing || demoRunning || resetting;
 
+  const _corrGroups = (() => {
+    if (localAlerts.length < 2) return [];
+    const sorted = [...localAlerts].sort((a, b) => new Date(a.detected_at) - new Date(b.detected_at));
+    const groups = [];
+    const used = new Set();
+    for (let i = 0; i < sorted.length; i++) {
+      if (used.has(sorted[i].alert_id)) continue;
+      const base = new Date(sorted[i].detected_at).getTime();
+      const group = [sorted[i]];
+      for (let j = i + 1; j < sorted.length; j++) {
+        if (used.has(sorted[j].alert_id)) continue;
+        const diff = (new Date(sorted[j].detected_at).getTime() - base) / 1000;
+        if (diff <= 600) { group.push(sorted[j]); used.add(sorted[j].alert_id); }
+      }
+      if (group.length >= 2) {
+        used.add(sorted[i].alert_id);
+        groups.push(group);
+      }
+    }
+    return groups;
+  })();
+
   return (
     <div className="page-scroll" style={{ background: t.bg }}>
 
@@ -197,6 +219,44 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
                 <window.Btn small variant="outline" disabled={page === 1} onClick={() => setPage(p => p - 1)}>← Prev</window.Btn>
                 <span style={{ color: t.textSec, fontSize: 12 }}>Page {page} / {pages}</span>
                 <window.Btn small variant="outline" disabled={page === pages} onClick={() => setPage(p => p + 1)}>Next →</window.Btn>
+              </div>
+            )}
+            {_corrGroups.length > 0 && (
+              <div style={{ padding: '16px 16px 8px 16px', borderTop: `1px solid ${t.border}` }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 }}>
+                  <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: t.textMuted, letterSpacing: '.12em', textTransform: 'uppercase' }}>CORRELATED ACTIVITY</span>
+                  <span style={{ background: t.warning + '22', color: t.warning, borderRadius: 10, padding: '2px 10px', fontSize: 11, fontWeight: 700 }}>
+                    {_corrGroups.length + ' GROUP' + (_corrGroups.length > 1 ? 'S' : '')}
+                  </span>
+                </div>
+                <div style={{ borderTop: `1px solid ${t.border}`, margin: '12px 0' }} />
+                {_corrGroups.map((group, gi) => {
+                  const spanMin = Math.round((new Date(group[group.length - 1].detected_at) - new Date(group[0].detected_at)) / 1000 / 60 * 10) / 10;
+                  const uniquePatterns = [...new Set(group.map(a => a.pattern_type))];
+                  return (
+                    <div key={gi} style={{ background: t.card, borderRadius: 8, padding: '12px 16px', marginBottom: 8, border: `1px solid ${t.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                      <div style={{ flex: '1 1 160px' }}>
+                        <div style={{ color: t.danger, fontSize: 10, fontWeight: 700, letterSpacing: '.1em', fontFamily: "'Inter',sans-serif", textTransform: 'uppercase' }}>POTENTIAL COORDINATED ACTIVITY</div>
+                        <div style={{ color: t.textSec, fontSize: 12, marginTop: 3 }}>{group.length + ' alerts within ' + spanMin + '-min window'}</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: '2 1 200px' }}>
+                        {group.map(a => (
+                          <span key={a.alert_id}
+                            onClick={() => nav('/alert/' + a.alert_id)}
+                            style={{ background: t.gold + '18', color: t.gold, borderRadius: 4, padding: '2px 8px', fontSize: 10, fontFamily: "'JetBrains Mono',monospace", cursor: 'pointer' }}>
+                            {a.alert_id}
+                          </span>
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flexShrink: 0 }}>
+                        {uniquePatterns.map(pat => (
+                          <window.Bdg key={pat} label={pat} cfg={window.PAT_CFG[pat]} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+                <div style={{ fontSize: 11, color: t.textMuted, marginTop: 4, marginBottom: 4 }}>Alerts within 10-minute windows may indicate coordinated manipulation. Investigate together.</div>
               </div>
             )}
           </window.Card>

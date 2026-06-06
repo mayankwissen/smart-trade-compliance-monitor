@@ -456,6 +456,405 @@ def export_case(alert_id):
     )
 
 
+# ── New Analysis Endpoints ─────────────────────────────────────────────────
+
+@app.route("/api/generate-str/<alert_id>")
+def generate_str(alert_id):
+    try:
+        conn = get_db()
+        alert = conn.execute("SELECT * FROM alerts WHERE alert_id=?", (alert_id,)).fetchone()
+        if not alert:
+            conn.close()
+            return jsonify({"error": "Alert not found"}), 404
+        alert = dict(alert)
+
+        triage = conn.execute("SELECT * FROM triage_results WHERE alert_id=?", (alert_id,)).fetchone()
+        triage = dict(triage) if triage else None
+
+        trades = conn.execute(
+            "SELECT * FROM trades WHERE trader_id=? AND instrument=? ORDER BY timestamp",
+            (alert["trader_id"], alert["instrument"]),
+        ).fetchall()
+        conn.close()
+        trades = [dict(t) for t in trades]
+
+        str_ref = "STR-NSE-" + alert_id[:8].upper()
+        filing_date = datetime.now().strftime("%d %B %Y")
+        pattern_label = alert.get("pattern_type", "").replace("_", " ")
+        cancel_ratio_pct = round((alert.get("cancel_ratio") or 0) * 100, 1)
+        sigma_val = round(alert.get("sigma") or 0, 2)
+
+        triage_html = ""
+        if triage:
+            verdict = triage.get("verdict", "")
+            verdict_color = "#dc2626" if verdict == "ESCALATE" else "#16a34a"
+            triage_html = f"""
+            <div class="section">
+                <div class="section-title">Section 3: AI Triage Assessment</div>
+                <div class="field-row">
+                    <div class="field-label">AI Verdict</div>
+                    <div class="field-value verdict" style="color:{verdict_color};font-weight:bold;">{verdict}</div>
+                </div>
+                <div class="field-row">
+                    <div class="field-label">Confidence</div>
+                    <div class="field-value">{triage.get("confidence", "")}%</div>
+                </div>
+                <div class="field-row">
+                    <div class="field-label">False Positive Probability</div>
+                    <div class="field-value">{triage.get("false_positive_probability", "")}%</div>
+                </div>
+                <div class="field-row">
+                    <div class="field-label">Risk Level</div>
+                    <div class="field-value">{triage.get("risk_level", "")}</div>
+                </div>
+                <div class="field-row">
+                    <div class="field-label">Rationale</div>
+                    <div class="field-value">{triage.get("rationale", "")}</div>
+                </div>
+                <div class="field-row">
+                    <div class="field-label">Recommended Action</div>
+                    <div class="field-value">{triage.get("recommended_action", "")}</div>
+                </div>
+                <div class="field-row">
+                    <div class="field-label">Regulatory Reference</div>
+                    <div class="field-value">{triage.get("regulatory_reference", "")}</div>
+                </div>
+                <div class="field-row">
+                    <div class="field-label">Processing Time</div>
+                    <div class="field-value">{triage.get("processing_time_ms", "")} ms</div>
+                </div>
+            </div>
+            """
+
+        trade_rows = ""
+        for t in trades[:50]:
+            price_str = f"&#8377;{float(t.get('price') or 0):.2f}"
+            size_str = f"{int(t.get('order_size') or 0):,}"
+            trade_rows += f"""
+            <tr>
+                <td>{t.get("timestamp","")}</td>
+                <td>{t.get("order_type","")}</td>
+                <td>{size_str}</td>
+                <td>{price_str}</td>
+                <td>{t.get("order_status","")}</td>
+                <td>{t.get("cancel_time_ms","")}</td>
+            </tr>"""
+
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>STR {str_ref}</title>
+<style>
+  body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px; color: #111; background: #fff; }}
+  .header {{ background: #1a1a1a; color: #fff; padding: 24px 32px; margin-bottom: 24px; }}
+  .header h1 {{ margin: 0 0 4px 0; font-size: 22px; letter-spacing: 1px; }}
+  .header p {{ margin: 0; font-size: 13px; color: #aaa; }}
+  .meta-grid {{ display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px; }}
+  .meta-item .label {{ font-size: 11px; text-transform: uppercase; color: #888; margin-bottom: 4px; }}
+  .meta-item .value {{ background: #f5f5f5; border-left: 3px solid #1a1a1a; padding: 8px 12px; font-weight: bold; font-size: 14px; }}
+  .section {{ margin-bottom: 24px; border: 1px solid #e0e0e0; border-radius: 4px; overflow: hidden; }}
+  .section-title {{ background: #1a1a1a; color: #fff; padding: 10px 16px; font-size: 13px; font-weight: bold; letter-spacing: 0.5px; }}
+  .field-row {{ display: flex; padding: 10px 16px; border-bottom: 1px solid #f0f0f0; }}
+  .field-row:last-child {{ border-bottom: none; }}
+  .field-label {{ font-size: 11px; text-transform: uppercase; color: #888; width: 220px; flex-shrink: 0; padding-top: 2px; }}
+  .field-value {{ background: #f5f5f5; border-left: 3px solid #ccc; padding: 4px 10px; flex: 1; font-size: 13px; }}
+  .verdict {{ font-weight: bold; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 12px; }}
+  thead tr {{ background: #1a1a1a; color: #fff; }}
+  th {{ padding: 8px 10px; text-align: left; font-size: 11px; text-transform: uppercase; }}
+  td {{ padding: 7px 10px; border-bottom: 1px solid #f0f0f0; }}
+  tr:nth-child(even) {{ background: #fafafa; }}
+  .footer {{ margin-top: 32px; font-size: 11px; color: #888; border-top: 1px solid #e0e0e0; padding-top: 12px; }}
+  .print-btn {{ background: #1a1a1a; color: #fff; border: none; padding: 10px 24px; font-size: 13px; cursor: pointer; border-radius: 3px; margin-bottom: 20px; }}
+  .print-btn:hover {{ background: #333; }}
+  @media print {{ .no-print {{ display: none !important; }} }}
+</style>
+</head>
+<body>
+<button class="print-btn no-print" onclick="window.print()">Print / Save as PDF</button>
+<div class="header">
+  <h1>SUSPICIOUS TRANSACTION REPORT</h1>
+  <p>National Stock Exchange of India Limited &mdash; Filed with Financial Intelligence Unit &ndash; India (FIU-IND)</p>
+</div>
+<div class="meta-grid">
+  <div class="meta-item"><div class="label">STR Reference</div><div class="value">{str_ref}</div></div>
+  <div class="meta-item"><div class="label">Filing Date</div><div class="value">{filing_date}</div></div>
+  <div class="meta-item"><div class="label">Reporting Entity</div><div class="value">NSE</div></div>
+  <div class="meta-item"><div class="label">Reported To</div><div class="value">FIU-IND</div></div>
+</div>
+
+<div class="section">
+  <div class="section-title">Section 1: Alert Details</div>
+  <div class="field-row"><div class="field-label">Alert Reference</div><div class="field-value">{alert.get("alert_id","")}</div></div>
+  <div class="field-row"><div class="field-label">Detection Date</div><div class="field-value">{alert.get("detected_at","")}</div></div>
+  <div class="field-row"><div class="field-label">Trader ID</div><div class="field-value">{alert.get("trader_id","")}</div></div>
+  <div class="field-row"><div class="field-label">Instrument</div><div class="field-value">{alert.get("instrument","")}</div></div>
+  <div class="field-row"><div class="field-label">Pattern Type</div><div class="field-value">{pattern_label}</div></div>
+  <div class="field-row"><div class="field-label">Severity</div><div class="field-value">{alert.get("severity","")}</div></div>
+</div>
+
+<div class="section">
+  <div class="section-title">Section 2: Evidence Summary</div>
+  <div class="field-row"><div class="field-label">Evidence Summary</div><div class="field-value">{alert.get("evidence_summary","")}</div></div>
+  <div class="field-row"><div class="field-label">Cancel Ratio</div><div class="field-value">{cancel_ratio_pct}%</div></div>
+  <div class="field-row"><div class="field-label">Sigma Value</div><div class="field-value">{sigma_val}</div></div>
+</div>
+
+{triage_html}
+
+<div class="section">
+  <div class="section-title">Section 4: Trade Evidence (First 50 Orders)</div>
+  <table>
+    <thead><tr><th>Timestamp</th><th>Order Type</th><th>Order Size</th><th>Price</th><th>Status</th><th>Cancel Time (ms)</th></tr></thead>
+    <tbody>{trade_rows}</tbody>
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-title">Section 5: Regulatory Basis</div>
+  <div class="field-row"><div class="field-label">Primary Regulation</div><div class="field-value">SEBI (Prohibition of Fraudulent and Unfair Trade Practices relating to Securities Market) Regulations, 2003 (PFUTP 2003)</div></div>
+  <div class="field-row"><div class="field-label">AML Framework</div><div class="field-value">Prevention of Money Laundering Act, 2002 (PMLA 2002) &mdash; Section 12: Reporting obligations for financial institutions</div></div>
+</div>
+
+<div class="footer">
+  <p><strong>Generated:</strong> {datetime.now(timezone.utc).isoformat()} UTC</p>
+  <p><strong>CONFIDENTIAL:</strong> This Suspicious Transaction Report is filed under the Prevention of Money Laundering Act, 2002 and SEBI PFUTP Regulations, 2003. Unauthorised disclosure is prohibited. This document is intended solely for FIU-IND and authorised regulatory bodies.</p>
+</div>
+</body>
+</html>"""
+
+        return Response(html, mimetype="text/html")
+
+    except Exception as e:
+        app.logger.error(f"STR generation error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/trader/<trader_id>")
+def get_trader_profile(trader_id):
+    try:
+        conn = get_db()
+        alerts_rows = conn.execute(
+            "SELECT * FROM alerts WHERE trader_id=? ORDER BY detected_at DESC", (trader_id,)
+        ).fetchall()
+        alerts = [dict(a) for a in alerts_rows]
+
+        for a in alerts:
+            triage_row = conn.execute(
+                "SELECT t.verdict, t.confidence, t.risk_level FROM triage_results t WHERE t.alert_id=?",
+                (a["alert_id"],)
+            ).fetchone()
+            if triage_row:
+                a["triage_verdict"]     = triage_row["verdict"]
+                a["triage_confidence"]  = triage_row["confidence"]
+                a["triage_risk_level"]  = triage_row["risk_level"]
+            else:
+                a["triage_verdict"]     = None
+                a["triage_confidence"]  = None
+                a["triage_risk_level"]  = None
+
+        pattern_counts = {"LAYERING": 0, "SPOOFING": 0, "WASH_TRADING": 0, "PUMP_AND_DUMP": 0}
+        for a in alerts:
+            pt = a.get("pattern_type", "")
+            if pt in pattern_counts:
+                pattern_counts[pt] += 1
+
+        escalation_count = conn.execute(
+            "SELECT COUNT(*) FROM escalations e JOIN alerts a ON e.alert_id = a.alert_id WHERE a.trader_id=?",
+            (trader_id,)
+        ).fetchone()[0]
+
+        watchlist_row = conn.execute(
+            "SELECT COUNT(*) FROM escalations e JOIN alerts a ON e.alert_id = a.alert_id WHERE a.trader_id=? AND e.escalation_type='WATCHLIST_FLAGGED'",
+            (trader_id,)
+        ).fetchone()
+        watchlisted = bool(watchlist_row and watchlist_row[0] > 0)
+
+        total_trades = conn.execute(
+            "SELECT COUNT(*) FROM trades WHERE trader_id=?", (trader_id,)
+        ).fetchone()[0]
+        conn.close()
+
+        risk_score = 0
+        for a in alerts:
+            if a.get("status") == "ESCALATED" and a.get("triage_verdict") == "ESCALATE":
+                risk_score += 30
+            if a.get("severity") == "HIGH":
+                risk_score += 20
+            elif a.get("severity") == "MEDIUM":
+                risk_score += 10
+        risk_score = min(risk_score, 100)
+
+        return jsonify({
+            "trader_id":        trader_id,
+            "risk_score":       risk_score,
+            "alerts":           alerts,
+            "pattern_counts":   pattern_counts,
+            "escalation_count": escalation_count,
+            "watchlisted":      watchlisted,
+            "total_trades":     total_trades,
+        })
+
+    except Exception as e:
+        app.logger.error(f"Trader profile error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/market-impact/<alert_id>")
+def get_market_impact(alert_id):
+    try:
+        conn = get_db()
+        alert = conn.execute("SELECT * FROM alerts WHERE alert_id=?", (alert_id,)).fetchone()
+        if not alert:
+            conn.close()
+            return jsonify({"error": "Alert not found"}), 404
+        alert = dict(alert)
+
+        trades_rows = conn.execute(
+            "SELECT * FROM trades WHERE trader_id=? AND instrument=?",
+            (alert["trader_id"], alert["instrument"]),
+        ).fetchall()
+        conn.close()
+        trades = [dict(t) for t in trades_rows]
+
+        sigma = float(alert.get("sigma") or 0)
+
+        if not trades:
+            return jsonify({
+                "alert_id":                alert_id,
+                "instrument":              alert.get("instrument", ""),
+                "price_move_pct":          0.0,
+                "min_price":               0.0,
+                "max_price":               0.0,
+                "total_volume_shares":     0,
+                "total_volume_inr":        0.0,
+                "suspicious_volume_inr":   0.0,
+                "estimated_harm_inr":      0.0,
+                "affected_investor_estimate": 50,
+                "sigma":                   sigma,
+                "manipulation_window_min": 0.0,
+            })
+
+        prices = [float(t["price"]) for t in trades if t.get("price") is not None]
+        min_price = min(prices) if prices else 0.0
+        max_price = max(prices) if prices else 0.0
+
+        if min_price == 0:
+            price_move_pct = 0.0
+        else:
+            price_move_pct = (max_price - min_price) / min_price * 100
+
+        total_volume_shares = sum(int(t.get("order_size") or 0) for t in trades)
+        total_volume_inr    = sum(float(t.get("order_size") or 0) * float(t.get("price") or 0) for t in trades)
+        suspicious_volume_inr = sum(
+            float(t.get("order_size") or 0) * float(t.get("price") or 0)
+            for t in trades if t.get("order_status") == "CANCELLED"
+        )
+        estimated_harm_inr = suspicious_volume_inr * (price_move_pct / 100) * 0.35
+        affected_investor_estimate = max(50, int(total_volume_shares / 5000))
+
+        timestamps = []
+        for t in trades:
+            ts = t.get("timestamp")
+            if ts:
+                try:
+                    timestamps.append(datetime.fromisoformat(str(ts)))
+                except (ValueError, TypeError):
+                    pass
+
+        if len(timestamps) >= 2:
+            manipulation_window_min = (max(timestamps) - min(timestamps)).total_seconds() / 60
+        else:
+            manipulation_window_min = 0.0
+
+        return jsonify({
+            "alert_id":                alert_id,
+            "instrument":              alert.get("instrument", ""),
+            "price_move_pct":          round(price_move_pct, 4),
+            "min_price":               round(min_price, 2),
+            "max_price":               round(max_price, 2),
+            "total_volume_shares":     total_volume_shares,
+            "total_volume_inr":        round(total_volume_inr, 2),
+            "suspicious_volume_inr":   round(suspicious_volume_inr, 2),
+            "estimated_harm_inr":      round(estimated_harm_inr, 2),
+            "affected_investor_estimate": affected_investor_estimate,
+            "sigma":                   sigma,
+            "manipulation_window_min": round(manipulation_window_min, 2),
+        })
+
+    except Exception as e:
+        app.logger.error(f"Market impact error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/correlated-alerts")
+def get_correlated_alerts():
+    try:
+        conn = get_db()
+        rows = conn.execute("""
+            SELECT a.*, t.verdict, t.confidence, t.risk_level
+            FROM alerts a
+            LEFT JOIN triage_results t ON a.alert_id = t.alert_id
+            ORDER BY a.detected_at ASC
+        """).fetchall()
+        conn.close()
+        alerts = [dict(r) for r in rows]
+
+        parsed = []
+        for a in alerts:
+            ts = a.get("detected_at")
+            try:
+                dt = datetime.fromisoformat(str(ts)) if ts else None
+            except (ValueError, TypeError):
+                dt = None
+            parsed.append((dt, a))
+
+        groups = []
+        used = set()
+
+        for i, (dt_i, alert_i) in enumerate(parsed):
+            if alert_i["alert_id"] in used or dt_i is None:
+                continue
+            group_alerts = [alert_i]
+            for j, (dt_j, alert_j) in enumerate(parsed):
+                if i == j or alert_j["alert_id"] in used or dt_j is None:
+                    continue
+                if abs((dt_j - dt_i).total_seconds()) <= 600:
+                    group_alerts.append(alert_j)
+
+            if len(group_alerts) >= 2:
+                for a in group_alerts:
+                    used.add(a["alert_id"])
+                group_times = []
+                for a in group_alerts:
+                    ts = a.get("detected_at")
+                    try:
+                        group_times.append(datetime.fromisoformat(str(ts)))
+                    except (ValueError, TypeError):
+                        pass
+                window_start = min(group_times).isoformat() if group_times else ""
+                window_end   = max(group_times).isoformat() if group_times else ""
+                duration_min = (max(group_times) - min(group_times)).total_seconds() / 60 if len(group_times) >= 2 else 0.0
+                patterns = list({a.get("pattern_type", "") for a in group_alerts})
+                traders  = list({a.get("trader_id", "") for a in group_alerts})
+                groups.append({
+                    "window_start":     window_start,
+                    "window_end":       window_end,
+                    "alert_count":      len(group_alerts),
+                    "duration_minutes": round(duration_min, 2),
+                    "patterns":         patterns,
+                    "traders":          traders,
+                    "alerts":           group_alerts,
+                })
+
+        return jsonify({"groups": groups, "total_groups": len(groups)})
+
+    except Exception as e:
+        app.logger.error(f"Correlated alerts error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)

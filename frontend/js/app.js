@@ -13,7 +13,7 @@ function App() {
   const priceRef = useRef(null);
 
   const theme = isDark ? window.DARK : window.LIGHT;
-  const { page, alertId, nav } = window.useRoute();
+  const { page, alertId, traderId, nav } = window.useRoute();
 
   const toggleTheme = () => {
     setIsDark(d => { localStorage.setItem('theme', d ? 'light' : 'dark'); return !d; });
@@ -98,6 +98,7 @@ function App() {
           {page === 'dashboard'    && <window.Dashboard stats={stats} alerts={alerts} escalations={escalations} nav={nav} onRefreshComplete={fetchAll} />}
           {page === 'alerts'       && <window.AlertsPage nav={nav} />}
           {page === 'alert-detail' && alertId && <window.AlertDetailPage alertId={alertId} nav={nav} />}
+          {page === 'trader-profile' && traderId && <window.TraderProfilePage traderId={traderId} nav={nav} />}
           {page === 'trades'       && <window.TradesPage />}
           {page === 'logs'         && <window.LogsPage nav={nav} />}
           {page === 'settings'     && <window.SettingsPage />}
