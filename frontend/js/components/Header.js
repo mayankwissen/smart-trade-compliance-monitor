@@ -1,30 +1,53 @@
-const { useState: _huseState, useEffect: _huseE } = React;
+const { useState: _huseState, useEffect: _huseE, useRef: _huseRef } = React;
 
 // ── Vertical NSE price panel (right side) ─────────────────────────────────
 window.PricePanel = function PricePanel({ prices }) {
-  const [search, setSearch]           = _huseState('');
+  const [searchTerm, setSearchTerm] = _huseState('');
   const [lastUpdated, setLastUpdated] = _huseState('');
+  const [prevPrices, setPrevPrices]   = _huseState({});
+  const isFirst = _huseRef(true);
 
   _huseE(() => {
-    if (prices && Object.keys(prices).length > 0) {
-      setLastUpdated(new Date().toLocaleTimeString());
+    if (!prices || Object.keys(prices).length === 0) return;
+    setLastUpdated(new Date().toLocaleTimeString());
+    // On first load just store baseline; subsequent updates compute change%
+    if (isFirst.current) {
+      isFirst.current = false;
+      setPrevPrices(prev => {
+        const snap = {};
+        Object.keys(prices).forEach(k => { snap[k] = prices[k].current; });
+        return snap;
+      });
+    } else {
+      setPrevPrices(prev => {
+        const snap = {};
+        Object.keys(prices).forEach(k => {
+          snap[k] = prev[k] !== undefined ? prev[k] : prices[k].current;
+        });
+        return snap;
+      });
     }
   }, [prices]);
 
-  const syms     = ['HDFCBANK', 'RELIANCE', 'INFY', 'TCS', 'ICICIBANK', 'WIPRO', 'SBIN'];
-  const filtered = syms.filter(s => search === '' || s.toLowerCase().includes(search.toLowerCase()));
+  // Filter by search — use all symbols present in prices object
+  const allSyms = Object.keys(prices);
+  const filteredPrices = allSyms.filter(sym =>
+    searchTerm === '' || sym.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div id="price-panel">
       {/* Search */}
       <input
-        value={search}
-        onChange={e => setSearch(e.target.value)}
-        placeholder="Search..."
+        type="text"
+        placeholder="Search stock..."
+        value={searchTerm}
+        onChange={e => setSearchTerm(e.target.value)}
         style={{
           width: '100%', background: '#1a1a1a', border: '1px solid #2a2a2a',
-          color: '#fff', fontSize: 11, borderRadius: 4, padding: '5px 8px',
+          color: '#fff', fontSize: 11, borderRadius: 4, padding: '5px 6px',
           marginBottom: 8, fontFamily: "'Inter',sans-serif", outline: 'none',
+          flexShrink: 0,
         }}
       />
 
@@ -32,41 +55,51 @@ window.PricePanel = function PricePanel({ prices }) {
       <div style={{
         color: '#f0b429', fontSize: 11, fontWeight: 700, letterSpacing: '1px',
         textTransform: 'uppercase', borderBottom: '1px solid #2a2a2a',
-        paddingBottom: 8, marginBottom: 8,
+        paddingBottom: 8, marginBottom: 4, flexShrink: 0,
       }}>NSE LIVE</div>
 
       {/* Stock rows */}
-      <div style={{ flex: 1 }}>
-        {filtered.map((sym, i) => {
-          const d      = prices[sym];
-          const isLast = i === filtered.length - 1;
-          if (!d) return (
-            <div key={sym} style={{ padding: '8px 0', borderBottom: isLast ? 'none' : '1px solid #1a1a1a' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{sym}</div>
-              <div style={{ fontSize: 11, color: '#525252' }}>—</div>
-            </div>
-          );
-          const up  = d.current >= (d.low + (d.high - d.low) * 0.5);
-          const clr = up ? '#22c55e' : '#ef4444';
-          return (
-            <div key={sym} style={{ padding: '8px 0', borderBottom: isLast ? 'none' : '1px solid #1a1a1a' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', marginBottom: 2 }}>{sym}</div>
-              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: clr, fontWeight: 700 }}>
-                ₹{Number(d.current).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-              <div style={{ fontSize: 10, color: clr, marginTop: 1 }}>{up ? '▲' : '▼'}</div>
-            </div>
-          );
-        })}
-      </div>
+      {filteredPrices.map((sym, i) => {
+        const d      = prices[sym];
+        const isLast = i === filteredPrices.length - 1;
+        if (!d) return (
+          <div key={sym} style={{ padding: '7px 0', borderBottom: isLast ? 'none' : '1px solid #1a1a1a' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>{sym}</div>
+            <div style={{ fontSize: 10, color: '#525252' }}>—</div>
+          </div>
+        );
 
-      {/* Last updated */}
+        const curr   = Number(d.current);
+        const prev   = prevPrices[sym];
+        const hasPrev = prev !== undefined && prev !== curr;
+        const delta  = hasPrev ? ((curr - prev) / prev) * 100 : null;
+        const up     = delta !== null ? delta >= 0 : curr >= (d.low + (d.high - d.low) * 0.5);
+        const clr    = up ? '#22c55e' : '#ef4444';
+
+        return (
+          <div key={sym} style={{ padding: '7px 0', borderBottom: isLast ? 'none' : '1px solid #1a1a1a' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#fff', marginBottom: 1 }}>{sym}</div>
+            <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: clr, fontWeight: 700 }}>
+              ₹{curr.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div style={{ fontSize: 10, color: clr, marginTop: 1 }}>
+              {up ? '▲' : '▼'}{delta !== null ? ` ${delta >= 0 ? '+' : ''}${delta.toFixed(2)}%` : ''}
+            </div>
+          </div>
+        );
+      })}
+
+      {filteredPrices.length === 0 && (
+        <div style={{ fontSize: 10, color: '#525252', padding: '8px 0' }}>No match</div>
+      )}
+
+      {/* Last updated — always at bottom, sticky via padding */}
       <div style={{
-        marginTop: 12, paddingTop: 8, borderTop: '1px solid #1a1a1a',
+        paddingTop: 10, marginTop: 8, borderTop: '1px solid #1a1a1a',
         fontSize: 10, color: '#525252', fontFamily: "'JetBrains Mono',monospace",
-        lineHeight: 1.6,
+        lineHeight: 1.6, flexShrink: 0,
       }}>
-        Last updated:<br />{lastUpdated || '—'}
+        Updated:<br />{lastUpdated || '—'}
       </div>
     </div>
   );

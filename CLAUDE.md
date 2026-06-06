@@ -63,7 +63,7 @@ python -m http.server 3000
 | Dark/light toggle (localStorage) | ✅ |
 | Chart.js: donut (patterns) + bar (severity) | ✅ |
 | Top Suspects leaderboard | ✅ |
-| NSE price panel — vertical right sidebar, search, ▲/▼, last-updated (auto-refreshes 60s) | ✅ |
+| NSE price panel — 20 stocks, vertical scroll, search filter, ▲/▼ change%, last-updated | ✅ |
 | Token usage stats endpoint | ✅ |
 | Export case JSON endpoint | ✅ |
 | Fixed layout at 100% zoom (position:fixed sidebar + header) | ✅ |

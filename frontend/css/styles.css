@@ -55,12 +55,14 @@ html, body {
   position: fixed;
   right: 0; top: 64px;
   width: 140px;
-  height: calc(100vh - 64px);
+  height: calc(100vh - 64px) !important;
+  max-height: calc(100vh - 64px) !important;
   background: #0f0f0f;
   border-left: 1px solid #2a2a2a;
   z-index: 90;
   padding: 12px 8px;
-  overflow-y: auto;
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
