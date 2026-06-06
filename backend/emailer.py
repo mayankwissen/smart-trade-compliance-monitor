@@ -140,24 +140,50 @@ def send_alert_email(alert, triage_result, case_id, recipients):
 
     html_body = _build_html(alert, triage_result, case_id)
 
-    sent_count = 0
-    try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(sender, password)
-
+    def _build_messages():
+        msgs = []
         for recipient in recipients:
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
             msg["From"] = f"Trade Surveillance Engine <{sender}>"
             msg["To"] = recipient
             msg.attach(MIMEText(html_body, "html"))
-            server.sendmail(sender, recipient, msg.as_string())
-            sent_count += 1
+            msgs.append((recipient, msg))
+        return msgs
 
+    e1 = None
+    e2 = None
+
+    # Approach 1 — port 587 STARTTLS
+    try:
+        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=15)
+        server.starttls()
+        server.login(sender, password)
+        msgs = _build_messages()
+        for recipient, msg in msgs:
+            server.sendmail(sender, recipient, msg.as_string())
         server.quit()
-        logging.info(f"Sent alert email to {sent_count} recipients")
-        return True, sent_count
-    except Exception as e:
-        logging.error(f"Email send failed: {e}")
-        return False, str(e)
+        logging.info(f"Sent alert email (port 587) to {len(msgs)} recipients")
+        return True, len(msgs)
+    except Exception as exc:
+        e1 = exc
+        logging.error(f"Port 587 failed: {e1}")
+
+    # Approach 2 — port 465 SSL
+    try:
+        import ssl
+        context = ssl.create_default_context()
+        server = smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context, timeout=15)
+        server.login(sender, password)
+        msgs = _build_messages()
+        for recipient, msg in msgs:
+            server.sendmail(sender, recipient, msg.as_string())
+        server.quit()
+        logging.info(f"Sent alert email (port 465) to {len(msgs)} recipients")
+        return True, len(msgs)
+    except Exception as exc:
+        e2 = exc
+        logging.error(f"Port 465 failed: {e2}")
+
+    logging.error(f"All email attempts failed. Sender: {sender}, Error 587: {e1}, Error 465: {e2}")
+    return False, f"587: {e1} | 465: {e2}"

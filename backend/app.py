@@ -85,6 +85,45 @@ def warmup():
     })
 
 
+@app.route("/api/test-email")
+def test_email():
+    import os
+    sender = os.getenv("EMAIL_SENDER")
+    password = os.getenv("EMAIL_PASSWORD")
+    if not sender or not password:
+        return jsonify({
+            "success": False,
+            "error": "EMAIL_SENDER or EMAIL_PASSWORD not set in environment",
+            "sender_set": bool(sender),
+            "password_set": bool(password),
+        }), 500
+
+    dummy_alert = {
+        "alert_id": "TEST-001",
+        "trader_id": "T-TEST",
+        "instrument": "HDFCBANK",
+        "pattern_type": "LAYERING",
+        "severity": "HIGH",
+        "evidence_summary": "Test email from /api/test-email endpoint.",
+        "detected_at": "2026-06-06T00:00:00",
+    }
+    dummy_triage = {
+        "verdict": "ESCALATE",
+        "confidence": 99,
+        "false_positive_probability": 1,
+        "risk_level": "HIGH",
+        "rationale": "This is a test email to verify SMTP connectivity from Render.",
+        "simple_explanation": "Email delivery test.",
+        "recommended_action": "No action required — this is a test.",
+        "regulatory_reference": "N/A — test only",
+    }
+    from emailer import send_alert_email
+    ok, detail = send_alert_email(dummy_alert, dummy_triage, "TEST-CASE", [sender])
+    if ok:
+        return jsonify({"success": True, "detail": f"Email sent to {sender}", "recipients": 1})
+    return jsonify({"success": False, "detail": str(detail)}), 500
+
+
 # ── Trades ────────────────────────────────────────────────────────────────────
 
 @app.route("/api/trades")
