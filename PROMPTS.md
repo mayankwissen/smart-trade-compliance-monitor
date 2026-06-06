@@ -308,6 +308,42 @@ all 6 pages working, professional layout
 
 ---
 
+## PROMPT 8 — QA Bug Fixes (Final)
+
+**Purpose:** Fix 13 bugs found in pre-hackathon QA scan
+
+**Bugs fixed:**
+- `workflows.py`: `datetime.utcnow()` → `datetime.now(timezone.utc)` (5 places, Python 3.12 deprecation)
+- `database.py`: Added `input_tokens`/`output_tokens` to `CREATE TABLE` schema
+- `ingestor.py`: Removed dead `replay_trades()` function and unused `import time`
+- `emailer.py`: Used real `false_positive_probability` from triage result instead of `100 - confidence`
+- `detector.py`: Removed `from datetime import datetime as dt` from inside loop bodies
+- `app.py`: Removed wildcard `*` from CORS origins; added idempotency guard to `POST /api/triage/:id`; fixed `/api/token-stats` model field
+- `market_data.py`: Added 5-minute in-memory price cache to reduce yfinance cold-start time
+- `triage.py`: Increased `max_tokens` from 600 → 1024 to prevent JSON truncation
+- Frontend: Updated all hardcoded `claude-sonnet-4-5` strings to `claude-sonnet-4-6`
+- `AlertDetail.js`: AI Metrics panel now shows real `input_tokens`/`output_tokens` from DB
+- `render.yaml`: Changed to `--workers 1 --threads 4` for free-tier RAM safety
+
+**Tokens used:** ~5,000
+
+---
+
+## PROMPT 9 — Advanced Features
+
+**Purpose:** Add advanced compliance and analysis features beyond core triage
+
+**Features added:**
+- **STR Auto-Generator** (`/api/generate-str/:id`): Print-ready FIU-IND Suspicious Transaction Report filing in HTML with all 5 regulatory sections
+- **Trade Timeline Chart**: Chart.js bar chart in 4th tab of AlertDetail showing BUY/SELL/CANCELLED order flow
+- **Trader Risk Profile** (`/api/trader/:id` + `/trader/:id` page): Risk score 0–100, pattern breakdown, alert history, watchlist status
+- **Market Impact Calculator** (`/api/market-impact/:id`): Price movement %, financial harm estimate in INR, affected investor count
+- **Alert Correlation Detection** (`/api/correlated-alerts` + Dashboard panel): Groups alerts within 10-minute windows to identify coordinated manipulation
+
+**Tokens used:** ~40,000
+
+---
+
 ## TOTAL AI USAGE SUMMARY
 
 | Prompt | Purpose | Est. Tokens | Time |
@@ -319,7 +355,9 @@ all 6 pages working, professional layout
 | 5 | Bug audit + fix | ~8,000 | 5 min |
 | 6 | SEBI triage | ~3,000 | 5 min |
 | 7 | Restructure | ~80,000 | 25 min |
-| **Total** | **Full project** | **~201,500** | **~85 min** |
+| 8 | QA Bug Fixes | ~5,000 | 10 min |
+| 9 | Advanced Features | ~40,000 | 15 min |
+| **Total** | **Full project** | **~246,500** | **~100 min** |
 
 ---
 
