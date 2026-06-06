@@ -850,7 +850,7 @@ def get_trader_profile(trader_id):
         ).fetchone()[0]
 
         watchlist_row = conn.execute(
-            "SELECT COUNT(*) FROM escalations e JOIN alerts a ON e.alert_id = a.alert_id WHERE a.trader_id=? AND e.escalation_type='WATCHLIST_FLAGGED'",
+            "SELECT COUNT(*) FROM escalations e JOIN alerts a ON e.alert_id = a.alert_id WHERE a.trader_id=? AND e.action_type='WATCHLIST_FLAGGED'",
             (trader_id,)
         ).fetchone()
         watchlisted = bool(watchlist_row and watchlist_row[0] > 0)
