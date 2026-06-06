@@ -16,9 +16,10 @@ on individual expertise that walks out the door when an analyst leaves.
 ## The Solution
 
 An end-to-end AI compliance pipeline that:
-1. **Detects** market manipulation patterns (layering, spoofing, wash trading) deterministically
+1. **Detects** 4 market manipulation patterns deterministically (layering, spoofing, wash trading, pump and dump)
 2. **Triages** each alert using Claude Sonnet acting as an NSE Chief Compliance Officer
 3. **Acts** automatically — opens compliance case, notifies Slack, emails the team, flags watchlist
+4. **Explains** — generates FIU-IND ready STR filing, trade timeline visualization, trader risk profile
 
 The AI doesn't just say "suspicious" — it produces an 8-field SEBI-quality verdict with
 confidence score, rationale citing specific trade statistics, plain-English explanation for
@@ -30,23 +31,24 @@ board members, recommended next steps, and the exact SEBI regulation violated.
 
 ```
 Backend:   https://smart-trade-compliance-monitor.onrender.com
-Frontend:  Deploy frontend/ to Vercel or run locally (see Setup)
+Frontend:  https://smart-trade-compliance-monitor-1.onrender.com
 ```
 
 ### One-Click Demo Flow
 
 **Option A — Demo Mode (easiest for live demos)**
-1. Click **🎬 Demo Mode** on the Dashboard
-   - Automatically: fetches live prices → generates trades → detects 6 alerts → triages first HIGH alert
-   - Button shows live step progress: "📡 Fetching live prices..." → "🔍 Detecting patterns..." → "🤖 Claude analyzing..." → "✅ Demo Complete!"
+1. Click **Demo Mode** on the Dashboard
+   - Automatically: fetches live prices → generates trades → detects alerts → triages first HIGH alert
 
 **Option B — Manual**
-1. Click **🔄 Refresh Live Data** → generates ~414 trades at live NSE prices + auto-detects 6 alerts
-2. Click any alert row → **⚡ Triage This Alert** → Claude analyzes in ~2.5s → SEBI-quality verdict
-3. Click **AUTO-TRIAGE ALL** on Alerts page → triages all pending in sequence
+1. Click **Refresh Live Data** → generates ~414 trades at live NSE prices + auto-detects alerts
+2. Click any alert row → **Triage This Alert** → Claude analyzes → SEBI-quality verdict
+3. On Alert Detail → **Timeline** tab → see Chart.js visualization of suspicious order flow
+4. Click **Trader ID** in the overview → Trader Risk Profile (risk score, all history)
+5. If verdict is ESCALATE → **Escalations** tab → **Generate STR Filing** → print-ready FIU-IND document
 
 **Reset between demos**
-- Click **🔄 Reset Demo** → confirms → wipes alerts/triage/escalations, generates fresh trade data
+- Click **Reset Demo** → wipes alerts/triage/escalations, generates fresh trade data
 
 **Check AI usage**
 - Token bar at top of Dashboard shows: triage calls · tokens used · estimated cost · model name
@@ -65,6 +67,10 @@ yfinance (Live NSE) ──► market_data.py ──► SQLite DB ──► detec
                                                          workflows.py
                                               ┌──────────────┼──────────────┐
                                          Case JSON      Slack Block     Email + Watchlist
+                                                                │
+                                                    Analysis Endpoints
+                                          ┌───────────────────┼────────────────────┐
+                                    STR Generator      Market Impact        Correlation
 ```
 
 Full architecture with component diagrams, data flow, and AI design rationale: **[ARCHITECTURE.md](ARCHITECTURE.md)**
@@ -95,6 +101,12 @@ All 8 fields are required JSON. No prose. This means every verdict is:
 - Auditable (each field has a specific legal purpose)
 - Consistent (no variation in format across 1,000 calls)
 
+### Why a STR Generator?
+
+NSE compliance officers spend 2–3 hours drafting Suspicious Transaction Reports manually.
+The system generates a pre-filled, print-ready FIU-IND STR from the AI verdict in one click.
+This alone reduces per-case time from hours to seconds.
+
 ---
 
 ## Suspicious Clusters in the Data
@@ -104,9 +116,9 @@ Four injected patterns that always trigger detection:
 | Cluster | Trader | Instrument | Pattern | Evidence |
 |---------|--------|------------|---------|---------|
 | A | T-1042 | HDFCBANK | LAYERING | 14 orders, 12 BUY cancelled in 420–780ms, 2 SELLs at +0.8% |
-| B | T-2891 | RELIANCE | SPOOFING | 8×80,000-share orders cancelled in 180–490ms, sell at elevated price |
+| B | T-2891 | RELIANCE | SPOOFING | 8×80,000-share orders cancelled in 180–490ms |
 | C | T-3301 | INFY | WASH TRADING | BUY on A-3301, SELL on A-3302, same size, 18 seconds apart |
-| D | T-4401 | TCS | PUMP AND DUMP | 5×22K shares accumulated in 14min, 2×55K sold within 4min at +1.2% |
+| D | T-4401 | TCS | PUMP AND DUMP | 5×22K shares accumulated in 14min, 2×55K sold within 4min |
 
 ---
 
@@ -138,12 +150,16 @@ python -m http.server 3000       # → http://localhost:3000
 | POST | `/api/reset` | Delete alerts + triage + escalations (keep trades) |
 | POST | `/api/triage/<id>` | AI triage + full escalation workflow |
 | GET | `/api/alert/<id>/full` | Complete alert + triage + escalations + trades |
-| GET | `/api/stats` | Dashboard counts |
 | GET | `/api/alerts` | All alerts with triage joined (filterable) |
 | GET | `/api/trades` | Paginated trades (filterable by trader/instrument/status) |
+| GET | `/api/stats` | Dashboard counts |
 | GET | `/api/market-prices` | Live NSE prices from yfinance |
 | GET | `/api/token-stats` | Claude usage — calls, tokens, estimated cost |
 | GET | `/api/export/case/<id>` | Download compliance case JSON |
+| GET | `/api/generate-str/<id>` | Generate FIU-IND STR filing (print-ready HTML) |
+| GET | `/api/trader/<trader_id>` | Trader risk profile — score, all alerts, pattern breakdown |
+| GET | `/api/market-impact/<id>` | Price movement, financial harm estimate for an alert |
+| GET | `/api/correlated-alerts` | Alerts grouped by 10-minute windows (coordinated manipulation) |
 | POST | `/api/subscribe` | Subscribe email to alert notifications |
 | GET | `/api/health` | Service health + trade count |
 
@@ -180,14 +196,16 @@ EMAIL_PASSWORD=app-password        # Optional — Gmail app password
 | Cost per call | ~$0.00014 |
 | Token reduction vs naive | 97% |
 | Full pipeline (refresh → detect → triage) | < 15 seconds |
+| API endpoints | 22 |
+| Frontend pages | 7 (Dashboard, Alerts, Alert Detail, Trader Profile, Trades, Logs, Settings) |
 
 ---
 
 ## Tech Stack
 
-- **AI**: Claude Sonnet (Anthropic) — CCO persona, SEBI domain expert
+- **AI**: Claude Sonnet (`claude-sonnet-4-5`) — CCO persona, SEBI domain expert
 - **Backend**: Python 3.12, Flask, SQLite, gunicorn
 - **Market Data**: yfinance (live NSE prices, no API key required)
-- **Frontend**: React 18 via CDN, Babel Standalone, Chart.js
+- **Frontend**: React 18 via CDN, Babel Standalone, Chart.js 4.4
 - **Notifications**: Slack Webhooks, SMTP email
-- **Deployment**: Render (backend), Vercel (frontend)
+- **Deployment**: Render (backend + frontend static)

@@ -156,7 +156,7 @@ def detect_pump_and_dump(all_trades, trader_id):
                 and 0 <= sell_delay_min <= 10):
             return {
                 "alert_id":        "ALT-" + str(uuid.uuid4())[:8].upper(),
-                "detected_at":     datetime.utcnow().isoformat(),
+                "detected_at":     _now_iso(),
                 "trader_id":       trader_id,
                 "instrument":      instrument,
                 "pattern_type":    "PUMP_AND_DUMP",

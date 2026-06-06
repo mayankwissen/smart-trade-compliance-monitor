@@ -12,8 +12,8 @@ Built for Wissen Technology Hackathon 2026.
 - **Claude Code session**: Sonnet 4.6 (default) — change with `/model` in the CLI
 
 ## Current Status — as of 2026-06-06
-- **Backend**: Flask + SQLite, 20 endpoints, all working, no Pylance errors
-- **Frontend**: Multi-file React 18, 6 pages, gold/black Bloomberg theme, fully restructured
+- **Backend**: Flask + SQLite, 22 endpoints, all working, no Pylance errors
+- **Frontend**: Multi-file React 18, 7 pages, gold/black Bloomberg theme, fully restructured
 - **Triage**: Claude Sonnet CCO persona, 8-field SEBI-quality JSON, model: claude-sonnet-4-5
 - **Layout**: Fixed sidebar + header, per-page scrolling, works at 100% zoom
 - **Refresh button**: One click does refresh-data → replay/start → updates state (no reload)
@@ -24,6 +24,11 @@ Built for Wissen Technology Hackathon 2026.
 - **Token usage bar**: Live AI usage shown in Dashboard (calls, tokens, cost)
 - **CORS**: Explicit origins for Render frontend + localhost
 - **Deployment**: Backend on Render, frontend on Render Static
+- **STR Generator**: /api/generate-str/:id returns print-ready FIU-IND filing HTML
+- **Trade Timeline**: 4th tab in AlertDetail — Chart.js bar chart of order flow
+- **Trader Profile**: /trader/:id page — risk score, pattern breakdown, alert history
+- **Market Impact**: /api/market-impact/:id — price movement + financial harm estimate
+- **Alert Correlation**: Dashboard panel groups alerts within 10-minute windows
 
 ## How to run locally
 
@@ -70,42 +75,51 @@ python -m http.server 3000
 | Health checks auto-refresh every 30s (Settings page) | ✅ |
 | vercel.json for SPA hash routing | ✅ |
 | No Pylance errors in any backend file | ✅ |
+| STR Auto-Generator — print-ready FIU-IND filing from triage data | ✅ |
+| Trade Timeline Chart — Chart.js bar chart (BUY/SELL/CANCELLED) on AlertDetail | ✅ |
+| Trader Risk Profile page — risk score 0–100, pattern breakdown, alert history | ✅ |
+| Market Impact endpoint — price move %, financial harm estimate | ✅ |
+| Alert Correlation Panel — Dashboard groups alerts within 10-min windows | ✅ |
+| Trader ID in AlertDetail is clickable → Trader Profile page | ✅ |
+| detector.py PUMP_AND_DUMP datetime.utcnow() replaced with _now_iso() | ✅ |
 
 ## File Structure
 
 ```
 trade-surveillance/
 ├── backend/
-│   ├── app.py              # Flask REST API — 18 endpoints
-│   ├── triage.py           # Claude API call, CCO persona, 8-field JSON
-│   ├── detector.py         # 3 pattern detectors
-│   ├── database.py         # SQLite init + CSV seed
+│   ├── app.py              # Flask REST API — 22 endpoints
+│   ├── triage.py           # Claude API call, CCO persona, 8-field JSON, real token tracking
+│   ├── detector.py         # 4 pattern detectors (LAYERING, SPOOFING, WASH, PUMP_AND_DUMP)
+│   ├── database.py         # SQLite init + CSV seed + migration (input/output_tokens cols)
 │   ├── ingestor.py         # Trade loader, windowed queries
 │   ├── workflows.py        # Case creation, Slack, watchlist
-│   ├── market_data.py      # yfinance live NSE prices + dynamic trade generation
+│   ├── market_data.py      # yfinance live NSE prices + dynamic trade generation (20 stocks)
 │   ├── emailer.py          # SMTP email notifications
 │   ├── Procfile            # gunicorn for Render
 │   ├── requirements.txt    # anthropic>=0.40.0, flask, yfinance, gunicorn
 │   └── data/
-│       └── trades_sample.csv   # 415 seed rows, 3 injected suspicious clusters
+│       └── trades_sample.csv   # 415 seed rows, 4 injected suspicious clusters
 ├── frontend/
-│   ├── index.html          # Thin loader — loads CSS + 17 JS files via Babel
+│   ├── index.html          # Thin loader — loads CSS + 18 JS files via Babel
 │   ├── vercel.json         # SPA rewrite: all routes → index.html
 │   ├── css/
 │   │   └── styles.css      # Fixed layout, gold scrollbar, responsive grid
 │   └── js/
 │       ├── api.js          # API_BASE (auto-switches local/prod), DARK/LIGHT themes
-│       ├── app.js          # Root App, ReactDOM.createRoot, fetchAll passed to Dashboard
+│       ├── app.js          # Root App, ReactDOM.createRoot, hash routing (7 pages)
 │       ├── components/
-│       │   ├── Header.js       # Fixed header (logo + controls) + PricePanel (vertical right sidebar)
-│       │   ├── Sidebar.js      # Fixed sidebar, 5 nav items
-│       │   ├── StatsBar.js     # 5-card stats grid (32px numbers)
+│       │   ├── Header.js       # Fixed header + PricePanel (20 stocks, auto-scroll)
+│       │   ├── Sidebar.js      # Fixed sidebar, SVG icons, 5 nav items
+│       │   ├── Shared.js       # ThemeCtx, useRoute (/trader/:id support), Card, Btn, Bdg
+│       │   ├── StatsBar.js     # 5-card stats grid
 │       │   ├── Charts.js       # Chart.js donut + bar
 │       │   └── TopSuspects.js  # Ranked trader leaderboard
 │       └── pages/
-│           ├── Dashboard.js    # Alert feed (paginated), refresh+detect chain, escalations
+│           ├── Dashboard.js    # Alert feed, token bar, correlated activity panel
 │           ├── Alerts.js       # Full alert table, filters, auto-triage all
-│           ├── AlertDetail.js  # Verdict, narrative, 4 info boxes, AI metrics, escalation
+│           ├── AlertDetail.js  # 4 tabs: AI Triage, Evidence, Escalations, Timeline chart
+│           ├── TraderProfile.js # Risk score 0-100, pattern breakdown, alert history
 │           ├── Trades.js       # 407 trades, 5 filters, flagged trader highlighting
 │           ├── Logs.js         # Escalation log, CSV export, 5s auto-refresh
 │           └── Settings.js     # Architecture diagram, health checks, API usage stats
@@ -175,14 +189,18 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 | `/api/alerts` | GET | Alerts with triage joined (filters: pattern, severity, status) |
 | `/api/alert/<id>/full` | GET | Single alert + triage + escalations + trades |
 | `/api/refresh-data` | POST | Wipe all 4 tables + generate fresh trades at live prices |
-| `/api/replay/start` | POST | Run all detectors, store alerts |
+| `/api/replay/start` | POST | Run all 4 detectors, store alerts |
 | `/api/triage/<id>` | POST | AI triage + escalation workflow |
 | `/api/triage/<id>` | GET | Fetch existing triage result |
 | `/api/escalations` | GET | Escalation log |
 | `/api/stats` | GET | Dashboard counts |
 | `/api/market-prices` | GET | Live NSE prices from yfinance |
-| `/api/token-stats` | GET | Total calls, tokens, cost, avg time |
+| `/api/token-stats` | GET | Total calls, real tokens, cost, avg time |
 | `/api/export/case/<id>` | GET | Download compliance case JSON |
+| `/api/generate-str/<id>` | GET | Print-ready FIU-IND STR filing HTML |
+| `/api/trader/<id>` | GET | Trader risk profile (score, alerts, patterns) |
+| `/api/market-impact/<id>` | GET | Price movement + financial harm estimate |
+| `/api/correlated-alerts` | GET | Alerts grouped by 10-minute windows |
 | `/api/subscribe` | POST | Subscribe email to alerts |
 | `/api/reset` | POST | Delete alerts + triage + escalations (keep trades) |
 | `/api/ping` | GET | Keep-alive for Render free tier |
@@ -229,7 +247,7 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 - `surveillance.db` is gitignored — fresh clone needs `python app.py` once to seed.
 - `cases/` directory is gitignored — case files generated at runtime.
 - Free tier Render spins down after 15 min idle — `/api/ping` exists for keep-alive.
-- `detector.py` still uses `datetime.utcnow()` — minor deprecation, does not affect runtime.
+- All `datetime.utcnow()` calls replaced with `_now_iso()` across detector.py.
 
 ## Pending
 
