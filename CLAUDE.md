@@ -101,8 +101,9 @@ trade-surveillance/
 │   └── data/
 │       └── trades_sample.csv   # 415 seed rows, 4 injected suspicious clusters
 ├── frontend/
-│   ├── index.html          # Thin loader — loads CSS + 18 JS files via Babel
-│   ├── vercel.json         # SPA rewrite: all routes → index.html
+│   ├── index.html          # Landing page (entry point) — Bloomberg-themed marketing site
+│   ├── app.html            # React dashboard — loads CSS + 18 JS files via Babel
+│   ├── vercel.json         # SPA rewrite: all routes → index.html (landing page)
 │   ├── css/
 │   │   └── styles.css      # Fixed layout, gold scrollbar, responsive grid
 │   └── js/

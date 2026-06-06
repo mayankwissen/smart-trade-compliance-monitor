@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trade Surveillance Engine — Wissen Technology</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+<div id="root"></div>
+
+<!-- Load order matters: CDN → styles → api → shared → components → pages → app -->
+<script type="text/babel" src="js/api.js"></script>
+<script type="text/babel" src="js/components/Shared.js"></script>
+<script type="text/babel" src="js/components/Header.js"></script>
+<script type="text/babel" src="js/components/Sidebar.js"></script>
+<script type="text/babel" src="js/components/StatsBar.js"></script>
+<script type="text/babel" src="js/components/Charts.js"></script>
+<script type="text/babel" src="js/components/TopSuspects.js"></script>
+<script type="text/babel" src="js/pages/Dashboard.js"></script>
+<script type="text/babel" src="js/pages/Alerts.js"></script>
+<script type="text/babel" src="js/pages/AlertDetail.js"></script>
+<script type="text/babel" src="js/pages/Trades.js"></script>
+<script type="text/babel" src="js/pages/Logs.js"></script>
+<script type="text/babel" src="js/pages/Settings.js"></script>
+<script type="text/babel" src="js/pages/TraderProfile.js"></script>
+<script type="text/babel" src="js/app.js"></script>
+</body>
+</html>
