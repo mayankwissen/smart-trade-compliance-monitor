@@ -44,9 +44,9 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
   const doRefresh = async () => {
     setRefreshing(true);
     try {
-      setRefreshStep('⏳ Refreshing data…');
+      setRefreshStep('Refreshing data...');
       await fetch(`${window.API_BASE}/api/refresh-data`, { method: 'POST' });
-      setRefreshStep('🔍 Detecting patterns…');
+      setRefreshStep('Detecting patterns...');
       await fetch(`${window.API_BASE}/api/replay/start`, { method: 'POST' });
       setRefreshStep('');
       if (onRefreshComplete) await onRefreshComplete();
@@ -58,11 +58,11 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
   const runDemoMode = async () => {
     setDemoRunning(true);
     try {
-      setDemoStep('📡 Fetching live prices...');
+      setDemoStep('Fetching live prices...');
       await fetch(`${window.API_BASE}/api/refresh-data`, { method: 'POST' });
       await new Promise(r => setTimeout(r, 2000));
 
-      setDemoStep('🔍 Detecting patterns...');
+      setDemoStep('Detecting patterns...');
       await fetch(`${window.API_BASE}/api/replay/start`, { method: 'POST' });
       await new Promise(r => setTimeout(r, 2000));
 
@@ -70,12 +70,12 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
       const pending = (res.alerts || []).filter(a => a.severity === 'HIGH' && a.status === 'PENDING');
 
       if (pending.length > 0) {
-        setDemoStep('🤖 Claude analyzing...');
+        setDemoStep('Claude analyzing...');
         await fetch(`${window.API_BASE}/api/triage/${pending[0].alert_id}`, { method: 'POST' });
         await new Promise(r => setTimeout(r, 2000));
       }
 
-      setDemoStep('✅ Demo Complete!');
+      setDemoStep('Demo complete');
       if (onRefreshComplete) await onRefreshComplete();
       setTimeout(() => { setDemoRunning(false); setDemoStep(''); }, 3000);
     } catch {
@@ -104,16 +104,20 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
       {/* ── Token usage bar ── */}
       {tokenStats && (
         <div style={{
-          background: '#0a0a0a', borderBottom: `1px solid ${t.border}`,
-          padding: '6px 20px', fontSize: 11, color: '#525252',
+          background: '#0a0a0a', borderBottom: `1px solid #141414`,
+          padding: '5px 20px', fontSize: 10, color: '#3a3a3a',
           fontFamily: "'JetBrains Mono',monospace",
-          display: 'flex', gap: 20, flexWrap: 'wrap', alignItems: 'center',
+          display: 'flex', gap: 0, flexWrap: 'wrap', alignItems: 'center',
+          letterSpacing: '.02em',
         }}>
-          <span>🤖 AI Usage:</span>
-          <span><strong style={{ color: '#a0a0a0' }}>{tokenStats.total_triage_calls}</strong> triage calls</span>
-          <span><strong style={{ color: '#a0a0a0' }}>{(tokenStats.total_tokens || 0).toLocaleString()}</strong> tokens</span>
-          <span>Est. cost: <strong style={{ color: '#f0b429' }}>${tokenStats.estimated_cost_usd}</strong></span>
-          <span>Model: <strong style={{ color: '#a0a0a0' }}>claude-sonnet-4-5</strong></span>
+          <span style={{ color: '#2a2a2a', textTransform: 'uppercase', letterSpacing: '.08em', fontSize: 9, marginRight: 12 }}>AI USAGE</span>
+          <span style={{ marginRight: 12 }}><span style={{ color: '#606060' }}>{tokenStats.total_triage_calls}</span> calls</span>
+          <span style={{ color: '#1c1c1c', marginRight: 12 }}>·</span>
+          <span style={{ marginRight: 12 }}><span style={{ color: '#606060' }}>{(tokenStats.total_tokens || 0).toLocaleString()}</span> tokens</span>
+          <span style={{ color: '#1c1c1c', marginRight: 12 }}>·</span>
+          <span style={{ marginRight: 12 }}><span style={{ color: '#f0b429' }}>${tokenStats.estimated_cost_usd}</span></span>
+          <span style={{ color: '#1c1c1c', marginRight: 12 }}>·</span>
+          <span style={{ color: '#2a2a2a' }}>claude-sonnet-4-5</span>
         </div>
       )}
 
@@ -128,31 +132,32 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                 <window.Btn small variant="outline" onClick={doRefresh} disabled={busy}>
-                  {refreshing ? (refreshStep || '⏳ Working…') : '🔄 Refresh Live Data'}
+                  {refreshing ? (refreshStep || 'Working...') : 'Refresh Data'}
                 </window.Btn>
                 <button
                   onClick={runDemoMode}
                   disabled={busy}
                   style={{
-                    background: '#1a1a1a', border: `1px solid ${t.gold}`,
-                    color: t.gold, padding: '5px 12px', borderRadius: 6,
+                    background: 'transparent', border: `1px solid ${t.gold}44`,
+                    color: t.gold, padding: '4px 12px', borderRadius: 5,
                     cursor: busy ? 'default' : 'pointer',
                     fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 11,
-                    opacity: demoRunning ? 0.85 : 1, whiteSpace: 'nowrap',
+                    opacity: demoRunning ? 0.8 : 1, whiteSpace: 'nowrap',
+                    letterSpacing: '.02em',
                   }}>
-                  {demoRunning ? (demoStep || '⏳ Running...') : '🎬 Demo Mode'}
+                  {demoRunning ? (demoStep || 'Running...') : 'Demo Mode'}
                 </button>
                 <button
                   onClick={doReset}
                   disabled={busy}
                   style={{
-                    background: '#1a1a1a', border: '1px solid #525252',
-                    color: '#525252', padding: '5px 12px', borderRadius: 6,
+                    background: 'transparent', border: '1px solid #2a2a2a',
+                    color: '#525252', padding: '4px 12px', borderRadius: 5,
                     cursor: busy ? 'default' : 'pointer',
-                    fontFamily: "'Inter',sans-serif", fontWeight: 600, fontSize: 11,
-                    whiteSpace: 'nowrap',
+                    fontFamily: "'Inter',sans-serif", fontWeight: 500, fontSize: 11,
+                    whiteSpace: 'nowrap', letterSpacing: '.02em',
                   }}>
-                  {resetting ? '⏳ Resetting…' : '🔄 Reset Demo'}
+                  {resetting ? 'Resetting...' : 'Reset'}
                 </button>
                 <window.Btn small variant="ghost" onClick={() => nav('/alerts')}>View All →</window.Btn>
               </div>
@@ -161,7 +166,7 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
               <table className="dt">
                 <thead><tr>{['Time','Alert ID','Trader','Instrument','Pattern','Severity','Status','Action'].map(h=><th key={h}>{h}</th>)}</tr></thead>
                 <tbody>
-                  {paged.length === 0 && <tr><td colSpan={8}><window.EmptyState icon="🔍" msg="Click ▶ START REPLAY or 🎬 Demo Mode to detect patterns" /></td></tr>}
+                  {paged.length === 0 && <tr><td colSpan={8}><window.EmptyState msg="No alerts detected — click Start Replay or Demo Mode to run detection" /></td></tr>}
                   {paged.map(a => (
                     <window.AlertRow key={a.alert_id} a={a} nav={nav}
                       onTriage={doTriage} isLoading={loadingSet.has(a.alert_id)} />

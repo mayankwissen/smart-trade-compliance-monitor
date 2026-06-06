@@ -96,12 +96,12 @@ window.Spinner = function Spinner() {
   return <span className="spin-anim" style={{ fontSize: 14 }}>◌</span>;
 };
 
-window.EmptyState = function EmptyState({ icon = '📭', msg = 'No data yet' }) {
+window.EmptyState = function EmptyState({ msg = 'No data yet' }) {
   const t = window.useT();
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 0', gap: 12, color: t.textMuted }}>
-      <div style={{ fontSize: 40 }}>{icon}</div>
-      <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 600 }}>{msg}</div>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 0', gap: 10 }}>
+      <div style={{ width: 32, height: 1, background: t.border }} />
+      <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 500, fontSize: 12, color: t.textMuted, letterSpacing: '.02em' }}>{msg}</div>
     </div>
   );
 };

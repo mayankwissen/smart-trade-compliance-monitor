@@ -55,17 +55,24 @@ html, body {
   position: fixed;
   right: 0; top: 64px;
   width: 140px;
-  height: calc(100vh - 64px) !important;
-  max-height: calc(100vh - 64px) !important;
+  height: calc(100vh - 64px);
   background: #0f0f0f;
-  border-left: 1px solid #2a2a2a;
+  border-left: 1px solid #1c1c1c;
   z-index: 90;
-  padding: 12px 8px;
-  overflow-y: scroll !important;
-  overflow-x: hidden !important;
+  padding: 10px 8px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+}
+
+/* Auto-scroll track — duplicated list animates upward, pauses on hover */
+.price-scroll-track {
+  animation: price-scroll-up 55s linear infinite;
+  will-change: transform;
+}
+.price-scroll-track:hover {
+  animation-play-state: paused;
 }
 
 /* ── Stats Grid (sticky below header, does not scroll) ───────────────────── */
@@ -305,14 +312,15 @@ html, body {
 .sidebar-item.active .sidebar-label { color: #f0b429; }
 
 /* ── Animations ──────────────────────────────────────────────────────────── */
-@keyframes pulse-dot   { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
-@keyframes pulse-badge { 0%,100%{opacity:1} 50%{opacity:.55} }
-@keyframes slide-in    { from{opacity:0;transform:translateX(-12px)} to{opacity:1;transform:translateX(0)} }
-@keyframes fade-up     { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-@keyframes scale-in    { from{opacity:0;transform:scale(.6)} to{opacity:1;transform:scale(1)} }
-@keyframes glow        { 0%,100%{text-shadow:0 0 20px currentColor} 50%{text-shadow:0 0 40px currentColor,0 0 60px currentColor} }
-@keyframes ticker      { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
-@keyframes spin        { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+@keyframes pulse-dot        { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
+@keyframes pulse-badge      { 0%,100%{opacity:1} 50%{opacity:.55} }
+@keyframes slide-in         { from{opacity:0;transform:translateX(-12px)} to{opacity:1;transform:translateX(0)} }
+@keyframes fade-up          { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+@keyframes scale-in         { from{opacity:0;transform:scale(.6)} to{opacity:1;transform:scale(1)} }
+@keyframes glow             { 0%,100%{text-shadow:0 0 20px currentColor} 50%{text-shadow:0 0 40px currentColor,0 0 60px currentColor} }
+@keyframes ticker           { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+@keyframes spin             { from{transform:rotate(0)} to{transform:rotate(360deg)} }
+@keyframes price-scroll-up  { 0%{transform:translateY(0)} 100%{transform:translateY(-50%)} }
 
 .slide-in  { animation: slide-in .25s ease both; }
 .fade-up   { animation: fade-up .3s ease both; }
