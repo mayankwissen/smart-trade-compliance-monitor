@@ -94,7 +94,7 @@ function App() {
       <div id="app-main">
         <window.StatsBar stats={stats} />
         <div id="page-content">
-          {page === 'dashboard'    && <window.Dashboard stats={stats} alerts={alerts} escalations={escalations} nav={nav} />}
+          {page === 'dashboard'    && <window.Dashboard stats={stats} alerts={alerts} escalations={escalations} nav={nav} onRefreshComplete={fetchAll} />}
           {page === 'alerts'       && <window.AlertsPage nav={nav} />}
           {page === 'alert-detail' && alertId && <window.AlertDetailPage alertId={alertId} nav={nav} />}
           {page === 'trades'       && <window.TradesPage />}

@@ -78,12 +78,14 @@ def generate_realistic_trades(prices):
     trades = []
     symbols = list(prices.keys())
 
-    # 3 trading days
-    trading_days = [
-        datetime(2026, 5, 20, 9, 15, 0),
-        datetime(2026, 5, 21, 9, 15, 0),
-        datetime(2026, 5, 22, 9, 15, 0),
-    ]
+    # Last 3 trading days (Mon–Fri) ending today
+    today = datetime.now().replace(hour=9, minute=15, second=0, microsecond=0)
+    trading_days = []
+    d = today
+    while len(trading_days) < 3:
+        if d.weekday() < 5:
+            trading_days.insert(0, d)
+        d -= timedelta(days=1)
 
     # 50 normal traders, each doing 3-8 trades over 3 days
     trader_ids = [f"T-{i:04d}" for i in range(1, 51)]
@@ -156,7 +158,7 @@ def generate_realistic_trades(prices):
 
     # CLUSTER A: LAYERING — T-1042 / HDFCBANK (14 orders)
     hdfcbank_price = prices.get('HDFCBANK', {}).get('current', 748.0)
-    base_lay = datetime(2026, 5, 20, 9, 44, 0)
+    base_lay = trading_days[0].replace(hour=9, minute=44, second=0)
     for i in range(14):
         is_cancelled = i < 12
         trades.append({
@@ -175,7 +177,7 @@ def generate_realistic_trades(prices):
 
     # CLUSTER B: SPOOFING — T-2891 / RELIANCE (9 orders)
     reliance_price = prices.get('RELIANCE', {}).get('current', 1291.5)
-    base_spf = datetime(2026, 5, 21, 10, 15, 0)
+    base_spf = trading_days[1].replace(hour=10, minute=15, second=0)
     for i in range(9):
         trades.append({
             'trade_id':      f'TRD-SPF-{i:03d}',
@@ -193,7 +195,7 @@ def generate_realistic_trades(prices):
 
     # CLUSTER C: WASH TRADING — T-3301 / INFY
     infy_price = prices.get('INFY', {}).get('current', 1199.0)
-    base_wsh = datetime(2026, 5, 22, 11, 30, 0)
+    base_wsh = trading_days[2].replace(hour=11, minute=30, second=0)
     trades.extend([
         {
             'trade_id':      'TRD-WSH-001',

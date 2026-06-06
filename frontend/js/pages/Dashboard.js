@@ -1,11 +1,12 @@
 const { useState: _duseS, useEffect: _duseE } = React;
 
-window.Dashboard = function Dashboard({ stats, alerts, escalations, nav }) {
+window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefreshComplete }) {
   const t = window.useT();
   const [page, setPage] = _duseS(1);
   const [loadingSet, setLoadingSet] = _duseS(new Set());
   const [localAlerts, setLocalAlerts] = _duseS(alerts);
   const [refreshing, setRefreshing] = _duseS(false);
+  const [refreshStep, setRefreshStep] = _duseS('');
   _duseE(() => setLocalAlerts(alerts), [alerts]);
 
   const PER = 10;
@@ -25,11 +26,14 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav }) {
   const doRefresh = async () => {
     setRefreshing(true);
     try {
-      const d = await fetch(`${window.API_BASE}/api/refresh-data`, { method: 'POST' }).then(r => r.json());
-      alert(`Refreshed! ${d.trades_inserted || 0} trades generated at live NSE prices.`);
-      window.location.reload();
+      setRefreshStep('⏳ Refreshing data…');
+      await fetch(`${window.API_BASE}/api/refresh-data`, { method: 'POST' });
+      setRefreshStep('🔍 Detecting patterns…');
+      await fetch(`${window.API_BASE}/api/replay/start`, { method: 'POST' });
+      setRefreshStep('');
+      if (onRefreshComplete) await onRefreshComplete();
     } catch { alert('Refresh failed — is the backend running?'); }
-    finally { setRefreshing(false); }
+    finally { setRefreshing(false); setRefreshStep(''); }
   };
 
   return (
@@ -45,7 +49,7 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav }) {
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <window.Btn small variant="outline" onClick={doRefresh} disabled={refreshing}>
-                  {refreshing ? '⏳ Refreshing…' : '🔄 Refresh Live Data'}
+                  {refreshing ? (refreshStep || '⏳ Working…') : '🔄 Refresh Live Data'}
                 </window.Btn>
                 <window.Btn small variant="ghost" onClick={() => nav('/alerts')}>View All →</window.Btn>
               </div>

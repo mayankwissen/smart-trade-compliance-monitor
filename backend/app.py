@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 import os
 import uuid
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 load_dotenv()
 
@@ -34,13 +34,13 @@ def health():
         "status": "ok",
         "trades_loaded": count,
         "version": "2.0.0",
-        "model": "claude-sonnet-4-20250514",
+        "model": "claude-sonnet-4-5-20251001",
     })
 
 
 @app.route("/api/ping")
 def ping():
-    return jsonify({"status": "awake", "timestamp": datetime.utcnow().isoformat()})
+    return jsonify({"status": "awake", "timestamp": datetime.now(timezone.utc).isoformat()})
 
 
 # ── Trades ────────────────────────────────────────────────────────────────────
@@ -311,7 +311,7 @@ def token_stats():
         "total_tokens": total_tokens,
         "estimated_cost_usd": cost_usd,
         "avg_processing_time_ms": avg_time,
-        "model": "claude-sonnet-4-20250514",
+        "model": "claude-sonnet-4-5-20251001",
     })
 
 
@@ -322,7 +322,7 @@ def get_market_prices():
     try:
         prices = fetch_real_prices()
         result = {s: {"current": d["current"], "high": d["high"], "low": d["low"], "volume": d["volume"], "source": d.get("source", "live")} for s, d in prices.items()}
-        return jsonify({"prices": result, "fetched_at": datetime.utcnow().isoformat()})
+        return jsonify({"prices": result, "fetched_at": datetime.now(timezone.utc).isoformat()})
     except Exception as e:
         app.logger.error(f"Market prices error: {e}")
         return jsonify({"error": str(e)}), 500
@@ -346,7 +346,7 @@ def refresh_data():
             "status": "ok",
             "trades_inserted": count,
             "prices_used": {s: d["current"] for s, d in prices.items()},
-            "refreshed_at": datetime.utcnow().isoformat(),
+            "refreshed_at": datetime.now(timezone.utc).isoformat(),
         })
     except Exception as e:
         app.logger.error(f"Refresh data error: {e}")
@@ -365,7 +365,7 @@ def subscribe():
     try:
         conn.execute(
             "INSERT OR REPLACE INTO subscribers (subscriber_id, email, active, created_at) VALUES (?,?,1,?)",
-            (str(uuid.uuid4()), email, datetime.utcnow().isoformat()),
+            (str(uuid.uuid4()), email, datetime.now(timezone.utc).isoformat()),
         )
         conn.commit()
         count = conn.execute("SELECT COUNT(*) FROM subscribers WHERE active=1").fetchone()[0]
@@ -418,7 +418,7 @@ def export_case(alert_id):
         "triage":      dict(triage) if triage else None,
         "escalations": [dict(e) for e in escs],
         "trades":      [dict(t) for t in trades],
-        "exported_at": datetime.utcnow().isoformat(),
+        "exported_at": datetime.now(timezone.utc).isoformat(),
     }
     filename = f"case-{alert_id}.json"
     return Response(
