@@ -297,26 +297,36 @@ def get_stats():
 @app.route("/api/token-stats")
 def token_stats():
     conn = get_db()
-    total_calls = conn.execute("SELECT COUNT(*) FROM triage_results").fetchone()[0]
-    avg_time_row = conn.execute(
-        "SELECT AVG(processing_time_ms) FROM triage_results WHERE processing_time_ms IS NOT NULL"
-    ).fetchone()
-    avg_time = int(avg_time_row[0] or 2400)
+    row = conn.execute("""
+        SELECT COUNT(*),
+               COALESCE(SUM(input_tokens), 0),
+               COALESCE(SUM(output_tokens), 0),
+               AVG(processing_time_ms)
+        FROM triage_results
+    """).fetchone()
     conn.close()
 
-    input_tokens  = total_calls * 280
-    output_tokens = total_calls * 180
-    total_tokens  = input_tokens + output_tokens
-    cost_usd      = round(total_tokens * 0.000003, 6)
+    total_calls   = row[0]
+    total_input   = row[1]
+    total_output  = row[2]
+    avg_time      = int(row[3] or 2400)
+
+    # Fall back to estimates for rows that predate real token tracking
+    if total_input == 0 and total_calls > 0:
+        total_input  = total_calls * 280
+        total_output = total_calls * 180
+    total_tokens = total_input + total_output
+    # Correct pricing: input $3/Mtok, output $15/Mtok
+    cost_usd = round((total_input * 3 + total_output * 15) / 1_000_000, 6)
 
     return jsonify({
-        "total_triage_calls": total_calls,
-        "total_input_tokens": input_tokens,
-        "total_output_tokens": output_tokens,
-        "total_tokens": total_tokens,
-        "estimated_cost_usd": cost_usd,
+        "total_triage_calls":     total_calls,
+        "total_input_tokens":     total_input,
+        "total_output_tokens":    total_output,
+        "total_tokens":           total_tokens,
+        "estimated_cost_usd":     cost_usd,
         "avg_processing_time_ms": avg_time,
-        "model": "claude-sonnet-4-5",
+        "model":                  "claude-sonnet-4-5",
     })
 
 

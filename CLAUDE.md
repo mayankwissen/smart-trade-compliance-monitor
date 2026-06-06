@@ -208,6 +208,20 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 }
 ```
 
+## QA Fixes Applied (2026-06-06)
+
+| Fix | Status |
+|-----|--------|
+| `regulatory_reference` fallback — never NULL, per-pattern SEBI defaults | ✅ |
+| Real token tracking — `response.usage.input_tokens/output_tokens` saved to DB | ✅ |
+| `input_tokens` + `output_tokens` columns added to `triage_results` (migration) | ✅ |
+| `/api/token-stats` sums real tokens from DB, correct pricing ($3/$15 per Mtok) | ✅ |
+| 20 stocks in `market_data.py` — PUMP_AND_DUMP triggers locally too | ✅ |
+| `.env.example` updated with all 5 vars incl. EMAIL_SENDER + EMAIL_PASSWORD | ✅ |
+| `backend/.env` confirmed not tracked by git (gitignored) | ✅ |
+| `detector.py` — `datetime.utcnow()` replaced with `datetime.now(timezone.utc)` | ✅ |
+| `/api/health` always returns `"model":"claude-sonnet-4-5"` (hardcoded) | ✅ |
+
 ## Known Issues / Notes
 
 - Frontend MUST be served via HTTP (not file://). Use `python -m http.server 3000`.

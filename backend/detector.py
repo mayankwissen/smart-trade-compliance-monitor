@@ -1,5 +1,9 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+
+
+def _now_iso():
+    return datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
 
 
 def detect_layering(trades):
@@ -27,7 +31,7 @@ def detect_layering(trades):
 
     return {
         "alert_id": "ALT-" + str(uuid.uuid4())[:8].upper(),
-        "detected_at": datetime.utcnow().isoformat(),
+        "detected_at": _now_iso(),
         "trader_id": trades[0]["trader_id"],
         "instrument": trades[0]["instrument"],
         "pattern_type": "LAYERING",
@@ -57,7 +61,7 @@ def detect_spoofing(trades):
 
     return {
         "alert_id": "ALT-" + str(uuid.uuid4())[:8].upper(),
-        "detected_at": datetime.utcnow().isoformat(),
+        "detected_at": _now_iso(),
         "trader_id": trades[0]["trader_id"],
         "instrument": trades[0]["instrument"],
         "pattern_type": "SPOOFING",
@@ -102,7 +106,7 @@ def detect_wash_trading(all_trades, trader_id):
                 if diff <= 30 and size_diff < 0.10:
                     return {
                         "alert_id": "ALT-" + str(uuid.uuid4())[:8].upper(),
-                        "detected_at": datetime.utcnow().isoformat(),
+                        "detected_at": _now_iso(),
                         "trader_id": trader_id,
                         "instrument": inst,
                         "pattern_type": "WASH_TRADING",

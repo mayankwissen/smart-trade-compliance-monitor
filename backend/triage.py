@@ -16,6 +16,14 @@ manipulation cases. You analyze trade alerts and produce \
 verdicts that can be submitted as evidence to SEBI. \
 Respond ONLY with valid JSON. No text outside the JSON."""
 
+# FIX 1: per-pattern regulatory defaults used when Claude omits the field
+_REGULATORY_DEFAULTS = {
+    'LAYERING':     'SEBI PFUTP Regulations 2003, Regulation 4(2)(a) — Manipulative, fraudulent and unfair trade practices',
+    'SPOOFING':     'SEBI PFUTP Regulations 2003, Regulation 4(2)(e) — Placing orders with no intention of executing them',
+    'WASH_TRADING': 'SEBI PFUTP Regulations 2003, Regulation 4(2)(a) — Creating artificial volume through self-dealing',
+    'PUMP_AND_DUMP':'SEBI PFUTP Regulations 2003, Regulation 4(2)(b) — Price manipulation through coordinated trading',
+}
+
 
 def build_prompt(alert):
     return f"""Alert ID: {alert['alert_id']}
@@ -63,6 +71,10 @@ def triage_alert(alert):
     )
     processing_time_ms = int(time.time() * 1000) - start_ms
 
+    # FIX 2: capture real token usage from API response
+    input_tokens  = response.usage.input_tokens
+    output_tokens = response.usage.output_tokens
+
     block = response.content[0]
     if not isinstance(block, TextBlock):
         raise ValueError(f"Claude returned unexpected content type: {type(block)}")
@@ -77,14 +89,21 @@ def triage_alert(alert):
         logging.error(f"Claude returned non-JSON for {alert['alert_id']}: {raw[:300]}")
         raise ValueError(f"AI returned invalid JSON: {e}")
 
+    # FIX 1: guarantee regulatory_reference is never NULL
+    if not result.get('regulatory_reference'):
+        result['regulatory_reference'] = _REGULATORY_DEFAULTS.get(
+            alert['pattern_type'],
+            'SEBI PFUTP Regulations 2003, Regulation 4(2)(a)'
+        )
+
     triage_id = "TRG-" + str(uuid.uuid4())[:8].upper()
     conn = get_db()
     conn.execute(
         """INSERT OR REPLACE INTO triage_results
           (triage_id, alert_id, verdict, confidence, false_positive_probability,
            rationale, simple_explanation, recommended_action, risk_level,
-           regulatory_reference, processing_time_ms, created_at)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+           regulatory_reference, processing_time_ms, input_tokens, output_tokens, created_at)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             triage_id,
             alert["alert_id"],
@@ -97,6 +116,8 @@ def triage_alert(alert):
             result.get("risk_level"),
             result.get("regulatory_reference"),
             processing_time_ms,
+            input_tokens,
+            output_tokens,
             datetime.now(timezone.utc).isoformat(),
         ),
     )
@@ -109,7 +130,9 @@ def triage_alert(alert):
     conn.commit()
     conn.close()
 
-    result["triage_id"] = triage_id
-    result["alert_id"] = alert["alert_id"]
+    result["triage_id"]          = triage_id
+    result["alert_id"]           = alert["alert_id"]
     result["processing_time_ms"] = processing_time_ms
+    result["input_tokens"]       = input_tokens
+    result["output_tokens"]      = output_tokens
     return result

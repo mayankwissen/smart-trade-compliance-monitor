@@ -73,13 +73,15 @@ def init_db():
         created_at TEXT
     )""")
 
-    # Migrate existing triage_results table
+    # Migrate existing triage_results table (safe — silently skips existing columns)
     for col, typ in [
-        ("simple_explanation", "TEXT"),
-        ("recommended_action", "TEXT"),
-        ("risk_level", "TEXT"),
-        ("regulatory_reference", "TEXT"),
-        ("processing_time_ms", "INTEGER"),
+        ("simple_explanation",       "TEXT"),
+        ("recommended_action",       "TEXT"),
+        ("risk_level",               "TEXT"),
+        ("regulatory_reference",     "TEXT"),
+        ("processing_time_ms",       "INTEGER"),
+        ("input_tokens",             "INTEGER"),   # FIX 2: real token tracking
+        ("output_tokens",            "INTEGER"),   # FIX 2: real token tracking
     ]:
         try:
             conn.execute(f"ALTER TABLE triage_results ADD COLUMN {col} {typ}")
