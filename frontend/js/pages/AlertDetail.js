@@ -115,6 +115,9 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
 
   const inputTok = 280, outputTok = 200;
   const cost = ((inputTok * 3 + outputTok * 15) / 1e6).toFixed(6);
+  const realInput = triage?.input_tokens || inputTok;
+  const realOutput = triage?.output_tokens || outputTok;
+  const realCost = ((realInput * 3 + realOutput * 15) / 1e6).toFixed(6);
 
   const riskColor = {
     CRITICAL: t.danger,
@@ -222,7 +225,7 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                   </div>
                   <div style={{ display: 'inline-block', background: t.card, border: `1px solid ${t.border}`, borderRadius: 6, padding: '10px 24px' }}>
                     <div style={{ color: '#525252', fontSize: 11, fontFamily: "'JetBrains Mono',monospace" }}>
-                      claude-sonnet-4-5 · ~280 tokens · ~$0.00014
+                      claude-sonnet-4-6 · ~280 tokens · ~$0.00014
                     </div>
                   </div>
                 </div>
@@ -307,12 +310,12 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                     <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 10, color: t.gold, letterSpacing: '.15em', marginBottom: 12 }}>AI METRICS</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10 }}>
                       {[
-                        ['Model',          'claude-sonnet-4-5'],
-                        ['Input Tokens',   `~${inputTok}`],
-                        ['Output Tokens',  `~${outputTok}`],
-                        ['Total Tokens',   `~${inputTok + outputTok}`],
+                        ['Model',          'claude-sonnet-4-6'],
+                        ['Input Tokens',   realInput.toString()],
+                        ['Output Tokens',  realOutput.toString()],
+                        ['Total Tokens',   (realInput + realOutput).toString()],
                         ['Processing',     `${triage.processing_time_ms || 2400}ms`],
-                        ['Est. Cost',      `$${cost}`],
+                        ['Est. Cost',      `$${realCost}`],
                       ].map(([k, v]) => (
                         <div key={k} style={{ padding: '8px 12px', background: t.card, borderRadius: 6, border: `1px solid ${t.border}` }}>
                           <div style={{ fontSize: 10, color: t.textMuted, fontFamily: "'Inter',sans-serif", fontWeight: 700, letterSpacing: '.08em' }}>{k}</div>

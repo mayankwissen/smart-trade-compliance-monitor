@@ -3,7 +3,7 @@ import json
 import uuid
 import logging
 import requests
-from datetime import datetime
+from datetime import datetime, timezone
 from database import get_db
 
 CASES_DIR = os.path.join(os.path.dirname(__file__), "..", "cases")
@@ -26,7 +26,7 @@ def create_compliance_case(alert, triage_result):
         "simple_explanation": triage_result.get("simple_explanation"),
         "recommended_action": triage_result.get("recommended_action"),
         "assigned_to": "Surveillance Desk L2",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "status": "OPEN",
     }
     with open(os.path.join(CASES_DIR, f"{case_id}.json"), "w") as f:
@@ -42,7 +42,7 @@ def create_compliance_case(alert, triage_result):
             alert["alert_id"],
             "CASE_CREATED",
             json.dumps({"case_id": case_id, "assigned_to": "Surveillance Desk L2"}),
-            datetime.utcnow().isoformat(),
+            datetime.now(timezone.utc).isoformat(),
         ),
     )
     conn.commit()
@@ -95,7 +95,7 @@ def send_slack_notification(alert, triage_result, case_id):
                 alert["alert_id"],
                 "SLACK_NOTIFIED",
                 json.dumps({"channel": "#compliance-alerts", "case_id": case_id}),
-                datetime.utcnow().isoformat(),
+                datetime.now(timezone.utc).isoformat(),
             ),
         )
         conn.commit()
@@ -129,7 +129,7 @@ def send_email_notifications(alert, triage_result, case_id):
                     alert["alert_id"],
                     "EMAIL_SENT",
                     json.dumps({"recipients": len(recipients), "case_id": case_id}),
-                    datetime.utcnow().isoformat(),
+                    datetime.now(timezone.utc).isoformat(),
                 ),
             )
             conn.commit()
@@ -155,7 +155,7 @@ def flag_watchlist(trader_id, alert_id):
                 "monitoring_hours": 72,
                 "reason": "Suspicious pattern detected, enhanced monitoring active",
             }),
-            datetime.utcnow().isoformat(),
+            datetime.now(timezone.utc).isoformat(),
         ),
     )
     conn.commit()

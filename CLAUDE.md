@@ -8,13 +8,13 @@ ESCALATE/DISMISS verdicts with full compliance workflows.
 Built for Wissen Technology Hackathon 2026.
 
 ## Model in use
-- **Triage AI**: `claude-sonnet-4-5` (hardcoded in `backend/triage.py`)
+- **Triage AI**: `claude-sonnet-4-6` (hardcoded in `backend/triage.py`)
 - **Claude Code session**: Sonnet 4.6 (default) — change with `/model` in the CLI
 
 ## Current Status — as of 2026-06-06
 - **Backend**: Flask + SQLite, 22 endpoints, all working, no Pylance errors
 - **Frontend**: Multi-file React 18, 7 pages, gold/black Bloomberg theme, fully restructured
-- **Triage**: Claude Sonnet CCO persona, 8-field SEBI-quality JSON, model: claude-sonnet-4-5
+- **Triage**: Claude Sonnet CCO persona, 8-field SEBI-quality JSON, model: claude-sonnet-4-6
 - **Layout**: Fixed sidebar + header, per-page scrolling, works at 100% zoom
 - **Refresh button**: One click does refresh-data → replay/start → updates state (no reload)
 - **Demo Mode button**: Full auto-demo in one click (refresh → detect → triage first HIGH alert)
@@ -238,7 +238,7 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 | `.env.example` updated with all 5 vars incl. EMAIL_SENDER + EMAIL_PASSWORD | ✅ |
 | `backend/.env` confirmed not tracked by git (gitignored) | ✅ |
 | `detector.py` — `datetime.utcnow()` replaced with `datetime.now(timezone.utc)` | ✅ |
-| `/api/health` always returns `"model":"claude-sonnet-4-5"` (hardcoded) | ✅ |
+| `/api/health` always returns `"model":"claude-sonnet-4-6"` (hardcoded) | ✅ |
 
 ## Known Issues / Notes
 

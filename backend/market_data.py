@@ -1,6 +1,7 @@
 import uuid
 import random
 import logging
+import time
 from datetime import datetime, timedelta
 
 try:
@@ -33,6 +34,10 @@ NSE_SYMBOLS = {
     'POWERGRID':  'POWERGRID.NS',
 }
 
+_price_cache: dict = {}
+_cache_ts: float = 0.0
+_CACHE_TTL = 300  # 5 minutes
+
 FALLBACK_PRICES = {
     'HDFCBANK':   748.00,
     'RELIANCE':   1291.50,
@@ -58,6 +63,9 @@ FALLBACK_PRICES = {
 
 
 def fetch_real_prices():
+    global _price_cache, _cache_ts
+    if _price_cache and (time.time() - _cache_ts) < _CACHE_TTL:
+        return _price_cache
     prices = {}
     if not YFINANCE_AVAILABLE:
         for sym, price in FALLBACK_PRICES.items():
@@ -69,6 +77,8 @@ def fetch_real_prices():
                 'history': None,
                 'source': 'fallback',
             }
+        _price_cache = prices
+        _cache_ts = time.time()
         return prices
 
     for symbol, ticker in NSE_SYMBOLS.items():
@@ -97,6 +107,8 @@ def fetch_real_prices():
                 'history': None,
                 'source':  'fallback',
             }
+    _price_cache = prices
+    _cache_ts = time.time()
     return prices
 
 

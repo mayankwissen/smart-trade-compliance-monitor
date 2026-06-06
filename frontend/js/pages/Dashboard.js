@@ -157,7 +157,7 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
           <span style={{ color: '#1c1c1c', marginRight: 12 }}>·</span>
           <span style={{ marginRight: 12 }}><span style={{ color: '#f0b429' }}>${tokenStats.estimated_cost_usd}</span></span>
           <span style={{ color: '#1c1c1c', marginRight: 12 }}>·</span>
-          <span style={{ color: '#2a2a2a' }}>claude-sonnet-4-5</span>
+          <span style={{ color: '#2a2a2a' }}>claude-sonnet-4-6</span>
         </div>
       )}
 

@@ -55,6 +55,8 @@ def init_db():
         risk_level TEXT,
         regulatory_reference TEXT,
         processing_time_ms INTEGER,
+        input_tokens INTEGER,
+        output_tokens INTEGER,
         created_at TEXT
     )""")
 

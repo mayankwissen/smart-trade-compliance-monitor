@@ -1,4 +1,3 @@
-import time
 from database import get_db
 
 
@@ -26,12 +25,3 @@ def get_all_trader_instrument_pairs():
     ).fetchall()
     conn.close()
     return [(r["trader_id"], r["instrument"]) for r in rows]
-
-
-def replay_trades():
-    conn = get_db()
-    rows = conn.execute("SELECT * FROM trades ORDER BY timestamp").fetchall()
-    conn.close()
-    for row in rows:
-        time.sleep(0.05)
-        yield dict(row)

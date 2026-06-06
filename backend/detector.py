@@ -96,9 +96,8 @@ def detect_wash_trading(all_trades, trader_id):
             for s in sells:
                 if b["account_id"] == s["account_id"]:
                     continue
-                from datetime import datetime as dt
-                bt = dt.fromisoformat(b["timestamp"])
-                st = dt.fromisoformat(s["timestamp"])
+                bt = datetime.fromisoformat(b["timestamp"])
+                st = datetime.fromisoformat(s["timestamp"])
                 diff = abs((bt - st).total_seconds())
                 size_diff = abs(b["order_size"] - s["order_size"]) / max(
                     b["order_size"], s["order_size"]
@@ -138,9 +137,8 @@ def detect_pump_and_dump(all_trades, trader_id):
         if not buys or not sells:
             continue
 
-        from datetime import datetime as dt
-        buy_times  = [dt.fromisoformat(t['timestamp']) for t in buys]
-        sell_times = [dt.fromisoformat(t['timestamp']) for t in sells]
+        buy_times  = [datetime.fromisoformat(t['timestamp']) for t in buys]
+        sell_times = [datetime.fromisoformat(t['timestamp']) for t in sells]
 
         earliest_buy  = min(buy_times)
         latest_buy    = max(buy_times)

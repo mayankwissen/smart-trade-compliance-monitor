@@ -74,7 +74,7 @@ def _build_html(alert, triage_result, case_id):
         </div>
         <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#525252;">
           <span>CONFIDENCE: {confidence}%</span>
-          <span>FALSE POSITIVE: {100-confidence}%</span>
+          <span>FALSE POSITIVE: {triage_result.get("false_positive_probability", 100 - confidence)}%</span>
         </div>
       </div>
     </div>

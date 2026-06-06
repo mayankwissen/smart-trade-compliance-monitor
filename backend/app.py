@@ -19,7 +19,6 @@ app = Flask(__name__)
 CORS(app, origins=[
     "http://localhost:3000",
     "https://smart-trade-compliance-monitor-1.onrender.com",
-    "*",
 ])
 
 with app.app_context():
@@ -230,10 +229,19 @@ def replay_start():
 def run_triage(alert_id):
     conn = get_db()
     row = conn.execute("SELECT * FROM alerts WHERE alert_id=?", (alert_id,)).fetchone()
-    conn.close()
     if not row:
+        conn.close()
         return jsonify({"error": "Alert not found"}), 404
     alert = dict(row)
+    if not request.args.get("force"):
+        existing = conn.execute("SELECT * FROM triage_results WHERE alert_id=?", (alert_id,)).fetchone()
+        if existing:
+            escs = conn.execute(
+                "SELECT * FROM escalations WHERE alert_id=? ORDER BY created_at", (alert_id,)
+            ).fetchall()
+            conn.close()
+            return jsonify({"alert": alert, "triage": dict(existing), "escalations": [dict(e) for e in escs]})
+    conn.close()
     try:
         triage_result = triage_alert(alert)
         escalation_results = run_escalation_workflow(alert, triage_result)
@@ -326,7 +334,7 @@ def token_stats():
         "total_tokens":           total_tokens,
         "estimated_cost_usd":     cost_usd,
         "avg_processing_time_ms": avg_time,
-        "model":                  "claude-sonnet-4-5",
+        "model":                  "claude-sonnet-4-6",
     })
 
 
