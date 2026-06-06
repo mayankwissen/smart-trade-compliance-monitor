@@ -1,189 +1,166 @@
-import smtplib
 import os
+import json
+import urllib.request
+import urllib.error
 import logging
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from datetime import datetime
 
 
-def _build_html(alert, triage_result, case_id):
-    verdict = triage_result.get("verdict", "UNKNOWN")
+def _build_html(alert, triage_result):
     confidence = triage_result.get("confidence", 0)
-    rationale = triage_result.get("rationale", "")
-    simple = triage_result.get("simple_explanation", "")
-    action = triage_result.get("recommended_action", "")
-    risk = triage_result.get("risk_level", alert.get("severity", ""))
-    verdict_color = "#ef4444" if verdict == "ESCALATE" else "#22c55e"
+    fp = triage_result.get("false_positive_probability", 100 - confidence)
+    verdict = triage_result.get("verdict", "PENDING")
+    verdict_color = "#ff4757" if verdict == "ESCALATE" else "#2ed573"
+    severity = alert.get("severity", "")
+    sev_bg = "3d0000" if severity == "HIGH" else "3d2000"
+    sev_border = "7f1d1d" if severity == "HIGH" else "78350f"
+    sev_color = "#ff4757" if severity == "HIGH" else "#ffb347"
 
     return f"""<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"/></head>
-<body style="margin:0;padding:0;background:#0a0a0a;font-family:'Helvetica Neue',Arial,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#0a0a0a;padding:32px 0;">
-<tr><td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background:#141414;border:1px solid #2a2a2a;border-radius:12px;overflow:hidden;">
+<body style="font-family:monospace;background:#03050d;color:#f0f2f8;padding:20px;margin:0">
+  <div style="max-width:600px;margin:0 auto">
 
-  <!-- Header -->
-  <tr><td style="background:#000000;border-bottom:2px solid #f0b429;padding:24px 32px;">
-    <div style="font-size:11px;color:#525252;letter-spacing:0.12em;margin-bottom:6px;">WISSEN TECHNOLOGY HACKATHON 2026</div>
-    <div style="font-size:22px;font-weight:700;color:#f0b429;letter-spacing:0.04em;">TRADE SURVEILLANCE ENGINE</div>
-    <div style="font-size:12px;color:#525252;margin-top:4px;">Automated Compliance Alert Notification</div>
-  </td></tr>
+    <div style="background:#000;padding:16px 20px;border-bottom:2px solid #f0b429;border-radius:8px 8px 0 0">
+      <h2 style="margin:0;color:#f0b429;font-size:18px;letter-spacing:2px">
+        🛡 TRADE SURVEILLANCE ENGINE
+      </h2>
+      <p style="margin:4px 0 0;color:#6b7a99;font-size:11px;letter-spacing:1px">
+        Wissen Technology Hackathon 2026 · Powered by Claude AI
+      </p>
+    </div>
 
-  <!-- Alert banner -->
-  <tr><td style="background:{verdict_color}22;border-bottom:1px solid {verdict_color}44;padding:16px 32px;">
-    <span style="font-size:11px;color:{verdict_color};font-weight:700;letter-spacing:0.1em;">
-      {alert.get('severity','')} SEVERITY &nbsp;&bull;&nbsp; {alert.get('pattern_type','').replace('_',' ')} &nbsp;&bull;&nbsp; {alert.get('instrument','')}
-    </span>
-  </td></tr>
+    <div style="background:#0a0f1c;padding:24px;border:1px solid rgba(240,180,41,0.12);border-top:none">
 
-  <!-- Alert details -->
-  <tr><td style="padding:24px 32px;">
-    <table width="100%" cellpadding="0" cellspacing="0">
-      <tr>
-        <td style="width:50%;padding-bottom:16px;vertical-align:top;">
-          <div style="font-size:10px;color:#525252;letter-spacing:0.1em;margin-bottom:4px;">ALERT ID</div>
-          <div style="font-size:14px;color:#3b82f6;font-family:'Courier New',monospace;">{alert.get('alert_id','')}</div>
-        </td>
-        <td style="width:50%;padding-bottom:16px;vertical-align:top;">
-          <div style="font-size:10px;color:#525252;letter-spacing:0.1em;margin-bottom:4px;">TRADER ID</div>
-          <div style="font-size:14px;color:#f1f5f9;font-family:'Courier New',monospace;">{alert.get('trader_id','')}</div>
-        </td>
-      </tr>
-      <tr>
-        <td style="padding-bottom:16px;vertical-align:top;">
-          <div style="font-size:10px;color:#525252;letter-spacing:0.1em;margin-bottom:4px;">INSTRUMENT</div>
-          <div style="font-size:14px;color:#f1f5f9;font-weight:700;">{alert.get('instrument','')}</div>
-        </td>
-        <td style="padding-bottom:16px;vertical-align:top;">
-          <div style="font-size:10px;color:#525252;letter-spacing:0.1em;margin-bottom:4px;">DETECTED AT</div>
-          <div style="font-size:14px;color:#a0a0a0;font-family:'Courier New',monospace;">{alert.get('detected_at','')[:19]}</div>
-        </td>
-      </tr>
-    </table>
-  </td></tr>
+      <div style="background:#{sev_bg};border:1px solid #{sev_border};border-radius:8px;padding:16px;margin-bottom:20px">
+        <h3 style="margin:0 0 12px;color:{sev_color};font-size:16px">
+          ⚠ {severity} SEVERITY — {alert.get('pattern_type', '')}
+        </h3>
+        <table style="width:100%;font-size:13px;border-collapse:collapse">
+          <tr>
+            <td style="color:#6b7a99;padding:4px 0;width:40%">Alert ID</td>
+            <td style="color:#f0f2f8">{alert.get('alert_id', '')}</td>
+          </tr>
+          <tr>
+            <td style="color:#6b7a99;padding:4px 0">Trader</td>
+            <td style="color:#f0b429;font-weight:bold">{alert.get('trader_id', '')}</td>
+          </tr>
+          <tr>
+            <td style="color:#6b7a99;padding:4px 0">Instrument</td>
+            <td style="color:#f0f2f8">{alert.get('instrument', '')} (NSE)</td>
+          </tr>
+          <tr>
+            <td style="color:#6b7a99;padding:4px 0">Pattern</td>
+            <td style="color:#f0f2f8">{alert.get('pattern_type', '')}</td>
+          </tr>
+        </table>
+      </div>
 
-  <!-- Verdict -->
-  <tr><td style="padding:0 32px 24px;">
-    <div style="background:#0a0a0a;border:1px solid #2a2a2a;border-radius:8px;padding:24px;text-align:center;">
-      <div style="font-size:11px;color:#525252;letter-spacing:0.1em;margin-bottom:12px;">AI VERDICT &bull; CLAUDE SONNET</div>
-      <div style="font-size:52px;font-weight:700;color:{verdict_color};letter-spacing:0.05em;">{verdict}</div>
-      <div style="margin-top:12px;">
-        <div style="background:#1a1a1a;border-radius:4px;height:8px;overflow:hidden;">
-          <div style="height:100%;background:{verdict_color};border-radius:4px;width:{confidence}%;"></div>
+      <div style="text-align:center;background:#080c18;border-radius:8px;padding:20px;margin-bottom:20px">
+        <div style="font-size:10px;color:#6b7a99;letter-spacing:2px;margin-bottom:8px">
+          AI VERDICT · CLAUDE SONNET 4.6
         </div>
-        <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:#525252;">
-          <span>CONFIDENCE: {confidence}%</span>
-          <span>FALSE POSITIVE: {triage_result.get("false_positive_probability", 100 - confidence)}%</span>
+        <div style="font-size:52px;font-weight:900;color:{verdict_color};letter-spacing:2px;text-shadow:0 0 30px {verdict_color}66">
+          {verdict}
+        </div>
+        <div style="background:#1a2030;border-radius:3px;height:6px;margin:12px 0;overflow:hidden">
+          <div style="height:100%;background:{verdict_color};width:{confidence}%;border-radius:3px"></div>
+        </div>
+        <div style="font-size:12px;color:#6b7a99">
+          Confidence: <strong style="color:#f0f2f8">{confidence}%</strong> &nbsp;|&nbsp;
+          False Positive Risk: <strong style="color:#f0f2f8">{fp}%</strong>
         </div>
       </div>
+
+      <div style="background:#080c18;border-left:3px solid {verdict_color};padding:14px 16px;border-radius:0 6px 6px 0;margin-bottom:16px">
+        <div style="font-size:10px;color:#6b7a99;letter-spacing:2px;margin-bottom:8px">AI RATIONALE</div>
+        <div style="font-size:13px;color:#f0f2f8;line-height:1.7">
+          {triage_result.get('rationale', 'N/A')}
+        </div>
+      </div>
+
+      <div style="background:#080c18;border-left:3px solid #4f6ef7;padding:14px 16px;border-radius:0 6px 6px 0;margin-bottom:16px">
+        <div style="font-size:10px;color:#6b7a99;letter-spacing:2px;margin-bottom:8px">IN PLAIN TERMS</div>
+        <div style="font-size:13px;color:#f0f2f8;line-height:1.7">
+          {triage_result.get('simple_explanation', 'N/A')}
+        </div>
+      </div>
+
+      <div style="background:#1e1b4b22;border:1px solid #4338ca44;border-radius:6px;padding:12px 16px;margin-bottom:16px">
+        <div style="font-size:11px;color:#a5b4fc">
+          📋 {triage_result.get('regulatory_reference', 'SEBI PFUTP Regulations 2003')}
+        </div>
+      </div>
+
+      <div style="background:#080c18;border-radius:6px;padding:14px 16px">
+        <div style="font-size:10px;color:#6b7a99;letter-spacing:2px;margin-bottom:10px">AUTOMATED ACTIONS TRIGGERED</div>
+        <div style="font-size:12px;color:#2ed573;line-height:2">
+          ✓ Compliance case created — Assigned to Surveillance Desk L2<br>
+          ✓ Slack notification sent — #compliance-alerts<br>
+          ✓ Trader {alert.get('trader_id', '')} flagged — 72hr enhanced monitoring
+        </div>
+      </div>
+
     </div>
-  </td></tr>
 
-  <!-- Evidence -->
-  <tr><td style="padding:0 32px 20px;">
-    <div style="font-size:10px;color:#525252;letter-spacing:0.1em;margin-bottom:8px;">EVIDENCE</div>
-    <div style="background:#0a0a0a;border-left:3px solid #3b82f6;padding:12px 16px;border-radius:0 6px 6px 0;font-size:13px;color:#a0a0a0;line-height:1.6;font-family:'Courier New',monospace;">
-      {alert.get('evidence_summary','')}
+    <div style="background:#080c18;padding:12px 20px;border-radius:0 0 8px 8px;border:1px solid rgba(240,180,41,0.12);border-top:none;text-align:center">
+      <span style="color:#3d4a6b;font-size:10px;letter-spacing:1px">
+        Trade Surveillance Engine · Wissen Technology Hackathon 2026 · This is an automated alert
+      </span>
     </div>
-  </td></tr>
 
-  <!-- Rationale -->
-  <tr><td style="padding:0 32px 20px;">
-    <div style="font-size:10px;color:#525252;letter-spacing:0.1em;margin-bottom:8px;">AI RATIONALE</div>
-    <div style="background:#0a0a0a;border-left:3px solid {verdict_color};padding:12px 16px;border-radius:0 6px 6px 0;font-size:13px;color:#a0a0a0;line-height:1.7;font-style:italic;">
-      {rationale}
-    </div>
-  </td></tr>
-
-  <!-- Simple explanation -->
-  {'<tr><td style="padding:0 32px 20px;"><div style="background:#f0b42911;border:1px solid #f0b42933;border-radius:8px;padding:16px;"><div style="font-size:10px;color:#f0b429;letter-spacing:0.1em;margin-bottom:8px;">IN SIMPLE TERMS</div><div style="font-size:13px;color:#f1f5f9;line-height:1.6;">' + simple + '</div></div></td></tr>' if simple else ''}
-
-  <!-- Recommended action -->
-  {'<tr><td style="padding:0 32px 20px;"><div style="font-size:10px;color:#525252;letter-spacing:0.1em;margin-bottom:8px;">RECOMMENDED ACTION</div><div style="background:#0a0a0a;border:1px solid #2a2a2a;border-radius:6px;padding:12px 16px;font-size:13px;color:#f1f5f9;">' + action + '</div></td></tr>' if action else ''}
-
-  <!-- Case info -->
-  <tr><td style="padding:0 32px 24px;">
-    <div style="background:#f0b42911;border:1px solid #f0b42933;border-radius:8px;padding:16px;">
-      <div style="font-size:10px;color:#f0b429;letter-spacing:0.1em;margin-bottom:8px;">COMPLIANCE CASE</div>
-      <div style="font-size:14px;color:#f0b429;font-weight:700;">{case_id}</div>
-      <div style="font-size:12px;color:#525252;margin-top:4px;">Assigned to: Surveillance Desk L2 &nbsp;&bull;&nbsp; Status: OPEN</div>
-    </div>
-  </td></tr>
-
-  <!-- Footer -->
-  <tr><td style="background:#000000;border-top:1px solid #2a2a2a;padding:20px 32px;text-align:center;">
-    <div style="font-size:11px;color:#525252;">Wissen Technology Hackathon 2026 &bull; Trade Surveillance Engine &bull; Powered by Claude AI</div>
-    <div style="font-size:10px;color:#333333;margin-top:4px;">This is an automated compliance notification. Do not reply to this email.</div>
-  </td></tr>
-
-</table>
-</td></tr>
-</table>
+  </div>
 </body>
 </html>"""
 
 
-def send_alert_email(alert, triage_result, case_id, recipients):
-    sender = os.getenv("EMAIL_SENDER")
-    password = os.getenv("EMAIL_PASSWORD")
-    if not sender or not password:
-        logging.info("Email not configured (EMAIL_SENDER/EMAIL_PASSWORD missing), skipping")
-        return False, "not_configured"
-    if not recipients:
-        return False, "no_recipients"
+def send_alert_email(recipient_emails, alert, triage_result):
+    api_key = os.getenv("SENDGRID_API_KEY")
+    sender = os.getenv("EMAIL_SENDER") or "noreply@tradesurveillance.com"
 
-    pattern = alert.get("pattern_type", "").replace("_", " ")
+    if not api_key:
+        logging.info("SendGrid not configured (SENDGRID_API_KEY missing), skipping")
+        return False
+
+    if not recipient_emails:
+        return False
+
     severity = alert.get("severity", "")
+    pattern = alert.get("pattern_type", "")
     instrument = alert.get("instrument", "")
-    subject = f"COMPLIANCE ALERT - {severity} | {pattern} | {instrument}"
+    subject = f"🚨 COMPLIANCE ALERT — {severity} | {pattern} | {instrument}"
+    html_body = _build_html(alert, triage_result)
 
-    html_body = _build_html(alert, triage_result, case_id)
-
-    def _build_messages():
-        msgs = []
-        for recipient in recipients:
-            msg = MIMEMultipart("alternative")
-            msg["Subject"] = subject
-            msg["From"] = f"Trade Surveillance Engine <{sender}>"
-            msg["To"] = recipient
-            msg.attach(MIMEText(html_body, "html"))
-            msgs.append((recipient, msg))
-        return msgs
-
-    e1 = None
-    e2 = None
-
-    # Approach 1 — port 587 STARTTLS
     try:
-        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=15)
-        server.starttls()
-        server.login(sender, password)
-        msgs = _build_messages()
-        for recipient, msg in msgs:
-            server.sendmail(sender, recipient, msg.as_string())
-        server.quit()
-        logging.info(f"Sent alert email (port 587) to {len(msgs)} recipients")
-        return True, len(msgs)
-    except Exception as exc:
-        e1 = exc
-        logging.error(f"Port 587 failed: {e1}")
+        for recipient in recipient_emails:
+            payload = json.dumps({
+                "personalizations": [{"to": [{"email": recipient}]}],
+                "from": {"email": sender, "name": "Trade Surveillance Engine"},
+                "subject": subject,
+                "content": [{"type": "text/html", "value": html_body}],
+            }).encode("utf-8")
 
-    # Approach 2 — port 465 SSL
-    try:
-        import ssl
-        context = ssl.create_default_context()
-        server = smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context, timeout=15)
-        server.login(sender, password)
-        msgs = _build_messages()
-        for recipient, msg in msgs:
-            server.sendmail(sender, recipient, msg.as_string())
-        server.quit()
-        logging.info(f"Sent alert email (port 465) to {len(msgs)} recipients")
-        return True, len(msgs)
-    except Exception as exc:
-        e2 = exc
-        logging.error(f"Port 465 failed: {e2}")
+            req = urllib.request.Request(
+                "https://api.sendgrid.com/v3/mail/send",
+                data=payload,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                method="POST",
+            )
 
-    logging.error(f"All email attempts failed. Sender: {sender}, Error 587: {e1}, Error 465: {e2}")
-    return False, f"587: {e1} | 465: {e2}"
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                if resp.status == 202:
+                    logging.info(f"Email sent to {recipient} via SendGrid")
+                else:
+                    logging.warning(f"SendGrid unexpected status: {resp.status}")
+
+        return True
+
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8")
+        logging.error(f"SendGrid HTTP error {e.code}: {body}")
+        return False
+    except Exception as e:
+        logging.error(f"SendGrid error: {e}")
+        return False

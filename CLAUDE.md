@@ -95,7 +95,7 @@ trade-surveillance/
 │   ├── ingestor.py         # Trade loader, windowed queries
 │   ├── workflows.py        # Case creation, Slack, watchlist
 │   ├── market_data.py      # yfinance live NSE prices + dynamic trade generation (20 stocks)
-│   ├── emailer.py          # SMTP email notifications
+│   ├── emailer.py          # Email via SendGrid HTTP API (port 443 — SMTP blocked on Render)
 │   ├── Procfile            # gunicorn for Render
 │   ├── requirements.txt    # anthropic>=0.40.0, flask, yfinance, gunicorn
 │   └── data/
@@ -160,8 +160,8 @@ git add -A && git commit -m "message" && git push
 ```
 ANTHROPIC_API_KEY=sk-ant-...       # Required — Claude triage
 SLACK_WEBHOOK_URL=https://...      # Optional — Slack notifications
-EMAIL_SENDER=you@gmail.com         # Optional — email notifications
-EMAIL_PASSWORD=app-password        # Optional — Gmail app password
+EMAIL_SENDER=you@gmail.com         # Optional — verified sender address for SendGrid
+SENDGRID_API_KEY=SG.xxx...         # Optional — SendGrid HTTP API (replaces SMTP, works on Render)
 PORT=5000                          # Optional — defaults to 5000
 ```
 
@@ -235,7 +235,7 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 | `input_tokens` + `output_tokens` columns added to `triage_results` (migration) | ✅ |
 | `/api/token-stats` sums real tokens from DB, correct pricing ($3/$15 per Mtok) | ✅ |
 | 20 stocks in `market_data.py` — PUMP_AND_DUMP triggers locally too | ✅ |
-| `.env.example` updated with all 5 vars incl. EMAIL_SENDER + EMAIL_PASSWORD | ✅ |
+| `.env.example` updated — SENDGRID_API_KEY replaces EMAIL_PASSWORD (SMTP blocked on Render) | ✅ |
 | `backend/.env` confirmed not tracked by git (gitignored) | ✅ |
 | `detector.py` — `datetime.utcnow()` replaced with `datetime.now(timezone.utc)` | ✅ |
 | `/api/health` always returns `"model":"claude-sonnet-4-6"` (hardcoded) | ✅ |

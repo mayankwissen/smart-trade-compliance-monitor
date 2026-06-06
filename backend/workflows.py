@@ -117,7 +117,7 @@ def send_email_notifications(alert, triage_result, case_id):
         recipients = [r["email"] for r in rows]
         if not recipients:
             return False
-        ok, detail = send_alert_email(alert, triage_result, case_id, recipients)
+        ok = send_alert_email(recipients, alert, triage_result)
         if ok:
             conn = get_db()
             conn.execute(
