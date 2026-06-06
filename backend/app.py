@@ -442,26 +442,163 @@ def export_case(alert_id):
         return jsonify({"error": "Alert not found"}), 404
     alert = dict(alert)
     triage = conn.execute("SELECT * FROM triage_results WHERE alert_id=?", (alert_id,)).fetchone()
-    escs   = conn.execute("SELECT * FROM escalations WHERE alert_id=?", (alert_id,)).fetchall()
+    triage = dict(triage) if triage else None
+    escs   = conn.execute("SELECT * FROM escalations WHERE alert_id=? ORDER BY created_at", (alert_id,)).fetchall()
     trades = conn.execute(
         "SELECT * FROM trades WHERE trader_id=? AND instrument=? ORDER BY timestamp",
         (alert["trader_id"], alert["instrument"]),
     ).fetchall()
     conn.close()
+    escs   = [dict(e) for e in escs]
+    trades = [dict(t) for t in trades]
 
-    case_data = {
-        "alert":       alert,
-        "triage":      dict(triage) if triage else None,
-        "escalations": [dict(e) for e in escs],
-        "trades":      [dict(t) for t in trades],
-        "exported_at": datetime.now(timezone.utc).isoformat(),
-    }
-    filename = f"case-{alert_id}.json"
-    return Response(
-        json.dumps(case_data, indent=2),
-        mimetype="application/json",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
-    )
+    pattern_label = alert.get("pattern_type", "").replace("_", " ")
+    cancel_pct    = round((alert.get("cancel_ratio") or 0) * 100, 1)
+    sigma_val     = round(alert.get("sigma") or 0, 2)
+    export_time   = datetime.now().strftime("%d %B %Y, %H:%M UTC")
+
+    verdict_html = ""
+    if triage:
+        v = triage.get("verdict", "")
+        vc = "#dc2626" if v == "ESCALATE" else "#16a34a"
+        verdict_html = f"""
+        <div class="section">
+          <div class="section-title">AI TRIAGE VERDICT — CLAUDE SONNET (NSE Chief Compliance Officer)</div>
+          <div style="text-align:center;padding:24px 0 16px;">
+            <div style="font-size:48px;font-weight:800;color:{vc};letter-spacing:.06em;font-family:'Helvetica Neue',Arial,sans-serif;">{v}</div>
+            <div style="font-size:13px;color:#555;margin-top:6px;">Confidence: <strong>{triage.get("confidence","")}%</strong> &nbsp;|&nbsp; False Positive Probability: <strong>{triage.get("false_positive_probability","")}%</strong> &nbsp;|&nbsp; Risk Level: <strong>{triage.get("risk_level","")}</strong></div>
+            <div style="background:#e5e7eb;border-radius:4px;height:8px;overflow:hidden;max-width:400px;margin:12px auto 0;">
+              <div style="height:100%;background:{vc};width:{triage.get('confidence',0)}%;border-radius:4px;"></div>
+            </div>
+          </div>
+          <div class="field-row"><div class="field-label">AI Rationale</div><div class="field-value" style="font-style:italic;line-height:1.8;">{triage.get("rationale","")}</div></div>
+          <div class="field-row"><div class="field-label">In Plain Terms</div><div class="field-value">{triage.get("simple_explanation","")}</div></div>
+          <div class="field-row"><div class="field-label">Recommended Action</div><div class="field-value" style="font-weight:600;color:#111;">{triage.get("recommended_action","")}</div></div>
+          <div class="field-row"><div class="field-label">Regulatory Reference</div><div class="field-value" style="font-family:'Courier New',monospace;font-size:12px;">{triage.get("regulatory_reference","")}</div></div>
+        </div>"""
+
+    esc_colors = {"CASE_CREATED":"#16a34a","SLACK_NOTIFIED":"#2563eb","WATCHLIST_FLAGGED":"#d97706","EMAIL_SENT":"#7c3aed","NO_ESCALATION":"#6b7280"}
+    esc_labels = {"CASE_CREATED":"Compliance Case Created","SLACK_NOTIFIED":"Slack Alert Sent","WATCHLIST_FLAGGED":"72-Hour Watchlist Active","EMAIL_SENT":"Email Notifications Sent"}
+    esc_rows = ""
+    for e in escs:
+        at = e.get("action_type","")
+        col = esc_colors.get(at, "#6b7280")
+        label = esc_labels.get(at, at.replace("_"," ").title())
+        ts = (e.get("created_at") or "")[:19]
+        esc_rows += f'<div style="display:flex;align-items:center;gap:12px;padding:10px 16px;border-bottom:1px solid #f3f4f6;"><div style="width:10px;height:10px;border-radius:50%;background:{col};flex-shrink:0;"></div><div style="flex:1;font-size:13px;font-weight:600;color:#111;">{label}</div><div style="font-size:11px;color:#6b7280;font-family:\'Courier New\',monospace;">{ts}</div></div>'
+
+    trade_rows = ""
+    for tr in trades[:50]:
+        s = tr.get("order_status","")
+        sc = "#dc2626" if s=="CANCELLED" else ("#16a34a" if s=="EXECUTED" else "#6b7280")
+        tc = "#16a34a" if tr.get("order_type")=="BUY" else "#dc2626"
+        trade_rows += f"""<tr>
+          <td style="font-family:'Courier New',monospace;font-size:11px;">{(tr.get('timestamp') or '')[:19]}</td>
+          <td style="font-weight:700;color:{tc};">{tr.get('order_type','')}</td>
+          <td style="font-family:'Courier New',monospace;">{int(tr.get('order_size') or 0):,}</td>
+          <td style="font-family:'Courier New',monospace;">&#8377;{float(tr.get('price') or 0):.2f}</td>
+          <td style="font-weight:600;color:{sc};">{s}</td>
+          <td style="font-family:'Courier New',monospace;color:{'#dc2626' if (tr.get('cancel_time_ms') or 0) > 0 and (tr.get('cancel_time_ms') or 0) < 600 else '#6b7280'};">{tr.get('cancel_time_ms') or '—'}</td>
+        </tr>"""
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Compliance Case Report — {alert_id}</title>
+<style>
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ font-family: 'Helvetica Neue', Arial, sans-serif; background: #f9fafb; color: #111; padding: 32px; font-size: 14px; }}
+  .page {{ max-width: 900px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 24px rgba(0,0,0,.08); overflow: hidden; }}
+  .header {{ background: #111; color: #fff; padding: 28px 36px; }}
+  .header-top {{ font-size: 10px; letter-spacing: .15em; color: #666; text-transform: uppercase; margin-bottom: 6px; }}
+  .header-title {{ font-size: 22px; font-weight: 800; color: #f0b429; letter-spacing: .04em; }}
+  .header-sub {{ font-size: 12px; color: #888; margin-top: 4px; }}
+  .meta-bar {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border-bottom: 1px solid #e5e7eb; }}
+  .meta-item {{ padding: 16px 20px; border-right: 1px solid #e5e7eb; }}
+  .meta-item:last-child {{ border-right: none; }}
+  .meta-label {{ font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: #9ca3af; margin-bottom: 4px; font-weight: 600; }}
+  .meta-value {{ font-size: 15px; font-weight: 800; color: #111; }}
+  .section {{ border-bottom: 1px solid #e5e7eb; }}
+  .section-title {{ background: #f3f4f6; padding: 10px 20px; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #374151; border-bottom: 1px solid #e5e7eb; }}
+  .field-row {{ display: flex; padding: 12px 20px; border-bottom: 1px solid #f9fafb; gap: 16px; }}
+  .field-row:last-child {{ border-bottom: none; }}
+  .field-label {{ font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; width: 200px; flex-shrink: 0; padding-top: 2px; }}
+  .field-value {{ flex: 1; font-size: 13px; color: #111; line-height: 1.6; }}
+  .stat-grid {{ display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; padding: 20px; }}
+  .stat-box {{ background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 16px; text-align: center; }}
+  .stat-num {{ font-size: 26px; font-weight: 800; }}
+  .stat-lbl {{ font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; margin-top: 4px; font-weight: 600; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 12px; }}
+  thead tr {{ background: #111; color: #fff; }}
+  th {{ padding: 9px 12px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }}
+  td {{ padding: 8px 12px; border-bottom: 1px solid #f3f4f6; }}
+  tr:nth-child(even) td {{ background: #fafafa; }}
+  .footer {{ background: #f9fafb; border-top: 1px solid #e5e7eb; padding: 16px 28px; font-size: 11px; color: #9ca3af; display: flex; justify-content: space-between; align-items: center; }}
+  .print-btn {{ background: #111; color: #fff; border: none; padding: 10px 28px; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; margin-bottom: 20px; letter-spacing: .04em; }}
+  .print-btn:hover {{ background: #374151; }}
+  .tag {{ display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: .04em; }}
+  @media print {{ .no-print {{ display: none !important; }} body {{ padding: 0; background: #fff; }} .page {{ box-shadow: none; border-radius: 0; }} }}
+</style>
+</head>
+<body>
+<div class="no-print" style="max-width:900px;margin:0 auto 16px;">
+  <button class="print-btn" onclick="window.print()">&#x1F4C4; Print / Save as PDF</button>
+</div>
+<div class="page">
+
+  <div class="header">
+    <div class="header-top">NSE Trade Surveillance &mdash; Compliance Division</div>
+    <div class="header-title">COMPLIANCE CASE REPORT</div>
+    <div class="header-sub">Generated: {export_time} &nbsp;|&nbsp; Case Reference: {alert_id} &nbsp;|&nbsp; Assigned: Surveillance Desk L2</div>
+  </div>
+
+  <div class="meta-bar">
+    <div class="meta-item"><div class="meta-label">Alert ID</div><div class="meta-value" style="font-size:13px;font-family:'Courier New',monospace;color:#2563eb;">{alert.get('alert_id','')}</div></div>
+    <div class="meta-item"><div class="meta-label">Trader</div><div class="meta-value">{alert.get('trader_id','')}</div></div>
+    <div class="meta-item"><div class="meta-label">Instrument</div><div class="meta-value">{alert.get('instrument','')}</div></div>
+    <div class="meta-item"><div class="meta-label">Severity</div><div class="meta-value" style="color:{'#dc2626' if alert.get('severity')=='HIGH' else '#d97706'};">{alert.get('severity','')}</div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Section 1 — Manipulation Pattern Detected</div>
+    <div class="stat-grid">
+      <div class="stat-box"><div class="stat-num" style="color:#d97706;">{pattern_label}</div><div class="stat-lbl">Pattern Type</div></div>
+      <div class="stat-box"><div class="stat-num" style="color:#dc2626;">{cancel_pct}%</div><div class="stat-lbl">Cancel Ratio</div></div>
+      <div class="stat-box"><div class="stat-num" style="color:#dc2626;">{sigma_val}σ</div><div class="stat-lbl">Anomaly Score</div></div>
+      <div class="stat-box"><div class="stat-num" style="color:#111;">{len(trades)}</div><div class="stat-lbl">Total Orders</div></div>
+    </div>
+    <div class="field-row"><div class="field-label">Evidence Summary</div><div class="field-value">{alert.get('evidence_summary','')}</div></div>
+    <div class="field-row"><div class="field-label">Detected At</div><div class="field-value" style="font-family:'Courier New',monospace;">{(alert.get('detected_at') or '')[:19]} UTC</div></div>
+    <div class="field-row"><div class="field-label">Case Status</div><div class="field-value"><span class="tag" style="background:#fef3c7;color:#92400e;">OPEN</span></div></div>
+  </div>
+
+  {verdict_html}
+
+  <div class="section">
+    <div class="section-title">Section 3 — Automated Escalation Actions</div>
+    {esc_rows if esc_rows else '<div style="padding:16px 20px;font-size:13px;color:#9ca3af;">No escalation actions yet — triage required.</div>'}
+  </div>
+
+  <div class="section">
+    <div class="section-title">Section 4 — Order Evidence (First 50 Orders)</div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead><tr><th>Timestamp</th><th>Type</th><th>Size</th><th>Price</th><th>Status</th><th>Cancel (ms)</th></tr></thead>
+        <tbody>{trade_rows}</tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span>NSE Trade Surveillance Engine &mdash; Wissen Technology Hackathon 2026 &mdash; Powered by Claude AI</span>
+    <span>CONFIDENTIAL &mdash; For authorised compliance personnel only</span>
+  </div>
+
+</div>
+</body>
+</html>"""
+    return Response(html, mimetype="text/html")
 
 
 # ── New Analysis Endpoints ─────────────────────────────────────────────────
