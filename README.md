@@ -208,7 +208,7 @@ If `ready` is `false`, hit `POST /api/replay/start` once.
 2. Render → New → Blueprint → connect repo (reads `render.yaml` automatically)
 3. Set `ANTHROPIC_API_KEY` in Render env vars
 4. Backend live at `https://your-service.onrender.com`
-5. Deploy `frontend/` as Render Static Site or Vercel (uses `vercel.json` for SPA routing)
+5. Deploy `frontend/` as Render Static Site — serves `index.html` (landing) and `app.html` (dashboard) directly
 
 ---
 

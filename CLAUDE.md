@@ -73,7 +73,7 @@ python -m http.server 3000
 | Case Report — print-ready HTML (not raw JSON) — for judges + compliance officers | ✅ |
 | Fixed layout at 100% zoom (position:fixed sidebar + header) | ✅ |
 | Health checks auto-refresh every 30s (Settings page) | ✅ |
-| vercel.json for SPA hash routing | ✅ |
+| Render Static Site — serves index.html (landing) + app.html (dashboard) directly | ✅ |
 | No Pylance errors in any backend file | ✅ |
 | STR Auto-Generator — print-ready FIU-IND filing from triage data | ✅ |
 | Trade Timeline Chart — Chart.js bar chart (BUY/SELL/CANCELLED) on AlertDetail | ✅ |
@@ -103,7 +103,6 @@ trade-surveillance/
 ├── frontend/
 │   ├── index.html          # Landing page (entry point) — Bloomberg-themed marketing site
 │   ├── app.html            # React dashboard — loads CSS + 18 JS files via Babel
-│   ├── vercel.json         # SPA rewrite: all routes → index.html (landing page)
 │   ├── css/
 │   │   └── styles.css      # Fixed layout, gold scrollbar, responsive grid
 │   └── js/
