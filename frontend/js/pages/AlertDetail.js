@@ -454,15 +454,48 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                           </div>
                         ))}
                       </div>
-                      <window.Btn small variant="ghost"
-                        onClick={() => window.open(`${window.API_BASE}/api/export/case/${alertId}`)}>
-                        Download Case File
-                      </window.Btn>
-                      {triage && verdict === 'ESCALATE' && <window.Btn small variant="ghost"
-                        onClick={() => window.open(window.API_BASE + '/api/generate-str/' + alertId)}
-                        style={{ marginLeft: 8 }}>
-                        Generate STR Filing
-                      </window.Btn>}
+                      <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
+                        <button
+                          onClick={() => window.open(`${window.API_BASE}/api/export/case/${alertId}`)}
+                          style={{
+                            flex: 1, minWidth: 160,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                            background: `${t.gold}18`, border: `1.5px solid ${t.gold}88`,
+                            color: t.gold, borderRadius: 8, padding: '10px 18px',
+                            cursor: 'pointer', fontFamily: "'Inter',sans-serif",
+                            fontWeight: 700, fontSize: 13, letterSpacing: '.02em',
+                            transition: 'background .15s',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.background = `${t.gold}30`}
+                          onMouseLeave={e => e.currentTarget.style.background = `${t.gold}18`}
+                        >
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                          </svg>
+                          Download Case File
+                        </button>
+                        {triage && verdict === 'ESCALATE' && (
+                          <button
+                            onClick={() => window.open(window.API_BASE + '/api/generate-str/' + alertId)}
+                            style={{
+                              flex: 1, minWidth: 160,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                              background: '#ef444418', border: '1.5px solid #ef444488',
+                              color: '#ef4444', borderRadius: 8, padding: '10px 18px',
+                              cursor: 'pointer', fontFamily: "'Inter',sans-serif",
+                              fontWeight: 700, fontSize: 13, letterSpacing: '.02em',
+                              transition: 'background .15s',
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = '#ef444430'}
+                            onMouseLeave={e => e.currentTarget.style.background = '#ef444418'}
+                          >
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+                            </svg>
+                            Generate STR Filing
+                          </button>
+                        )}
+                      </div>
                     </>
                   ) : (
                     <div style={{ color: t.textMuted, fontSize: 12 }}>No case yet — triage to trigger workflows.</div>
