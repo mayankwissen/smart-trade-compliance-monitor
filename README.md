@@ -1,136 +1,188 @@
 # Trade Surveillance & Alert Triage Engine
-Wissen Technology Hackathon 2026 | Built by Mayank Gupta | Wissen Technology
+**Wissen Technology Hackathon 2026 | Mayank Gupta**
 
-An AI-powered real-time trade surveillance system that ingests NSE trade data, detects market manipulation patterns (layering, spoofing, wash trading), and uses Claude Sonnet to autonomously triage alerts into ESCALATE/DISMISS verdicts with full compliance workflows. The engine delivers end-to-end automation — from raw trade data to compliance case creation, Slack notification, email alert, and 72-hour watchlist monitoring — in a single API call.
+> **10 seconds.** That's how long it takes to go from a suspicious trade pattern to a
+> SEBI-ready compliance case, Slack notification, email alert, and 72-hour watchlist flag —
+> fully automated, with AI reasoning that cites the exact SEBI regulation number.
+
+---
+
+## The Problem
+
+NSE processes millions of trades daily. Compliance officers manually review 50–200 flagged
+alerts per day — each taking 15–30 minutes. The process is slow, inconsistent, and relies
+on individual expertise that walks out the door when an analyst leaves.
+
+## The Solution
+
+An end-to-end AI compliance pipeline that:
+1. **Detects** market manipulation patterns (layering, spoofing, wash trading) deterministically
+2. **Triages** each alert using Claude Sonnet acting as an NSE Chief Compliance Officer
+3. **Acts** automatically — opens compliance case, notifies Slack, emails the team, flags watchlist
+
+The AI doesn't just say "suspicious" — it produces an 8-field SEBI-quality verdict with
+confidence score, rationale citing specific trade statistics, plain-English explanation for
+board members, recommended next steps, and the exact SEBI regulation violated.
+
+---
+
+## Live Demo
+
+```
+Backend:   https://smart-trade-compliance-monitor.onrender.com
+Frontend:  Deploy frontend/ to Vercel or run locally (see Setup)
+```
+
+### One-Click Demo Flow
+
+1. Open the dashboard → click **🔄 Refresh Live Data**
+   - Fetches live NSE prices via yfinance
+   - Generates ~407 trades with today's timestamps
+   - Automatically detects 5 alerts (2 LAYERING, 2 SPOOFING, 1 WASH_TRADING)
+
+2. Click any alert row → **⚡ Triage This Alert**
+   - Claude Sonnet analyzes in ~2.5 seconds
+   - Returns: verdict, confidence %, rationale, plain-English box, regulatory reference
+   - If ESCALATE: creates case file, fires Slack, emails subscribers, flags watchlist
+
+3. Click **AUTO-TRIAGE ALL** on Alerts page → all pending alerts triaged in sequence
+
+4. Visit **Settings** → see live token consumption (~$0.00014/call, 460 tokens total)
+
+---
 
 ## Architecture
 
 ```
-yfinance / CSV → [Ingestor] → [SQLite DB] → [Detector] → [Triage / Claude API] → [Workflows]
-                                                               ↓                        ↓
-                                                         Verdicts DB          Cases / Slack / Email
+yfinance (Live NSE) ──► market_data.py ──► SQLite DB ──► detector.py ──► alerts
+                                                                │
+                                                           triage.py
+                                                      (Claude Sonnet CCO)
+                                                                │
+                                                         workflows.py
+                                              ┌──────────────┼──────────────┐
+                                         Case JSON      Slack Block     Email + Watchlist
 ```
 
-**Components:**
-- `market_data.py` — Fetches real-time NSE prices via yfinance, generates 415 synthetic trades including 3 injected suspicious clusters
-- `ingestor.py` — Loads trades from SQLite, provides windowed queries per trader+instrument pair
-- `detector.py` — Three deterministic detectors: layering (cancel ratio + sell elevation), spoofing (large rapid cancels), wash trading (cross-account self-dealing)
-- `triage.py` — Calls Claude Sonnet with pre-computed evidence (~280 tokens), parses 7-field JSON verdict, tracks processing time
-- `workflows.py` — Creates JSON case files, sends Slack block messages, sends HTML emails to subscribers, flags watchlist
-- `app.py` — Flask REST API with 20 endpoints, CORS, pagination, filtering
-- `database.py` — SQLite schema init, CSV fallback seed, auto-migration for new columns
+Full architecture with component diagrams, data flow, and AI design rationale: **[ARCHITECTURE.md](ARCHITECTURE.md)**
+
+---
+
+## Key Technical Decisions
+
+### Why 97% Fewer Tokens?
+
+Naive approach: send all 14 trade rows to the LLM → ~15,000 tokens → $0.045/call
+
+This system pre-computes what matters: `cancel_ratio`, `sigma`, `evidence_summary` →
+sends ~280 tokens → **$0.00014/call**.
+
+At 1,000 alerts/day: **$45/day vs $0.14/day**. Same quality verdict. 97% cheaper.
+
+### Why a Persona, Not a Generic Prompt?
+
+The system prompt makes Claude a specific person: NSE CCO, 20 years experience, expert
+witness in SEBI proceedings. This forces domain-specific reasoning — regulatory citations,
+financial vocabulary, defensible escalation logic — instead of generic "this seems risky."
+
+### Why Structured Output?
+
+All 8 fields are required JSON. No prose. This means every verdict is:
+- Machine-readable (feeds into case management systems)
+- Auditable (each field has a specific legal purpose)
+- Consistent (no variation in format across 1,000 calls)
+
+---
+
+## Suspicious Clusters in the Data
+
+Three injected patterns that always trigger detection:
+
+| Cluster | Trader | Instrument | Pattern | Evidence |
+|---------|--------|------------|---------|---------|
+| A | T-1042 | HDFCBANK | LAYERING | 14 orders, 12 BUY cancelled in 420–780ms, 2 SELLs executed at +0.8% |
+| B | T-2891 | RELIANCE | SPOOFING | 8×80,000-share orders cancelled in 180–490ms, sell at elevated price |
+| C | T-3301 | INFY | WASH TRADING | BUY on A-3301, SELL on A-3302, same size, 18 seconds apart |
+
+---
 
 ## Setup — Local
 
 ```bash
-# 1. Enter backend directory
+# Backend
 cd trade-surveillance/backend
-
-# 2. Install dependencies
 pip install -r requirements.txt
+cp ../.env.example .env          # add ANTHROPIC_API_KEY
+python app.py                    # → http://localhost:5000
 
-# 3. Configure environment
-cp ../.env.example .env
-# Edit .env — set ANTHROPIC_API_KEY (required), SLACK_WEBHOOK_URL (optional)
-
-# 4. Start server
-python app.py
-# Runs at http://localhost:5000
-
-# 5. Start frontend (MUST use HTTP server — Babel loads external scripts)
+# Frontend (MUST use HTTP server — Babel loads external JS files)
 cd ../frontend
-python -m http.server 3000
-# Open http://localhost:3000
+python -m http.server 3000       # → http://localhost:3000
 ```
 
-> **Note**: Do NOT open `index.html` directly from the filesystem (`file://`). The frontend uses `type="text/babel" src="..."` to load split JS files, which requires an HTTP server.
+> Do NOT open `index.html` directly (`file://`). The React app uses Babel Standalone
+> with `type="text/babel" src="..."` which requires an HTTP server.
 
-## Setup — Render Deployment
+---
 
-1. Push this repo to GitHub
-2. Go to [render.com](https://render.com) → New → Blueprint
-3. Connect your GitHub repo — Render auto-detects `render.yaml`
-4. Set environment variables in the Render dashboard:
-   - `ANTHROPIC_API_KEY` — required
-   - `SLACK_WEBHOOK_URL` — optional
-   - `EMAIL_SENDER` / `EMAIL_PASSWORD` — optional, for email alerts
-5. Deploy backend — build takes ~2 minutes on free tier
-6. Update `API_BASE` fallback in `frontend/js/api.js` to your Render URL
-7. Deploy `frontend/` as a Render Static Site (or Vercel) — `vercel.json` included for SPA routing
-
-## API Endpoints
+## API Reference
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/health` | Service health, trade count, model version |
-| GET | `/api/ping` | Keep-alive for Render free tier |
-| GET | `/api/trades` | Paginated trades — filters: trader_id, instrument, status |
-| GET | `/api/alerts` | All alerts with triage joined — filters: pattern, severity, status, search |
-| GET | `/api/alert/<id>/trades` | All trades for the alert's trader+instrument |
-| GET | `/api/alert/<id>/full` | Complete alert + triage + escalations + trades (single call) |
-| POST | `/api/replay/start` | Scan all trades, detect patterns, store new alerts |
-| POST | `/api/triage/<id>` | AI triage via Claude + full escalation workflow |
-| GET | `/api/triage/<id>` | Fetch existing triage result |
-| GET | `/api/escalations` | Paginated escalation log |
-| GET | `/api/stats` | Dashboard counts (trades, alerts, escalated, dismissed, pending) |
-| GET | `/api/token-stats` | Claude API usage — calls, tokens, estimated cost |
-| GET | `/api/market-prices` | Live NSE prices for 7 symbols via yfinance |
-| POST | `/api/refresh-data` | Regenerate all trades at current market prices |
-| POST | `/api/subscribe` | Add email to alert subscriber list |
-| POST | `/api/unsubscribe` | Deactivate email subscription |
-| GET | `/api/subscribers/count` | Active subscriber count |
-| POST/GET | `/api/export/case/<id>` | Download complete case as JSON attachment |
+| POST | `/api/refresh-data` | Wipe DB + generate fresh trades at live NSE prices |
+| POST | `/api/replay/start` | Run all 3 detectors across all trade pairs |
+| POST | `/api/triage/<id>` | AI triage + full escalation workflow |
+| GET | `/api/alert/<id>/full` | Complete alert + triage + escalations + trades |
+| GET | `/api/stats` | Dashboard counts |
+| GET | `/api/alerts` | All alerts with triage joined (filterable) |
+| GET | `/api/trades` | Paginated trades (filterable by trader/instrument/status) |
+| GET | `/api/market-prices` | Live NSE prices from yfinance |
+| GET | `/api/token-stats` | Claude usage — calls, tokens, estimated cost |
+| GET | `/api/export/case/<id>` | Download compliance case JSON |
+| POST | `/api/subscribe` | Subscribe email to alert notifications |
+| GET | `/api/health` | Service health + trade count |
 
-## Suspicious Clusters in the Data
+---
 
-| Cluster | Trader | Instrument | Pattern | What Happened |
-|---------|--------|------------|---------|---------------|
-| A | T-1042 | HDFCBANK | LAYERING | 14 orders, 12 cancelled in 420–780ms, 2 sells executed at elevated price |
-| B | T-2891 | RELIANCE | SPOOFING | 8×80,000-share orders cancelled in 180–490ms, followed by profitable sell |
-| C | T-3301 | INFY | WASH TRADING | BUY on A-3301, SELL on A-3302 within 18 seconds, same size |
-
-## Demo Walkthrough
-
-1. **Start** backend (`python app.py`) and frontend (`python -m http.server 3000` in `frontend/`)
-2. **Open** `http://localhost:3000` — Stats bar shows **415 trades** loaded
-3. **Click ▶ START REPLAY** — backend scans all trades, detects **5 alerts** across 3 patterns
-4. **Watch** Alert Feed populate: LAYERING + SPOOFING for T-1042/HDFCBANK, LAYERING + SPOOFING for T-2891/RELIANCE, WASH_TRADING for T-3301/INFY
-5. **Click any alert row** — navigates to Alert Detail page
-6. **Click "⚡ Triage This Alert"** — Claude Sonnet CCO analyzes in ~2.5s
-7. **See** animated ESCALATE/DISMISS verdict (52px glow), confidence bar, full rationale, plain-English box (blue), recommended action (amber), SEBI regulatory reference (purple), AI metrics
-8. **Check Escalation Actions tab** — COMPLIANCE CASE created, Slack notified, Watchlist flagged, Download Case JSON button
-9. **Go to Alerts page** → **AUTO-TRIAGE ALL** — triages all pending alerts in sequence
-10. **Visit Trades page** — 415 trades, filter by trader/instrument/status, flagged traders highlighted red
-11. **Visit Logs page** — escalation history, Export CSV button
-12. **Visit Settings page** — live API usage stats, health checks (auto-refresh every 30s)
-
-## Token Efficiency
-
-The triage prompt is intentionally compact: evidence is pre-computed by deterministic detectors (cancel ratio, sigma, median cancel time) and passed as structured key-value pairs rather than raw trade rows. This reduces token usage by **97%** versus sending full trade histories to the LLM — ~280 tokens input instead of ~15,000. Claude receives exactly what it needs: pattern type, severity, quantitative stats, and a single evidence sentence. `max_tokens=600` caps response cost. The Settings page shows live token consumption and estimated cost per triage call (~$0.00014 per call).
-
-## Frontend Architecture
-
-The frontend is a multi-file React 18 app served without a build step:
+## Environment Variables
 
 ```
-frontend/
-├── index.html          # Thin loader — 17 <script type="text/babel" src="..."> tags
-├── vercel.json         # SPA hash-routing support for Vercel
-├── css/styles.css      # Fixed sidebar + header layout, gold scrollbar, responsive
-└── js/
-    ├── api.js          # Shared: API_BASE, themes (DARK/LIGHT), formatters, badge configs
-    ├── app.js          # Root App component — data fetching, theme state, routing
-    ├── components/     # Header, Sidebar, StatsBar, Charts, TopSuspects, Shared
-    └── pages/          # Dashboard, Alerts, AlertDetail, Trades, Logs, Settings
+ANTHROPIC_API_KEY=sk-ant-...       # Required
+SLACK_WEBHOOK_URL=https://...      # Optional — Slack notifications
+EMAIL_SENDER=you@gmail.com         # Optional — email notifications
+EMAIL_PASSWORD=app-password        # Optional — Gmail app password
 ```
 
-All JS files use `window.*` globals. Load order in `index.html` is critical. Babel Standalone transpiles JSX in-browser. **Requires HTTP server** — `file://` will not work.
+---
 
-## Reset / Fresh Demo
+## Deploy to Render
 
-```bash
-cd backend
-del surveillance.db        # Windows
-# rm surveillance.db       # Mac/Linux
-python app.py              # Reseeds automatically on startup
-```
+1. Push to GitHub
+2. Render → New → Blueprint → connect repo (reads `render.yaml` automatically)
+3. Set `ANTHROPIC_API_KEY` in Render env vars
+4. Backend live at `https://your-service.onrender.com`
+5. Deploy `frontend/` as Render Static Site or Vercel (uses `vercel.json` for SPA routing)
+
+---
+
+## Performance
+
+| Metric | Value |
+|--------|-------|
+| Alert detection (407 trades) | < 1 second |
+| AI triage per alert | ~2.5 seconds |
+| Tokens per call | ~460 (280 input + 180 output) |
+| Cost per call | ~$0.00014 |
+| Token reduction vs naive | 97% |
+| Full pipeline (refresh → detect → triage) | < 15 seconds |
+
+---
+
+## Tech Stack
+
+- **AI**: Claude Sonnet (Anthropic) — CCO persona, SEBI domain expert
+- **Backend**: Python 3.12, Flask, SQLite, gunicorn
+- **Market Data**: yfinance (live NSE prices, no API key required)
+- **Frontend**: React 18 via CDN, Babel Standalone, Chart.js
+- **Notifications**: Slack Webhooks, SMTP email
+- **Deployment**: Render (backend), Vercel (frontend)
