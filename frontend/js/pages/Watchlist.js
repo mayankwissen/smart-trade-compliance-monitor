@@ -11,13 +11,15 @@ window.WatchlistPage = function WatchlistPage({ nav }) {
 
   const loadAll = _wuseC(async () => {
     try {
-      const [wl, st, lg] = await Promise.all([
-        fetch(window.API_BASE + '/api/watchlist').then(r => r.json()),
-        fetch(window.API_BASE + '/api/agent/status').then(r => r.json()),
-        fetch(window.API_BASE + '/api/agent/logs').then(r => r.json()),
-      ]);
+      const wl = await fetch(window.API_BASE + '/api/watchlist').then(r => r.json());
       setWatchlist(wl);
-      setAgentStatus(st);
+    } catch {}
+    try {
+      const st = await fetch(window.API_BASE + '/api/agent/status').then(r => r.json());
+      if (st && st.status) setAgentStatus(st);
+    } catch {}
+    try {
+      const lg = await fetch(window.API_BASE + '/api/agent/logs').then(r => r.json());
       setAgentLogs(lg.logs || []);
     } catch {}
   }, []);
@@ -190,6 +192,11 @@ window.WatchlistPage = function WatchlistPage({ nav }) {
           </div>
         </div>
 
+        {!agentStatus && (
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: t.textMuted, padding: '8px 0' }}>
+            Connecting to agent... (restart backend if this persists)
+          </div>
+        )}
         {agentStatus && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
             {[
