@@ -1171,6 +1171,45 @@ Compliance workflow: SEBI PFUTP Regulations 2003, automatic STR filing, 72-hour 
         return jsonify({"error": str(e), "reply": "Sorry, I could not process your question. Please try again."}), 500
 
 
+@app.route("/api/leaderboard")
+def leaderboard():
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT
+            a.trader_id,
+            COUNT(DISTINCT a.alert_id)                                   AS alert_count,
+            SUM(CASE WHEN a.severity='CRITICAL' THEN 1 ELSE 0 END)      AS critical_count,
+            SUM(CASE WHEN a.severity='HIGH'     THEN 1 ELSE 0 END)      AS high_count,
+            SUM(CASE WHEN e.escalation_id IS NOT NULL THEN 1 ELSE 0 END) AS escalation_count,
+            GROUP_CONCAT(DISTINCT a.pattern)                             AS patterns,
+            MAX(t.confidence)                                            AS max_confidence
+        FROM alerts a
+        LEFT JOIN escalations e ON a.alert_id = e.alert_id
+        LEFT JOIN triage_results t ON a.alert_id = t.alert_id
+        GROUP BY a.trader_id
+        ORDER BY critical_count DESC, alert_count DESC
+        LIMIT 10
+    """).fetchall()
+    conn.close()
+    suspects = []
+    for r in rows:
+        suspects.append({
+            "trader_id":        r["trader_id"],
+            "alert_count":      r["alert_count"],
+            "critical_count":   r["critical_count"],
+            "high_count":       r["high_count"],
+            "escalation_count": r["escalation_count"],
+            "patterns":         r["patterns"].split(",") if r["patterns"] else [],
+            "max_confidence":   r["max_confidence"],
+            "risk_score": min(100, (
+                (r["critical_count"] or 0) * 30 +
+                (r["high_count"]     or 0) * 15 +
+                (r["alert_count"]    or 0) * 10
+            )),
+        })
+    return jsonify({"suspects": suspects})
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)

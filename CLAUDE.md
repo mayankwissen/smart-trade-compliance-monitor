@@ -11,8 +11,8 @@ Built for Wissen Technology Hackathon 2026.
 - **Triage AI**: `claude-sonnet-4-6` (hardcoded in `backend/triage.py`)
 - **Claude Code session**: Sonnet 4.6 (default) — change with `/model` in the CLI
 
-## Current Status — as of 2026-06-06
-- **Backend**: Flask + SQLite, 22 endpoints, all working, no Pylance errors
+## Current Status — as of 2026-06-07
+- **Backend**: Flask + SQLite, 24 endpoints, all working, no Pylance errors
 - **Frontend**: Multi-file React 18, 7 pages, gold/black Bloomberg theme, fully restructured
 - **Triage**: Claude Sonnet CCO persona, 8-field SEBI-quality JSON, model: claude-sonnet-4-6
 - **Layout**: Fixed sidebar + header, per-page scrolling, works at 100% zoom
@@ -28,6 +28,9 @@ Built for Wissen Technology Hackathon 2026.
 - **Trade Timeline**: 4th tab in AlertDetail — Chart.js bar chart of order flow
 - **Trader Profile**: /trader/:id page — risk score, pattern breakdown, alert history
 - **Market Impact**: /api/market-impact/:id — price movement + financial harm estimate
+- **AI Chat Widget**: 💬 floating button on Dashboard, Claude-powered Q&A on live DB data
+- **Voice Commands**: 🎤 button in Header, 16 commands via Web Speech API (Chrome/Edge)
+- **Leaderboard**: /api/leaderboard — top suspects ranked by criticality + risk score
 - **Alert Correlation**: Dashboard panel groups alerts within 10-minute windows
 
 ## How to run locally
@@ -82,13 +85,17 @@ python -m http.server 3000
 | Alert Correlation Panel — Dashboard groups alerts within 10-min windows | ✅ |
 | Trader ID in AlertDetail is clickable → Trader Profile page | ✅ |
 | detector.py PUMP_AND_DUMP datetime.utcnow() replaced with _now_iso() | ✅ |
+| AI Chat Widget — 💬 floating button, Claude Q&A on live DB (Dashboard) | ✅ |
+| Voice Commands — 🎤 button, 16 commands via Web Speech API (Header) | ✅ |
+| /api/leaderboard — top suspects ranked by criticality + risk score | ✅ |
+| /api/chat — Claude-powered natural-language Q&A on live surveillance data | ✅ |
 
 ## File Structure
 
 ```
 trade-surveillance/
 ├── backend/
-│   ├── app.py              # Flask REST API — 22 endpoints
+│   ├── app.py              # Flask REST API — 24 endpoints
 │   ├── triage.py           # Claude API call, CCO persona, 8-field JSON, real token tracking
 │   ├── detector.py         # 4 pattern detectors (LAYERING, SPOOFING, WASH, PUMP_AND_DUMP)
 │   ├── database.py         # SQLite init + CSV seed + migration (input/output_tokens cols)
@@ -203,6 +210,8 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 | `/api/correlated-alerts` | GET | Alerts grouped by 10-minute windows |
 | `/api/subscribe` | POST | Subscribe email to alerts |
 | `/api/reset` | POST | Delete alerts + triage + escalations (keep trades) |
+| `/api/leaderboard` | GET | Top suspects ranked by criticality + risk score |
+| `/api/chat` | POST | Claude-powered Q&A on live surveillance data |
 | `/api/ping` | GET | Keep-alive for Render free tier |
 
 ## Claude AI Triage
@@ -226,7 +235,7 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 }
 ```
 
-## QA Fixes Applied (2026-06-06)
+## QA Fixes Applied (2026-06-06 → 2026-06-07)
 
 | Fix | Status |
 |-----|--------|
@@ -239,6 +248,10 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 | `backend/.env` confirmed not tracked by git (gitignored) | ✅ |
 | `detector.py` — `datetime.utcnow()` replaced with `datetime.now(timezone.utc)` | ✅ |
 | `/api/health` always returns `"model":"claude-sonnet-4-6"` (hardcoded) | ✅ |
+| AI Chat Widget — `ReactDOM.createPortal` to body, z-index:1000, right:160px (clears price panel) | ✅ |
+| Voice command stale closure — `handleCommandRef` updated each render, `onresult` calls ref | ✅ |
+| Voice mic-denied — toast error messages for `not-allowed` and `no-speech` events | ✅ |
+| `/api/leaderboard` added — was 404, now returns ranked suspects with risk score | ✅ |
 
 ## Known Issues / Notes
 
@@ -257,12 +270,14 @@ Render wipes SQLite on every deploy. Before judges see the app, always run:
 3. POST `/api/replay/start` — creates the 4 alerts
 4. Triage all 4 alerts (or click **Demo Mode** — does all 3 steps automatically)
 
-## Production Status — as of 2026-06-06
+## Production Status — as of 2026-06-07
 
 - [x] Frontend deployed → https://smart-trade-compliance-monitor-1.onrender.com
 - [x] Backend deployed → https://smart-trade-compliance-monitor.onrender.com
 - [x] ANTHROPIC_API_KEY set in Render env vars
 - [x] Slack webhook configured
-- [x] All 22 endpoints verified working
+- [x] All 24 endpoints verified working (including new /api/leaderboard, /api/chat)
 - [x] Case Report returns HTML (not JSON) — print/PDF ready for judges
+- [x] AI Chat Widget working — portal render, z-index clear, Claude responding
+- [x] Voice Commands working — 16 commands, stale-closure fix applied
 - [ ] Full demo rehearsal with fresh Render deploy before judging

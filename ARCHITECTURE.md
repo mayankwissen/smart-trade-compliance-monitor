@@ -134,7 +134,7 @@ the estimated financial harm to the market — all from a single API call.**
 ┌──────────────────────────────▼──────────────────────────────────────────┐
 │                          API LAYER                                       │
 │                                                                          │
-│   app.py — Flask REST API, 22 endpoints, CORS enabled                   │
+│   app.py — Flask REST API, 24 endpoints, CORS enabled                   │
 │                                                                          │
 │   Core flow:                                                             │
 │   POST /api/refresh-data    → wipe DB + generate fresh trades            │
@@ -156,6 +156,8 @@ the estimated financial harm to the market — all from a single API call.**
 │   GET  /api/trader/:id              → trader risk profile JSON           │
 │   GET  /api/market-impact/:id       → market impact analysis             │
 │   GET  /api/correlated-alerts       → 10-min window alert groups         │
+│   GET  /api/leaderboard             → top suspects ranked by risk score  │
+│   POST /api/chat                    → AI chat Q&A on live DB context     │
 └──────────────────────────────┬──────────────────────────────────────────┘
                                │
 ┌──────────────────────────────▼──────────────────────────────────────────┐
@@ -178,6 +180,8 @@ the estimated financial harm to the market — all from a single API call.**
 │   Theme: Gold #f0b429 / Black — Bloomberg terminal aesthetic             │
 │   NSE live price ticker (20 stocks), auto-scroll, search filter         │
 │   Auto-detect on first mount — judges see populated data immediately    │
+│   Voice Commands: 16 commands via Web Speech API (🎤 button in Header) │
+│   AI Chat Widget: Claude-powered Q&A floating on Dashboard (💬 button) │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -391,7 +395,7 @@ Cluster D: T-4401 / TCS
 | Cost per triage call | ~$0.00014 |
 | Token savings vs naive | 97% (vs sending raw trade rows) |
 | Complete workflow time | < 15 seconds: fresh data → detect → triage → case → Slack |
-| API endpoints | 22 REST endpoints |
+| API endpoints | 24 REST endpoints |
 | Frontend pages | 7 (Dashboard, Alerts, Alert Detail, Trader Profile, Trades, Logs, Settings) |
 | NSE instruments monitored | 20 stocks |
 
@@ -403,7 +407,7 @@ Cluster D: T-4401 / TCS
 trade-surveillance/
 │
 ├── backend/                    # Python Flask API
-│   ├── app.py                  # 22 REST endpoints, CORS
+│   ├── app.py                  # 24 REST endpoints, CORS
 │   ├── triage.py               # Claude API integration, CCO persona, real token tracking
 │   ├── detector.py             # 4 pattern detectors
 │   ├── database.py             # SQLite schema + seed + migration

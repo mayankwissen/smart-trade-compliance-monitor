@@ -162,6 +162,8 @@ python -m http.server 3000       # → http://localhost:3000
 | GET | `/api/market-impact/<id>` | Price movement, financial harm estimate for an alert |
 | GET | `/api/correlated-alerts` | Alerts grouped by 10-minute windows (coordinated manipulation) |
 | POST | `/api/subscribe` | Subscribe email to alert notifications |
+| GET | `/api/leaderboard` | Top suspects — traders ranked by alert count, criticality, risk score |
+| POST | `/api/chat` | AI chat assistant — natural-language Q&A about live surveillance data |
 | GET | `/api/health` | Service health + trade count |
 
 ---
@@ -169,10 +171,10 @@ python -m http.server 3000       # → http://localhost:3000
 ## Environment Variables
 
 ```
-ANTHROPIC_API_KEY=sk-ant-...       # Required
+ANTHROPIC_API_KEY=sk-ant-...       # Required — Claude triage + AI chat
 SLACK_WEBHOOK_URL=https://...      # Optional — Slack notifications
-EMAIL_SENDER=you@gmail.com         # Optional — email notifications
-EMAIL_PASSWORD=app-password        # Optional — Gmail app password
+EMAIL_SENDER=you@gmail.com         # Optional — verified sender address for SendGrid
+SENDGRID_API_KEY=SG.xxx...         # Optional — SendGrid HTTP API (SMTP blocked on Render)
 ```
 
 ---
@@ -222,7 +224,7 @@ If `ready` is `false`, hit `POST /api/replay/start` once.
 | Cost per call | ~$0.00014 |
 | Token reduction vs naive | 97% |
 | Full pipeline (refresh → detect → triage) | < 15 seconds |
-| API endpoints | 22 |
+| API endpoints | 24 |
 | Frontend pages | 7 (Dashboard, Alerts, Alert Detail, Trader Profile, Trades, Logs, Settings) |
 
 ---
@@ -233,5 +235,7 @@ If `ready` is `false`, hit `POST /api/replay/start` once.
 - **Backend**: Python 3.12, Flask, SQLite, gunicorn
 - **Market Data**: yfinance (live NSE prices, no API key required)
 - **Frontend**: React 18 via CDN, Babel Standalone, Chart.js 4.4
-- **Notifications**: Slack Webhooks, SMTP email
+- **Notifications**: Slack Webhooks, SendGrid email
+- **Voice Commands**: Web Speech API — 16 navigation + action commands (Chrome/Edge)
+- **AI Chat**: Claude Sonnet-powered natural-language assistant on the Dashboard
 - **Deployment**: Render (backend + frontend static)

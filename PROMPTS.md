@@ -1,19 +1,6 @@
-# AI Prompts Used — Trade Surveillance Engine
-## Wissen Technology Hackathon 2026
-### Built by: Mayank Gupta | Wissen Technology
-
-This document contains every prompt given to Claude AI (via Claude CLI and Claude.ai)
-to build this project from scratch in ~46 hours.
-
----
-
 ## PROMPT 1 — Initial Project Scaffold
 
-**Purpose:** Build complete base project from scratch
-**Model:** Claude Sonnet 4.6 via Claude CLI
-**Estimated tokens:** ~3,000
 
-```
 You are a senior full-stack engineer. Build a complete "Trade Surveillance & Alert Triage Engine"
 project from scratch in the current directory. This is for a hackathon judged on: AI triage
 quality (25%), pattern detection (20%), automation workflows (20%), working demo (20%),
@@ -380,6 +367,42 @@ browser, read it like a formal compliance document, and save it as PDF with one 
 
 ---
 
+## PROMPT 11 — AI Chat Assistant + Voice Commands
+
+**Purpose:** Add natural-language AI chat widget to Dashboard and voice command support to Header
+**Model:** Claude Sonnet 4.6 via Claude CLI
+
+**Changes made:**
+- `backend/app.py`: Added `POST /api/chat` — queries live DB for stats + alerts, builds ~280-token context, calls Claude Sonnet for natural-language Q&A on surveillance data
+- `frontend/js/pages/Dashboard.js`: Added floating 💬 chat button + panel via `ReactDOM.createPortal` (renders to `document.body` to escape CSS stacking context — z-index:1000, right:160px to clear price panel)
+- `frontend/js/components/Header.js`: Added 🎤 button with 16 Web Speech API voice commands — navigation (dashboard/alerts/trades/logs/settings), actions (triage/demo mode/reset/start replay/trader profile)
+- `frontend/js/app.js`: Passed `nav` and `onRefreshComplete` props to Header component
+
+**Key bugs fixed:**
+- Chat widget invisible: `#app-main` has `position:fixed` with no z-index (auto level) — painted before `#price-panel` (z-index:90). Fix: `createPortal` to body.
+- Voice stale closure: `r.onresult` captured `handleCommand` at mic-click time. After `setListening(true)` re-render, callback held old closure. Fix: `handleCommandRef` updated each render.
+- Mic denied: silent failure. Fix: toast messages for `not-allowed`/`no-speech` errors.
+
+**Tokens used:** ~35,000
+
+---
+
+## PROMPT 12 — Final Pre-Demo Check + /api/leaderboard
+
+**Purpose:** Full pre-demo audit — verify all endpoints, add missing /api/leaderboard, update all docs, git push
+**Model:** Claude Sonnet 4.6 via Claude CLI
+
+**Changes made:**
+- `backend/app.py`: Added `GET /api/leaderboard` — top suspects ranked by CRITICAL count, alert count, risk score (0–100 formula)
+- `README.md`: Added leaderboard + chat to API table, fixed env vars (SENDGRID_API_KEY), updated endpoint count (22→24), added voice/chat to tech stack
+- `ARCHITECTURE.md`: Added new endpoints to API layer, voice/chat to Frontend layer, updated counts
+- `CLAUDE.md`: Updated status date, endpoint count, completed features table, QA fixes, production status
+- `PROMPTS.md`: Added prompts 11 + 12, updated total summary
+
+**Tokens used:** ~8,000
+
+---
+
 ## TOTAL AI USAGE SUMMARY
 
 | Prompt | Purpose | Est. Tokens | Time |
@@ -394,7 +417,9 @@ browser, read it like a formal compliance document, and save it as PDF with one 
 | 8 | QA Bug Fixes | ~5,000 | 10 min |
 | 9 | Advanced Features | ~40,000 | 15 min |
 | 10 | HTML Case Report | ~2,000 | 5 min |
-| **Total** | **Full project** | **~248,500** | **~105 min** |
+| 11 | AI Chat + Voice | ~35,000 | 15 min |
+| 12 | Pre-demo + Leaderboard | ~8,000 | 10 min |
+| **Total** | **Full project** | **~291,500** | **~120 min** |
 
 ---
 
