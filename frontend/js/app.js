@@ -88,6 +88,8 @@ function App() {
         onToggleTheme={toggleTheme}
         subCount={subCount}
         onSubscribe={fetchSubCount}
+        nav={nav}
+        onRefreshComplete={fetchAll}
       />
 
       <window.PricePanel prices={prices} />

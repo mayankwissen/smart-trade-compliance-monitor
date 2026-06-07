@@ -107,11 +107,123 @@ window.PricePanel = function PricePanel({ prices }) {
 };
 
 // ── Fixed header — logo left, subscribe center-right, replay right ─────────
-window.Header = function Header({ isReplaying, onStart, onStop, isDark, onToggleTheme, subCount, onSubscribe }) {
+window.Header = function Header({ isReplaying, onStart, onStop, isDark, onToggleTheme, subCount, onSubscribe, nav, onRefreshComplete }) {
   const t = window.useT();
   const [email, setEmail]               = _huseState('');
   const [subStatus, setSubStatus]       = _huseState('');   // '' | 'subscribed' | 'error'
   const [subscribedEmail, setSubscribedEmail] = _huseState('');
+
+  // ── Voice command state ──────────────────────────────────────────────────
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const voiceSupported = !!SpeechRecognition;
+  const [listening, setListening]     = _huseState(false);
+  const [transcript, setTranscript]   = _huseState('');
+  const [toastMsg, setToastMsg]       = _huseState('');
+  const recognitionRef                = _huseRef(null);
+  const toastTimerRef                 = _huseRef(null);
+
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToastMsg(''), 2000);
+  };
+
+  // API helpers for non-nav commands
+  const triageFirstPending = async () => {
+    try {
+      const res  = await fetch(`${window.API_BASE}/api/alerts`).then(r => r.json());
+      const pend = (res.alerts || []).find(a => a.status === 'PENDING');
+      if (pend) {
+        await fetch(`${window.API_BASE}/api/triage/${pend.alert_id}`, { method: 'POST' });
+        if (onRefreshComplete) onRefreshComplete();
+      }
+    } catch {}
+  };
+
+  const startReplay = async () => {
+    try {
+      await fetch(`${window.API_BASE}/api/replay/start`, { method: 'POST' });
+      if (onRefreshComplete) onRefreshComplete();
+      onStart && onStart();
+    } catch {}
+  };
+
+  const resetDemo = async () => {
+    try {
+      await fetch(`${window.API_BASE}/api/refresh-data`, { method: 'POST' });
+      await fetch(`${window.API_BASE}/api/reset`, { method: 'POST' });
+      if (onRefreshComplete) onRefreshComplete();
+    } catch {}
+  };
+
+  const runDemoMode = async () => {
+    try {
+      await fetch(`${window.API_BASE}/api/refresh-data`, { method: 'POST' });
+      await fetch(`${window.API_BASE}/api/replay/start`, { method: 'POST' });
+      const res  = await fetch(`${window.API_BASE}/api/alerts`).then(r => r.json());
+      const high = (res.alerts || []).find(a => a.severity === 'HIGH' && a.status === 'PENDING');
+      if (high) await fetch(`${window.API_BASE}/api/triage/${high.alert_id}`, { method: 'POST' });
+      if (onRefreshComplete) onRefreshComplete();
+    } catch {}
+  };
+
+  const handleCommand = (spoken) => {
+    if (!nav) return;
+    const commands = [
+      ['dashboard',      () => nav('/')],
+      ['home',           () => nav('/')],
+      ['show alerts',    () => nav('/alerts')],
+      ['alerts',         () => nav('/alerts')],
+      ['show trades',    () => nav('/trades')],
+      ['trades',         () => nav('/trades')],
+      ['show logs',      () => nav('/logs')],
+      ['logs',           () => nav('/logs')],
+      ['settings',       () => nav('/settings')],
+      ['config',         () => nav('/settings')],
+      ['top suspect',    () => nav('/trader/T-2891')],
+      ['trader profile', () => nav('/trader/T-2891')],
+      ['triage',         triageFirstPending],
+      ['start replay',   startReplay],
+      ['demo mode',      runDemoMode],
+      ['reset',          resetDemo],
+    ];
+    for (const [cmd, action] of commands) {
+      if (spoken.includes(cmd)) {
+        action();
+        showToast('✓ Command: ' + cmd);
+        return;
+      }
+    }
+  };
+
+  const initRecognition = () => {
+    if (!SpeechRecognition) return null;
+    const r = new SpeechRecognition();
+    r.continuous     = false;
+    r.interimResults = true;
+    r.lang           = 'en-US';
+    r.onstart  = () => { setListening(true); setTranscript(''); };
+    r.onend    = () => setListening(false);
+    r.onerror  = () => setListening(false);
+    r.onresult = (event) => {
+      const text = Array.from(event.results).map(res => res[0].transcript).join('');
+      setTranscript(text);
+      if (event.results[event.results.length - 1].isFinal) {
+        handleCommand(text.toLowerCase());
+      }
+    };
+    return r;
+  };
+
+  const toggleVoice = () => {
+    if (!voiceSupported) return;
+    if (listening) {
+      recognitionRef.current && recognitionRef.current.stop();
+    } else {
+      recognitionRef.current = initRecognition();
+      try { recognitionRef.current && recognitionRef.current.start(); } catch {}
+    }
+  };
 
   const doSubscribe = async () => {
     const trimmed = email.trim();
@@ -235,6 +347,104 @@ window.Header = function Header({ isReplaying, onStart, onStop, isDark, onToggle
         >
           {isDark ? '☀' : '◑'}
         </button>
+
+        {/* Voice command button */}
+        {voiceSupported && (
+          <button
+            onClick={toggleVoice}
+            title={'Voice Commands\ndashboard · alerts · trades · logs\ntop suspect · triage · reset · demo mode'}
+            style={{
+              width: 40, height: 40, borderRadius: 8,
+              background: listening ? 'rgba(239,68,68,0.15)' : t.card,
+              border: `1px solid ${listening ? '#ef4444' : t.border}`,
+              color: listening ? '#ef4444' : t.textMuted,
+              cursor: 'pointer', fontSize: 16,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all 0.2s',
+              animation: listening ? 'voicePulse 1s ease-in-out infinite' : 'none',
+              flexShrink: 0,
+            }}
+          >🎤</button>
+        )}
+
+        {/* Voice listening panel */}
+        {listening && (
+          <div style={{
+            position: 'fixed', top: 74, right: 160,
+            background: t.card,
+            border: `1px solid ${t.border}`,
+            borderRadius: 12,
+            padding: '16px 20px',
+            width: 280,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            zIndex: 200,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+              <span style={{
+                fontFamily: "'JetBrains Mono',monospace",
+                fontSize: 11, color: t.gold,
+                letterSpacing: '2px', fontWeight: 700,
+              }}>LISTENING...</span>
+              {/* Sound wave bars */}
+              <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+                {[0, 1, 2].map(i => (
+                  <div key={i} style={{
+                    width: 3, borderRadius: 2,
+                    background: '#ef4444',
+                    animation: `voiceBar${i} 0.6s ease-in-out ${i * 0.15}s infinite alternate`,
+                  }} />
+                ))}
+              </div>
+            </div>
+            {transcript && (
+              <div style={{
+                fontSize: 13, color: t.textSec,
+                fontStyle: 'italic', marginBottom: 10,
+                minHeight: 18,
+              }}>"{transcript}"</div>
+            )}
+            <div style={{
+              fontSize: 11, color: t.textMuted,
+              lineHeight: 1.7,
+              fontFamily: "'Inter',sans-serif",
+            }}>
+              Say: <span style={{ color: t.textSec }}>dashboard · alerts · trades · logs · settings · top suspect · triage · start replay · demo mode · reset</span>
+            </div>
+          </div>
+        )}
+
+        {/* Voice command toast */}
+        {toastMsg && (
+          <div style={{
+            position: 'fixed', bottom: 80, left: '50%',
+            transform: 'translateX(-50%)',
+            background: t.gold, color: '#000',
+            padding: '8px 20px', borderRadius: 20,
+            fontFamily: "'JetBrains Mono',monospace",
+            fontSize: 12, fontWeight: 700,
+            zIndex: 600,
+            animation: 'toastFade 2s ease forwards',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none',
+          }}>{toastMsg}</div>
+        )}
+
+        {/* CSS for voice animations */}
+        <style>{`
+          @keyframes voicePulse {
+            0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+            50%      { box-shadow: 0 0 0 6px rgba(239,68,68,0); }
+          }
+          @keyframes voiceBar0 { from { height: 6px; } to { height: 18px; } }
+          @keyframes voiceBar1 { from { height: 10px; } to { height: 22px; } }
+          @keyframes voiceBar2 { from { height: 5px; } to { height: 14px; } }
+          @keyframes toastFade {
+            0%   { opacity: 0; transform: translateX(-50%) translateY(8px); }
+            15%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+            70%  { opacity: 1; }
+            100% { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+          }
+        `}</style>
 
         {/* Divider */}
         <div style={{ width: 1, height: 22, background: '#1c1c1c', margin: '0 2px' }} />
