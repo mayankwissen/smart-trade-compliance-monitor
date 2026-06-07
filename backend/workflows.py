@@ -140,8 +140,20 @@ def send_email_notifications(alert, triage_result, case_id):
         return False
 
 
-def flag_watchlist(trader_id, alert_id):
+def flag_watchlist(trader_id, alert_id, reason=""):
+    from datetime import timedelta
+    now_dt = datetime.now(timezone.utc).replace(tzinfo=None)
+    flagged_at = now_dt.isoformat()
+    expires_at = (now_dt + timedelta(hours=72)).isoformat()
+    watchlist_reason = reason or "Suspicious pattern detected, enhanced monitoring active"
+
     conn = get_db()
+    conn.execute(
+        """INSERT OR REPLACE INTO watchlist
+          (trader_id, flagged_at, expires_at, alert_id, reason, is_active)
+          VALUES (?, ?, ?, ?, ?, 1)""",
+        (trader_id, flagged_at, expires_at, alert_id, watchlist_reason),
+    )
     conn.execute(
         """INSERT INTO escalations
           (escalation_id, alert_id, action_type, payload, created_at)
@@ -153,9 +165,10 @@ def flag_watchlist(trader_id, alert_id):
             json.dumps({
                 "trader_id": trader_id,
                 "monitoring_hours": 72,
-                "reason": "Suspicious pattern detected, enhanced monitoring active",
+                "expires_at": expires_at,
+                "reason": watchlist_reason,
             }),
-            datetime.now(timezone.utc).isoformat(),
+            flagged_at,
         ),
     )
     conn.commit()
@@ -175,7 +188,8 @@ def run_escalation_workflow(alert, triage_result):
         email_ok = send_email_notifications(alert, triage_result, case_id)
         results.append({"action": "EMAIL_SENT", "success": email_ok})
 
-        flag_watchlist(alert["trader_id"], alert["alert_id"])
+        wl_reason = f"{alert.get('pattern_type','UNKNOWN')} {alert.get('severity','')} confidence {triage_result.get('confidence','')}%"
+        flag_watchlist(alert["trader_id"], alert["alert_id"], wl_reason)
         results.append({"action": "WATCHLIST_FLAGGED", "success": True, "monitoring_hours": 72})
     else:
         results.append({

@@ -14,12 +14,27 @@ from detector import run_all_detectors
 from triage import triage_alert
 from workflows import run_escalation_workflow
 from market_data import fetch_real_prices, generate_realistic_trades
+from agent import start_agent, get_agent_status, trigger_check
 
 app = Flask(__name__)
 CORS(app, origins=[
     "http://localhost:3000",
     "https://smart-trade-compliance-monitor-1.onrender.com",
 ])
+
+def check_watchlist_expiry():
+    try:
+        conn = get_db()
+        now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+        conn.execute(
+            "UPDATE watchlist SET is_active = 0 WHERE expires_at < ? AND is_active = 1",
+            (now,)
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logging.error(f"Expiry check: {e}")
+
 
 with app.app_context():
     init_db()
@@ -49,6 +64,8 @@ with app.app_context():
         app.logger.info("Startup auto-detection complete")
     except Exception as _e:
         app.logger.error(f"Startup auto-detection failed: {_e}")
+
+start_agent()
 
 
 # ── Health / Ping ─────────────────────────────────────────────────────────────
@@ -164,6 +181,7 @@ def get_trades():
 
 @app.route("/api/alerts")
 def get_alerts():
+    check_watchlist_expiry()
     pattern_type = request.args.get("pattern_type", "")
     severity     = request.args.get("severity", "")
     status       = request.args.get("status", "")
@@ -361,6 +379,7 @@ def get_escalations():
 
 @app.route("/api/stats")
 def get_stats():
+    check_watchlist_expiry()
     conn = get_db()
     total_trades  = conn.execute("SELECT COUNT(*) FROM trades").fetchone()[0]
     total_alerts  = conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
@@ -857,6 +876,7 @@ def generate_str(alert_id):
 
 @app.route("/api/trader/<trader_id>")
 def get_trader_profile(trader_id):
+    check_watchlist_expiry()
     try:
         conn = get_db()
         alerts_rows = conn.execute(
@@ -890,10 +910,21 @@ def get_trader_profile(trader_id):
         ).fetchone()[0]
 
         watchlist_row = conn.execute(
-            "SELECT COUNT(*) FROM escalations e JOIN alerts a ON e.alert_id = a.alert_id WHERE a.trader_id=? AND e.action_type='WATCHLIST_FLAGGED'",
-            (trader_id,)
+            "SELECT * FROM watchlist WHERE trader_id=? AND is_active=1", (trader_id,)
         ).fetchone()
-        watchlisted = bool(watchlist_row and watchlist_row[0] > 0)
+        watchlisted = watchlist_row is not None
+
+        watchlist_info = None
+        if watchlist_row:
+            wr = dict(watchlist_row)
+            try:
+                expires_dt = datetime.fromisoformat(wr['expires_at'])
+                now_dt = datetime.now(timezone.utc).replace(tzinfo=None)
+                diff_s = (expires_dt - now_dt).total_seconds()
+                hours_remaining = max(0.0, round(diff_s / 3600, 1))
+            except Exception:
+                hours_remaining = 0.0
+            watchlist_info = {**wr, 'hours_remaining': hours_remaining}
 
         total_trades = conn.execute(
             "SELECT COUNT(*) FROM trades WHERE trader_id=?", (trader_id,)
@@ -917,6 +948,7 @@ def get_trader_profile(trader_id):
             "pattern_counts":   pattern_counts,
             "escalation_count": escalation_count,
             "watchlisted":      watchlisted,
+            "watchlist_info":   watchlist_info,
             "total_trades":     total_trades,
         })
 
@@ -1210,6 +1242,84 @@ def leaderboard():
             )),
         })
     return jsonify({"suspects": suspects})
+
+
+# ── Watchlist & Agent ────────────────────────────────────────────────────────
+
+@app.route("/api/watchlist")
+def get_watchlist():
+    check_watchlist_expiry()
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM watchlist ORDER BY flagged_at DESC").fetchall()
+    conn.close()
+    active, expired = [], []
+    now_dt = datetime.now(timezone.utc).replace(tzinfo=None)
+    for r in rows:
+        entry = dict(r)
+        try:
+            expires_dt = datetime.fromisoformat(entry['expires_at'])
+            diff_s = (expires_dt - now_dt).total_seconds()
+            entry['hours_remaining'] = max(0.0, round(diff_s / 3600, 1))
+        except Exception:
+            entry['hours_remaining'] = 0.0
+        (active if entry['is_active'] else expired).append(entry)
+    return jsonify({"active": active, "expired": expired, "total_active": len(active), "total_expired": len(expired)})
+
+
+@app.route("/api/watchlist/check/<trader_id>")
+def watchlist_check(trader_id):
+    check_watchlist_expiry()
+    conn = get_db()
+    row = conn.execute("SELECT * FROM watchlist WHERE trader_id=? AND is_active=1", (trader_id,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"trader_id": trader_id, "is_watchlisted": False})
+    entry = dict(row)
+    try:
+        expires_dt = datetime.fromisoformat(entry['expires_at'])
+        diff_s = (expires_dt - datetime.now(timezone.utc).replace(tzinfo=None)).total_seconds()
+        hours_remaining = max(0.0, round(diff_s / 3600, 1))
+    except Exception:
+        hours_remaining = 0.0
+    return jsonify({"trader_id": trader_id, "is_watchlisted": True, "hours_remaining": hours_remaining, "expires_at": entry['expires_at'], "reason": entry['reason']})
+
+
+@app.route("/api/watchlist/expire/<trader_id>", methods=["POST"])
+def expire_watchlist_entry(trader_id):
+    conn = get_db()
+    conn.execute("UPDATE watchlist SET is_active=0 WHERE trader_id=?", (trader_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "expired", "trader_id": trader_id})
+
+
+@app.route("/api/agent/logs")
+def agent_logs():
+    conn = get_db()
+    rows = conn.execute("SELECT * FROM agent_logs ORDER BY id DESC LIMIT 50").fetchall()
+    total = conn.execute("SELECT COUNT(*) FROM agent_logs").fetchone()[0]
+    conn.close()
+    return jsonify({"logs": [dict(r) for r in rows], "total": total})
+
+
+@app.route("/api/agent/status")
+def agent_status():
+    return jsonify(get_agent_status())
+
+
+@app.route("/api/agent/trigger", methods=["POST"])
+def agent_trigger():
+    try:
+        conn = get_db()
+        traders = [r["trader_id"] for r in conn.execute(
+            "SELECT trader_id FROM watchlist WHERE is_active=1"
+        ).fetchall()]
+        conn.close()
+        trigger_check()
+        return jsonify({"status": "triggered", "traders_checked": traders})
+    except Exception as e:
+        app.logger.error(f"Agent trigger error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == "__main__":

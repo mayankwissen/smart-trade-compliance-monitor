@@ -20,6 +20,7 @@ window.useRoute = function useRoute() {
   else if (raw === '/trades')          page = 'trades';
   else if (raw === '/logs')            page = 'logs';
   else if (raw === '/settings')        page = 'settings';
+  else if (raw === '/watchlist')       page = 'watchlist';
   else if (raw.startsWith('/trader/')) { page = 'trader-profile'; traderId = raw.slice(8); }
   return { page, alertId, traderId, nav };
 };

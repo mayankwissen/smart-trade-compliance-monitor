@@ -11,6 +11,7 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
   const [demoStep, setDemoStep]       = _duseS('');
   const [resetting, setResetting]     = _duseS(false);
   const [tokenStats, setTokenStats]   = _duseS(null);
+  const [agentStatus, setAgentStatus] = _duseS(null);
 
   // Chat widget state
   const [chatOpen, setChatOpen]       = _duseS(false);
@@ -23,7 +24,7 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
 
   _duseE(() => setLocalAlerts(alerts), [alerts]);
 
-  // Token usage bar — poll every 30s
+  // Token usage bar + agent status — poll every 30s
   _duseE(() => {
     const fetchTok = async () => {
       try {
@@ -31,8 +32,14 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
         setTokenStats(d);
       } catch {}
     };
-    fetchTok();
-    const id = setInterval(fetchTok, 30000);
+    const fetchAgent = async () => {
+      try {
+        const d = await fetch(`${window.API_BASE}/api/agent/status`).then(r => r.json());
+        setAgentStatus(d);
+      } catch {}
+    };
+    fetchTok(); fetchAgent();
+    const id = setInterval(() => { fetchTok(); fetchAgent(); }, 30000);
     return () => clearInterval(id);
   }, []);
 
@@ -354,6 +361,12 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span className="section-title">Alert Feed</span>
                 <span style={{ background: t.gold + '22', color: t.gold, borderRadius: 12, padding: '1px 9px', fontSize: 12, fontWeight: 700 }}>{localAlerts.length}</span>
+                {agentStatus && agentStatus.status === 'RUNNING' && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#22c55e18', border: '1px solid #22c55e33', borderRadius: 20, padding: '2px 9px', fontSize: 10, color: '#22c55e', fontFamily: "'Inter',sans-serif", fontWeight: 700, letterSpacing: '.04em' }}>
+                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+                    Agent Active
+                  </span>
+                )}
               </div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                 <window.Btn small variant="outline" onClick={doRefresh} disabled={busy}>
@@ -461,17 +474,33 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
               <window.Btn small variant="ghost" onClick={() => nav('/logs')}>View All →</window.Btn>
             </div>
             <div style={{ maxHeight: 220, overflowY: 'auto' }}>
-              {escalations.slice(0, 8).map(e => (
-                <div key={e.escalation_id}
-                  onClick={() => e.alert_id && nav(`/alert/${e.alert_id}`)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 16px', borderBottom: `1px solid ${t.borderSubtle || t.border}`, borderLeft: `3px solid ${window.ESC_COL[e.action_type] || 'transparent'}`, cursor: 'pointer', transition: 'background .12s' }}
-                  onMouseEnter={ev => ev.currentTarget.style.background = t.rowHover}
-                  onMouseLeave={ev => ev.currentTarget.style.background = 'transparent'}>
-                  <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: t.textMuted, flexShrink: 0 }}>{window.fmtTime(e.created_at)}</span>
-                  <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: t.gold, fontWeight: 700 }}>{e.alert_id}</span>
-                  <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, fontWeight: 700, color: window.ESC_COL[e.action_type] || t.textSec }}>{e.action_type}</span>
-                </div>
-              ))}
+              {escalations.slice(0, 8).map(e => {
+                let wlExtra = null;
+                if (e.action_type === 'WATCHLIST_FLAGGED') {
+                  try {
+                    const payload = JSON.parse(e.payload || '{}');
+                    if (payload.expires_at) {
+                      const diff = (new Date(payload.expires_at) - new Date()) / 3600000;
+                      const hrs  = Math.max(0, diff).toFixed(1);
+                      wlExtra = `${hrs}h remaining · expires ${payload.expires_at.slice(0,16)}`;
+                    }
+                  } catch {}
+                }
+                return (
+                  <div key={e.escalation_id}
+                    onClick={() => e.alert_id && nav(`/alert/${e.alert_id}`)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 16px', borderBottom: `1px solid ${t.borderSubtle || t.border}`, borderLeft: `3px solid ${window.ESC_COL[e.action_type] || 'transparent'}`, cursor: 'pointer', transition: 'background .12s' }}
+                    onMouseEnter={ev => ev.currentTarget.style.background = t.rowHover}
+                    onMouseLeave={ev => ev.currentTarget.style.background = 'transparent'}>
+                    <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: t.textMuted, flexShrink: 0 }}>{window.fmtTime(e.created_at)}</span>
+                    <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, color: t.gold, fontWeight: 700 }}>{e.alert_id}</span>
+                    <span style={{ flex: 1 }}>
+                      <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, fontWeight: 700, color: window.ESC_COL[e.action_type] || t.textSec }}>{e.action_type}</span>
+                      {wlExtra && <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: t.warning, marginLeft: 8 }}>{wlExtra}</span>}
+                    </span>
+                  </div>
+                );
+              })}
               {escalations.length === 0 && <window.EmptyState icon="📋" msg="No escalations yet" />}
             </div>
           </window.Card>

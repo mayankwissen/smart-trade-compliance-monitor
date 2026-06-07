@@ -230,18 +230,48 @@ window.TraderProfilePage = function TraderProfilePage({ traderId, nav }) {
         </div>
       </window.Card>
 
-      {/* 5. WATCHLIST STATUS CARD (only when watchlisted) */}
-      {data.watchlisted === true && (
+      {/* 5. WATCHLIST STATUS CARD */}
+      {data.watchlisted && data.watchlist_info ? (
         <window.Card style={{ marginBottom: 16, borderLeft: '3px solid ' + t.warning }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ flex: 1 }}>
-              <div style={{
-                fontFamily: "'Inter',sans-serif", fontSize: 13, color: t.text, lineHeight: 1.6,
-              }}>
-                Trader <span style={{ fontFamily: "'JetBrains Mono',monospace", color: t.gold, fontWeight: 700 }}>{traderId}</span> is currently under enhanced monitoring (72-hour watchlist)
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+            <div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 10, fontWeight: 700, color: t.warning, letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: 3 }}>
+                WATCHLIST ACTIVE — ENHANCED MONITORING
+              </div>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: t.textSec }}>
+                AI Agent checking this trader every 5 minutes
               </div>
             </div>
             <window.Bdg label="WATCHLIST ACTIVE" cfg={{ bg: t.warning + '22', c: t.warning }} />
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: data.watchlist_info.hours_remaining > 24 ? t.warning : t.danger, fontWeight: 700 }}>
+                {data.watchlist_info.hours_remaining}h remaining
+              </span>
+              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: t.textMuted }}>
+                expires {(data.watchlist_info.expires_at || '').slice(0, 16)}
+              </span>
+            </div>
+            <div style={{ background: t.bg, borderRadius: 4, height: 6, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                background: data.watchlist_info.hours_remaining > 48 ? '#22c55e' : data.watchlist_info.hours_remaining > 24 ? t.warning : t.danger,
+                width: Math.min(100, (data.watchlist_info.hours_remaining / 72) * 100) + '%',
+                borderRadius: 4, transition: 'width .3s',
+              }} />
+            </div>
+          </div>
+          {data.watchlist_info.reason && (
+            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: t.textMuted }}>
+              Reason: {data.watchlist_info.reason}
+            </div>
+          )}
+        </window.Card>
+      ) : (
+        <window.Card style={{ marginBottom: 16 }}>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, color: t.textMuted }}>
+            Not currently watchlisted
           </div>
         </window.Card>
       )}

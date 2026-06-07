@@ -104,6 +104,7 @@ function App() {
           {page === 'trades'       && <window.TradesPage />}
           {page === 'logs'         && <window.LogsPage nav={nav} />}
           {page === 'settings'     && <window.SettingsPage />}
+          {page === 'watchlist'    && <window.WatchlistPage nav={nav} />}
         </div>
       </div>
     </window.ThemeCtx.Provider>

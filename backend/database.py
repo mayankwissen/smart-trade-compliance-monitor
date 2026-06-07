@@ -75,6 +75,25 @@ def init_db():
         created_at TEXT
     )""")
 
+    conn.execute("""CREATE TABLE IF NOT EXISTS watchlist (
+        trader_id TEXT PRIMARY KEY,
+        flagged_at TEXT,
+        expires_at TEXT,
+        is_active INTEGER DEFAULT 1,
+        reason TEXT,
+        alert_id TEXT
+    )""")
+
+    conn.execute("""CREATE TABLE IF NOT EXISTS agent_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        checked_at TEXT,
+        trader_id TEXT,
+        status TEXT,
+        alerts_found INTEGER,
+        message TEXT,
+        action_taken TEXT
+    )""")
+
     # Migrate existing triage_results table (safe — silently skips existing columns)
     for col, typ in [
         ("simple_explanation",       "TEXT"),
@@ -87,6 +106,15 @@ def init_db():
     ]:
         try:
             conn.execute(f"ALTER TABLE triage_results ADD COLUMN {col} {typ}")
+        except Exception:
+            pass
+
+    # Migrate alerts table — add source column for watchlist agent
+    for col, typ in [
+        ("source", "TEXT"),
+    ]:
+        try:
+            conn.execute(f"ALTER TABLE alerts ADD COLUMN {col} {typ}")
         except Exception:
             pass
 
