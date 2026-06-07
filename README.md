@@ -10,6 +10,10 @@
 ## The Problem
 
 
+NSE processes millions of trades daily. Compliance officers manually review 50–200 flagged
+alerts per day — each taking 15–30 minutes. The process is slow, inconsistent, and relies
+on individual expertise that walks out the door when an analyst leaves.
+
 
 ## The Solution
 
