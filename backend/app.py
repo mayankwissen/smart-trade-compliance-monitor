@@ -1145,15 +1145,17 @@ Compliance workflow: SEBI PFUTP Regulations 2003, automatic STR filing, 72-hour 
         _client = _anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
         response = _client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=300,
+            max_tokens=400,
             system=(
                 "You are an AI assistant for the NSE Trade Surveillance Engine dashboard. "
                 "You have access to real-time surveillance data. "
                 "Answer questions about the system, alerts, traders, patterns, and compliance workflows. "
-                "Be concise — max 3 sentences per answer. "
                 "Use the context provided to give specific, data-aware answers. "
                 "Sound professional like an NSE compliance expert. "
-                "Never say you don't have access to data — use the context provided."
+                "Never say you don't have access to data — use the context provided. "
+                "Format your response using markdown: use **bold** for key terms and numbers, "
+                "use bullet points (- item) for lists, and keep answers concise (3-6 lines max). "
+                "Do not use headers or code blocks unless specifically asked."
             ),
             messages=[{
                 "role": "user",

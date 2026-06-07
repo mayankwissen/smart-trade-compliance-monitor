@@ -173,6 +173,21 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
     return groups;
   })();
 
+  const renderMarkdown = (text) => {
+    const inline = (s) => s
+      .replace(/\*\*(.*?)\*\*/g, '<strong style="color:#f0b429;font-weight:700">$1</strong>')
+      .replace(/`([^`]+)`/g, '<code style="background:#1a1a1a;color:#f0b429;padding:1px 5px;border-radius:3px;font-size:11px;font-family:JetBrains Mono,monospace">$1</code>');
+    return text.split('\n').map(raw => {
+      const line = raw.trimEnd();
+      if (!line) return '<div style="height:5px"></div>';
+      if (/^#{1,3}\s/.test(line)) return '<div style="font-weight:700;color:#f0b429;font-size:12px;margin:5px 0 2px">' + inline(line.replace(/^#{1,3}\s+/, '')) + '</div>';
+      if (/^[-•*]\s/.test(line)) return '<div style="display:flex;gap:6px;margin-bottom:3px"><span style="color:#f0b429;flex-shrink:0">›</span><span>' + inline(line.replace(/^[-•*]\s+/, '')) + '</span></div>';
+      const numMatch = line.match(/^(\d+)\.\s+(.+)/);
+      if (numMatch) return '<div style="display:flex;gap:6px;margin-bottom:3px"><span style="color:#f0b429;flex-shrink:0;font-family:JetBrains Mono,monospace;font-size:11px">' + numMatch[1] + '.</span><span>' + inline(numMatch[2]) + '</span></div>';
+      return '<div>' + inline(line) + '</div>';
+    }).join('');
+  };
+
   const chatPortal = ReactDOM.createPortal(
     <>
       <style>{`
@@ -245,16 +260,29 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
               </div>
             )}
             {messages.map((m, i) => (
-              <div key={i} style={{
-                alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-                maxWidth: m.role === 'user' ? '80%' : '85%',
-                background: m.role === 'user' ? 'rgba(240,180,41,0.13)' : '#0a0a0a',
-                border: `1px solid ${m.role === 'user' ? 'rgba(240,180,41,0.27)' : '#2a2a2a'}`,
-                color: '#e8e8e8',
-                borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-                padding: '10px 14px', fontSize: 13, lineHeight: 1.6,
-                fontFamily: "'Inter',sans-serif",
-              }}>{m.text}</div>
+              m.role === 'ai'
+                ? <div key={i} style={{
+                    alignSelf: 'flex-start',
+                    maxWidth: '90%',
+                    background: '#0a0a0a',
+                    border: '1px solid #2a2a2a',
+                    color: '#e8e8e8',
+                    borderRadius: '12px 12px 12px 4px',
+                    padding: '10px 14px', fontSize: 13, lineHeight: 1.65,
+                    fontFamily: "'Inter',sans-serif",
+                  }}
+                  dangerouslySetInnerHTML={{ __html: renderMarkdown(m.text) }}
+                />
+                : <div key={i} style={{
+                    alignSelf: 'flex-end',
+                    maxWidth: '80%',
+                    background: 'rgba(240,180,41,0.13)',
+                    border: '1px solid rgba(240,180,41,0.27)',
+                    color: '#e8e8e8',
+                    borderRadius: '12px 12px 4px 12px',
+                    padding: '10px 14px', fontSize: 13, lineHeight: 1.6,
+                    fontFamily: "'Inter',sans-serif",
+                  }}>{m.text}</div>
             ))}
             {chatLoading && (
               <div style={{ alignSelf: 'flex-start', background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '12px 12px 12px 4px', padding: '12px 16px', display: 'flex', gap: 5, alignItems: 'center' }}>
