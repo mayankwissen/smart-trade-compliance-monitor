@@ -121,6 +121,7 @@ window.Header = function Header({ isReplaying, onStart, onStop, isDark, onToggle
   const [toastMsg, setToastMsg]       = _huseState('');
   const recognitionRef                = _huseRef(null);
   const toastTimerRef                 = _huseRef(null);
+  const handleCommandRef              = _huseRef(null); // always points to latest handleCommand
 
   const showToast = (msg) => {
     setToastMsg(msg);
@@ -168,7 +169,6 @@ window.Header = function Header({ isReplaying, onStart, onStop, isDark, onToggle
   };
 
   const handleCommand = (spoken) => {
-    if (!nav) return;
     const commands = [
       ['dashboard',      () => nav('/')],
       ['home',           () => nav('/')],
@@ -196,6 +196,9 @@ window.Header = function Header({ isReplaying, onStart, onStop, isDark, onToggle
     }
   };
 
+  // Keep ref in sync so recognition callbacks always call the latest handleCommand
+  handleCommandRef.current = handleCommand;
+
   const initRecognition = () => {
     if (!SpeechRecognition) return null;
     const r = new SpeechRecognition();
@@ -204,12 +207,19 @@ window.Header = function Header({ isReplaying, onStart, onStop, isDark, onToggle
     r.lang           = 'en-US';
     r.onstart  = () => { setListening(true); setTranscript(''); };
     r.onend    = () => setListening(false);
-    r.onerror  = () => setListening(false);
+    r.onerror  = (event) => {
+      setListening(false);
+      if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+        showToast('⚠ Mic blocked — allow in browser');
+      } else if (event.error === 'no-speech') {
+        showToast('No speech detected — try again');
+      }
+    };
     r.onresult = (event) => {
       const text = Array.from(event.results).map(res => res[0].transcript).join('');
       setTranscript(text);
       if (event.results[event.results.length - 1].isFinal) {
-        handleCommand(text.toLowerCase());
+        handleCommandRef.current && handleCommandRef.current(text.toLowerCase());
       }
     };
     return r;

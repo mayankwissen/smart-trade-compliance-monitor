@@ -173,7 +173,129 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
     return groups;
   })();
 
+  const chatPortal = ReactDOM.createPortal(
+    <>
+      <style>{`
+        @keyframes chatPulse {
+          0%,100% { box-shadow: 0 4px 20px rgba(240,180,41,0.4); }
+          50%      { box-shadow: 0 4px 32px rgba(240,180,41,0.7); }
+        }
+        @keyframes chatSlideUp {
+          from { opacity: 0; transform: translateY(24px) scale(.97); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .chat-msg-scroll::-webkit-scrollbar { width: 4px; }
+        .chat-msg-scroll::-webkit-scrollbar-track { background: transparent; }
+        .chat-msg-scroll::-webkit-scrollbar-thumb { background: rgba(240,180,41,0.4); border-radius: 4px; }
+        .chat-suggestion:hover { border-color: #f0b429 !important; color: #f0b429 !important; }
+        .chat-input-field:focus { outline: none; border-color: #f0b429 !important; }
+        @keyframes chatDot { 0%,80%,100%{opacity:.2;transform:scale(.8)} 40%{opacity:1;transform:scale(1)} }
+      `}</style>
+
+      {!chatOpen && (
+        <button
+          onClick={() => setChatOpen(true)}
+          style={{
+            position: 'fixed', bottom: 24, right: 160,
+            width: 52, height: 52, borderRadius: '50%',
+            background: '#f0b429', color: '#000', border: 'none',
+            fontSize: 22, cursor: 'pointer', zIndex: 1000,
+            animation: 'chatPulse 3s ease-in-out infinite',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}
+          title="Ask AI Assistant"
+        >💬</button>
+      )}
+
+      {chatOpen && (
+        <div style={{
+          position: 'fixed', bottom: 88, right: 160,
+          width: 360, height: 480,
+          background: '#141414',
+          border: '1px solid #2a2a2a',
+          borderRadius: 16,
+          boxShadow: '0 8px 48px rgba(0,0,0,0.5)',
+          display: 'flex', flexDirection: 'column',
+          zIndex: 1000,
+          animation: 'chatSlideUp .22s ease-out both',
+        }}>
+          <div style={{
+            height: 52, background: '#000',
+            borderBottom: '1px solid #2a2a2a',
+            borderRadius: '16px 16px 0 0',
+            padding: '0 16px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 16 }}>🛡</span>
+              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: '#f0b429', letterSpacing: '2px', fontWeight: 700 }}>AI ASSISTANT</span>
+            </div>
+            <button onClick={() => setChatOpen(false)} style={{ background: 'none', border: 'none', color: '#525252', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: '2px 4px' }}>×</button>
+          </div>
+
+          <div className="chat-msg-scroll" style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {messages.length === 1 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
+                {['What patterns were detected?', 'Who is the top suspect?', 'How does layering work?', 'What actions were taken?'].map(q => (
+                  <button key={q} className="chat-suggestion" onClick={() => sendChatMessage(q)}
+                    style={{ background: '#141414', border: '1px solid #2a2a2a', borderRadius: 20, padding: '6px 14px', fontSize: 12, color: '#808080', cursor: 'pointer', transition: 'border-color .15s, color .15s', fontFamily: "'Inter',sans-serif" }}
+                  >{q}</button>
+                ))}
+              </div>
+            )}
+            {messages.map((m, i) => (
+              <div key={i} style={{
+                alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+                maxWidth: m.role === 'user' ? '80%' : '85%',
+                background: m.role === 'user' ? 'rgba(240,180,41,0.13)' : '#0a0a0a',
+                border: `1px solid ${m.role === 'user' ? 'rgba(240,180,41,0.27)' : '#2a2a2a'}`,
+                color: '#e8e8e8',
+                borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+                padding: '10px 14px', fontSize: 13, lineHeight: 1.6,
+                fontFamily: "'Inter',sans-serif",
+              }}>{m.text}</div>
+            ))}
+            {chatLoading && (
+              <div style={{ alignSelf: 'flex-start', background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: '12px 12px 12px 4px', padding: '12px 16px', display: 'flex', gap: 5, alignItems: 'center' }}>
+                {[0,1,2].map(i => (
+                  <span key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: '#f0b429', display: 'inline-block', animation: `chatDot 1.2s ease-in-out ${i * 0.2}s infinite` }} />
+                ))}
+              </div>
+            )}
+            <div ref={msgEndRef} />
+          </div>
+
+          <div style={{ height: 56, borderTop: '1px solid #2a2a2a', padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <input
+              className="chat-input-field"
+              value={inputVal}
+              onChange={e => setInputVal(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') sendChatMessage(); }}
+              placeholder="Ask about alerts, traders, patterns..."
+              style={{ flex: 1, background: '#0a0a0a', border: '1px solid #2a2a2a', borderRadius: 8, padding: '8px 12px', color: '#e8e8e8', fontSize: 13, fontFamily: "'Inter',sans-serif", transition: 'border-color .15s' }}
+            />
+            <button
+              onClick={() => sendChatMessage()}
+              disabled={!inputVal.trim() || chatLoading}
+              style={{ width: 36, height: 36, background: inputVal.trim() && !chatLoading ? '#f0b429' : '#2a2a2a', color: inputVal.trim() && !chatLoading ? '#000' : '#555', border: 'none', borderRadius: 8, cursor: inputVal.trim() && !chatLoading ? 'pointer' : 'default', fontSize: 16, transition: 'background .15s', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+            >→</button>
+          </div>
+        </div>
+      )}
+
+      {chatOpen && (
+        <button onClick={() => setChatOpen(false)}
+          style={{ position: 'fixed', bottom: 24, right: 160, width: 52, height: 52, borderRadius: '50%', background: '#f0b429', color: '#000', border: 'none', fontSize: 20, cursor: 'pointer', zIndex: 1001, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          title="Close assistant"
+        >✕</button>
+      )}
+    </>,
+    document.body
+  );
+
   return (
+    <>
     <div className="page-scroll" style={{ background: t.bg }}>
 
       {/* ── Token usage bar ── */}
@@ -328,211 +450,8 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
         </div>
       </div>
 
-      {/* ── AI Chat Widget ── */}
-      <style>{`
-        @keyframes chatPulse {
-          0%,100% { box-shadow: 0 4px 20px rgba(240,180,41,0.4); }
-          50%      { box-shadow: 0 4px 32px rgba(240,180,41,0.7); }
-        }
-        @keyframes chatSlideUp {
-          from { opacity: 0; transform: translateY(24px) scale(.97); }
-          to   { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        .chat-msg-scroll::-webkit-scrollbar { width: 4px; }
-        .chat-msg-scroll::-webkit-scrollbar-track { background: transparent; }
-        .chat-msg-scroll::-webkit-scrollbar-thumb { background: rgba(240,180,41,0.4); border-radius: 4px; }
-        .chat-suggestion:hover { border-color: #f0b429 !important; color: #f0b429 !important; }
-        .chat-input-field:focus { outline: none; border-color: #f0b429 !important; }
-        @keyframes chatDot { 0%,80%,100%{opacity:.2;transform:scale(.8)} 40%{opacity:1;transform:scale(1)} }
-      `}</style>
-
-      {/* Floating button */}
-      {!chatOpen && (
-        <button
-          onClick={() => setChatOpen(true)}
-          style={{
-            position: 'fixed', bottom: 24, right: 24,
-            width: 52, height: 52, borderRadius: '50%',
-            background: t.gold, color: '#000', border: 'none',
-            fontSize: 22, cursor: 'pointer', zIndex: 500,
-            animation: 'chatPulse 3s ease-in-out infinite',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-          title="Ask AI Assistant"
-        >💬</button>
-      )}
-
-      {/* Chat panel */}
-      {chatOpen && (
-        <div style={{
-          position: 'fixed', bottom: 88, right: 24,
-          width: 360, height: 480,
-          background: t.card,
-          border: `1px solid ${t.border}`,
-          borderRadius: 16,
-          boxShadow: '0 8px 48px rgba(0,0,0,0.5)',
-          display: 'flex', flexDirection: 'column',
-          zIndex: 500,
-          animation: 'chatSlideUp .22s ease-out both',
-        }}>
-          {/* Header */}
-          <div style={{
-            height: 52, background: '#000',
-            borderBottom: `1px solid ${t.border}`,
-            borderRadius: '16px 16px 0 0',
-            padding: '0 16px',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            flexShrink: 0,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 16 }}>🛡</span>
-              <span style={{
-                fontFamily: "'JetBrains Mono',monospace",
-                fontSize: 11, color: t.gold,
-                letterSpacing: '2px', fontWeight: 700,
-              }}>AI ASSISTANT</span>
-            </div>
-            <button
-              onClick={() => setChatOpen(false)}
-              style={{
-                background: 'none', border: 'none',
-                color: t.textMuted, fontSize: 18,
-                cursor: 'pointer', lineHeight: 1,
-                padding: '2px 4px',
-              }}
-            >×</button>
-          </div>
-
-          {/* Messages */}
-          <div
-            className="chat-msg-scroll"
-            style={{
-              flex: 1, overflowY: 'auto',
-              padding: 16,
-              display: 'flex', flexDirection: 'column', gap: 10,
-            }}
-          >
-            {/* Suggestion chips — only when only welcome msg exists */}
-            {messages.length === 1 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
-                {[
-                  'What patterns were detected?',
-                  'Who is the top suspect?',
-                  'How does layering work?',
-                  'What actions were taken?',
-                ].map(q => (
-                  <button
-                    key={q}
-                    className="chat-suggestion"
-                    onClick={() => sendChatMessage(q)}
-                    style={{
-                      background: t.card, border: `1px solid ${t.border}`,
-                      borderRadius: 20, padding: '6px 14px',
-                      fontSize: 12, color: t.textSec,
-                      cursor: 'pointer', transition: 'border-color .15s, color .15s',
-                      fontFamily: "'Inter',sans-serif",
-                    }}
-                  >{q}</button>
-                ))}
-              </div>
-            )}
-
-            {messages.map((m, i) => (
-              <div key={i} style={{
-                alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
-                maxWidth: m.role === 'user' ? '80%' : '85%',
-                background: m.role === 'user' ? t.gold + '22' : t.bg,
-                border: `1px solid ${m.role === 'user' ? t.gold + '44' : t.border}`,
-                color: t.text,
-                borderRadius: m.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-                padding: '10px 14px',
-                fontSize: 13,
-                lineHeight: 1.6,
-                fontFamily: "'Inter',sans-serif",
-              }}>
-                {m.text}
-              </div>
-            ))}
-
-            {/* Typing indicator */}
-            {chatLoading && (
-              <div style={{
-                alignSelf: 'flex-start',
-                background: t.bg, border: `1px solid ${t.border}`,
-                borderRadius: '12px 12px 12px 4px',
-                padding: '12px 16px',
-                display: 'flex', gap: 5, alignItems: 'center',
-              }}>
-                {[0, 1, 2].map(i => (
-                  <span key={i} style={{
-                    width: 7, height: 7, borderRadius: '50%',
-                    background: t.gold, display: 'inline-block',
-                    animation: `chatDot 1.2s ease-in-out ${i * 0.2}s infinite`,
-                  }} />
-                ))}
-              </div>
-            )}
-
-            <div ref={msgEndRef} />
-          </div>
-
-          {/* Input area */}
-          <div style={{
-            height: 56, borderTop: `1px solid ${t.border}`,
-            padding: '8px 12px',
-            display: 'flex', alignItems: 'center', gap: 8,
-            flexShrink: 0,
-          }}>
-            <input
-              className="chat-input-field"
-              value={inputVal}
-              onChange={e => setInputVal(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') sendChatMessage(); }}
-              placeholder="Ask about alerts, traders, patterns..."
-              style={{
-                flex: 1,
-                background: t.bg,
-                border: `1px solid ${t.border}`,
-                borderRadius: 8,
-                padding: '8px 12px',
-                color: t.text,
-                fontSize: 13,
-                fontFamily: "'Inter',sans-serif",
-                transition: 'border-color .15s',
-              }}
-            />
-            <button
-              onClick={() => sendChatMessage()}
-              disabled={!inputVal.trim() || chatLoading}
-              style={{
-                width: 36, height: 36,
-                background: inputVal.trim() && !chatLoading ? t.gold : '#2a2a2a',
-                color: inputVal.trim() && !chatLoading ? '#000' : '#555',
-                border: 'none', borderRadius: 8,
-                cursor: inputVal.trim() && !chatLoading ? 'pointer' : 'default',
-                fontSize: 16, transition: 'background .15s',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >→</button>
-          </div>
-        </div>
-      )}
-
-      {/* Floating button shown when panel is open (to close) */}
-      {chatOpen && (
-        <button
-          onClick={() => setChatOpen(false)}
-          style={{
-            position: 'fixed', bottom: 24, right: 24,
-            width: 52, height: 52, borderRadius: '50%',
-            background: t.gold, color: '#000', border: 'none',
-            fontSize: 20, cursor: 'pointer', zIndex: 501,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-          title="Close assistant"
-        >✕</button>
-      )}
     </div>
+    {chatPortal}
+    </>
   );
 };
