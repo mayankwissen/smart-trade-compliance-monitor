@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Folder Structure & Data Flow — Trade Surveillance Engine</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Inter:wght@300;400;600;700;800&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',sans-serif;background:#fff;color:#0f172a;font-size:13px;line-height:1.6}
+  .page{max-width:960px;margin:0 auto;padding:48px 56px}
+
+  /* HEADER */
+  .header{background:#000;border-bottom:3px solid #f0b429;padding:28px 32px;border-radius:10px 10px 0 0}
+  .header-sub{font-family:'IBM Plex Mono',monospace;font-size:10px;color:#6b7a99;letter-spacing:3px;text-transform:uppercase;margin-bottom:8px}
+  .header h1{font-size:24px;font-weight:800;color:#f0b429;letter-spacing:1px;line-height:1.2}
+  .header-meta{margin-top:10px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#475569;display:flex;gap:24px}
+  .intro{background:#f8fafc;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 10px 10px;padding:18px 32px;margin-bottom:36px;font-size:13px;color:#334155;line-height:1.75}
+
+  /* SECTION */
+  .section{margin-bottom:40px;break-inside:avoid}
+  .section-title{font-size:17px;font-weight:800;color:#0f172a;padding-bottom:8px;border-bottom:2px solid #f0b429;margin-bottom:18px;display:flex;align-items:center;gap:12px}
+  .section-num{background:#f0b429;color:#000;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;padding:3px 10px;border-radius:3px}
+
+  /* CODE / MONO BLOCKS */
+  .code-block{background:#0f172a;border-radius:8px;padding:18px 22px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#94a3b8;line-height:1.9;margin-bottom:16px;overflow-x:auto}
+  .code-block .gold{color:#f0b429}
+  .code-block .green{color:#4ade80}
+  .code-block .blue{color:#60a5fa}
+  .code-block .red{color:#f87171}
+  .code-block .gray{color:#475569}
+  .code-block .white{color:#e2e8f0}
+  .code-block .comment{color:#334155}
+  .inline-code{font-family:'IBM Plex Mono',monospace;font-size:11px;background:#f1f5f9;padding:2px 7px;border-radius:3px;color:#1e293b}
+
+  /* FILE CARDS */
+  .file-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+  .file-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:16px 18px;border-left:3px solid #f0b429}
+  .file-card.blue-border{border-left-color:#3b82f6}
+  .file-card.green-border{border-left-color:#22c55e}
+  .file-card.purple-border{border-left-color:#a855f7}
+  .file-card.red-border{border-left-color:#ef4444}
+  .file-name{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:700;color:#0f172a;margin-bottom:6px}
+  .file-desc{font-size:12px;color:#475569;line-height:1.6}
+  .file-does{font-size:11px;color:#64748b;margin-top:6px}
+  .file-does span{display:block;padding:2px 0}
+  .file-does span::before{content:'→ ';color:#f0b429}
+
+  /* FLOW STEPS */
+  .flow{display:flex;flex-direction:column;gap:0;margin-bottom:18px}
+  .flow-step{display:flex;align-items:flex-start;gap:16px}
+  .flow-left{display:flex;flex-direction:column;align-items:center;min-width:32px}
+  .step-num{width:28px;height:28px;border-radius:50%;background:#f0b429;color:#000;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .step-line{width:2px;flex:1;background:#e2e8f0;min-height:16px;margin:4px 0}
+  .flow-step:last-child .step-line{display:none}
+  .step-body{padding:4px 0 20px;flex:1}
+  .step-body h4{font-size:13px;font-weight:700;margin-bottom:4px;color:#0f172a}
+  .step-body p{font-size:12px;color:#475569;line-height:1.7}
+  .step-file{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10px;background:#fef9c3;color:#854d0e;border:1px solid #fde68a;padding:2px 8px;border-radius:3px;margin-top:4px}
+
+  /* PROMPT BOX */
+  .prompt-box{background:#0f172a;border:1px solid #f0b429;border-radius:8px;overflow:hidden;margin-bottom:18px}
+  .prompt-header{background:#1e293b;padding:10px 18px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#f0b429;letter-spacing:2px;text-transform:uppercase;border-bottom:1px solid #f0b42930}
+  .prompt-body{padding:16px 20px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:#94a3b8;line-height:1.85}
+  .prompt-body .gold{color:#f0b429}
+  .prompt-body .green{color:#4ade80}
+  .prompt-body .blue{color:#60a5fa}
+  .prompt-body .white{color:#e2e8f0}
+  .prompt-body .comment{color:#374151}
+
+  /* INFO BOX */
+  .info-box{background:#f0f9ff;border:1px solid #bae6fd;border-left:4px solid #0ea5e9;border-radius:0 8px 8px 0;padding:14px 18px;margin-bottom:16px;font-size:12px;color:#0c4a6e;line-height:1.75}
+  .info-box strong{color:#0369a1}
+  .warn-box{background:#fefce8;border:1px solid #fde68a;border-left:4px solid #f0b429;border-radius:0 8px 8px 0;padding:14px 18px;margin-bottom:16px;font-size:12px;color:#78350f;line-height:1.75}
+  .warn-box strong{color:#92400e}
+
+  /* TABLE */
+  table{width:100%;border-collapse:collapse;margin-bottom:16px;font-size:12px}
+  thead tr{background:#1e293b;color:#f0f2f8}
+  thead th{padding:9px 14px;text-align:left;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700}
+  tbody tr{border-bottom:1px solid #f1f5f9}
+  tbody td{padding:9px 14px;vertical-align:top}
+  .mono{font-family:'IBM Plex Mono',monospace;font-size:11px}
+  .gold-text{color:#b45309;font-weight:700}
+
+  /* DB TABLE */
+  .db-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+  .db-card{background:#0f172a;border-radius:8px;padding:14px 16px}
+  .db-card h4{font-family:'IBM Plex Mono',monospace;font-size:11px;color:#f0b429;margin-bottom:10px;letter-spacing:1px}
+  .db-field{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#64748b;padding:2px 0;display:flex;gap:8px}
+  .db-field .fn{color:#94a3b8;min-width:140px}
+  .db-field .ft{color:#475569}
+  .db-field.pk .fn{color:#f0b429}
+  .db-field.fk .fn{color:#60a5fa}
+
+  /* FOOTER */
+  .footer{border-top:1px solid #e2e8f0;padding-top:20px;margin-top:40px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:10px;color:#94a3b8;letter-spacing:1px}
+
+  @media print{
+    body{font-size:12px}
+    .page{padding:0;max-width:100%}
+    .no-print{display:none}
+    .section{break-inside:avoid}
+    .file-grid{break-inside:avoid}
+    .db-grid{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+
+<div class="no-print" style="background:#1e293b;padding:12px 24px;text-align:center;font-family:monospace;font-size:12px;color:#94a3b8">
+  Press <strong style="color:#f0b429">Ctrl+P</strong> → Save as PDF
+</div>
+
+<div class="page">
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-sub">Trade Surveillance Engine · Wissen Technology Hackathon 2026</div>
+  <h1>Folder Structure, Data Flow & How Claude API Is Called</h1>
+  <div class="header-meta">
+    <span>Built by: Mayank Gupta</span>
+    <span>Model: claude-sonnet-4-6</span>
+    <span>Backend: Python Flask · Frontend: React 18</span>
+  </div>
+</div>
+<div class="intro">
+  This document explains <strong>every file</strong>, what it does, how data moves through the system,
+  exactly what gets sent to Claude AI at runtime, and how data is loaded, refreshed, and updated.
+  Designed to answer every judge question about system internals.
+</div>
+
+
+<!-- ═══════════════════════════════ -->
+<!-- SECTION 1: FOLDER STRUCTURE    -->
+<!-- ═══════════════════════════════ -->
+<div class="section">
+  <div class="section-title"><span class="section-num">01</span> Complete Folder Structure — Every File Explained</div>
+
+  <div class="code-block">
+<span class="gold">trade-surveillance/</span>
+│
+├── <span class="gold">backend/</span>                         <span class="comment">← Python Flask REST API (runs on Render)</span>
+│   ├── <span class="green">app.py</span>                       <span class="comment">← ENTRY POINT. 22 API endpoints. Handles all HTTP requests.</span>
+│   ├── <span class="green">triage.py</span>                    <span class="comment">← Calls Claude API. Builds prompts. Parses responses. Saves to DB.</span>
+│   ├── <span class="green">detector.py</span>                  <span class="comment">← 4 pattern detectors. Pure math. No AI. Runs on trade data.</span>
+│   ├── <span class="green">database.py</span>                  <span class="comment">← SQLite setup. Creates 5 tables. Seeds data on first run.</span>
+│   ├── <span class="green">ingestor.py</span>                  <span class="comment">← Loads trades from DB. Groups by trader+instrument for detectors.</span>
+│   ├── <span class="green">workflows.py</span>                 <span class="comment">← Fires 4 escalation actions after ESCALATE verdict.</span>
+│   ├── <span class="green">market_data.py</span>               <span class="comment">← Fetches live NSE prices via yfinance. Generates synthetic trades.</span>
+│   ├── <span class="green">emailer.py</span>                   <span class="comment">← Sends HTML alert emails via SendGrid HTTP API.</span>
+│   ├── <span class="blue">Procfile</span>                     <span class="comment">← Tells Render: "run gunicorn app:app --workers 2"</span>
+│   ├── <span class="blue">requirements.txt</span>             <span class="comment">← anthropic, flask, yfinance, gunicorn, flask-cors</span>
+│   ├── <span class="blue">.env</span>                         <span class="comment">← ANTHROPIC_API_KEY, SLACK_WEBHOOK_URL, SENDGRID_API_KEY (gitignored)</span>
+│   └── <span class="gold">data/</span>
+│       └── <span class="blue">trades_sample.csv</span>        <span class="comment">← 415 seed trades with 4 injected suspicious clusters (fallback)</span>
+│
+├── <span class="gold">frontend/</span>                        <span class="comment">← React 18 app (deployed as Render Static Site)</span>
+│   ├── <span class="green">index.html</span>                   <span class="comment">← Landing page. Entry point. Bloomberg-style marketing site.</span>
+│   ├── <span class="green">app.html</span>                     <span class="comment">← React dashboard loader. Loads CSS + 18 JS files via Babel CDN.</span>
+│   ├── <span class="gold">css/</span>
+│   │   └── <span class="blue">styles.css</span>               <span class="comment">← Fixed layout, gold scrollbar, Bloomberg dark theme</span>
+│   └── <span class="gold">js/</span>
+│       ├── <span class="green">api.js</span>                   <span class="comment">← API_BASE URL (auto-detects localhost vs production). Formatters.</span>
+│       ├── <span class="green">app.js</span>                   <span class="comment">← Root React component. Hash-based router. Renders all 7 pages.</span>
+│       ├── <span class="gold">components/</span>
+│       │   ├── <span class="blue">Header.js</span>            <span class="comment">← Fixed top bar + NSE live price panel (20 stocks, auto-scroll)</span>
+│       │   ├── <span class="blue">Sidebar.js</span>           <span class="comment">← Fixed left nav (72px) with SVG icons for 5 sections</span>
+│       │   ├── <span class="blue">Shared.js</span>            <span class="comment">← ThemeContext, useRoute hook, Card/Button/Badge components</span>
+│       │   ├── <span class="blue">StatsBar.js</span>          <span class="comment">← 5-number summary bar (Trades, Alerts, Escalated, Dismissed, Pending)</span>
+│       │   ├── <span class="blue">Charts.js</span>            <span class="comment">← Chart.js donut (patterns) + bar (severity) charts</span>
+│       │   └── <span class="blue">TopSuspects.js</span>       <span class="comment">← Ranked list of traders by alert count</span>
+│       └── <span class="gold">pages/</span>
+│           ├── <span class="blue">Dashboard.js</span>         <span class="comment">← Main page: alert feed, correlated activity, token usage bar</span>
+│           ├── <span class="blue">Alerts.js</span>            <span class="comment">← Full alert table with filters + triage all pending button</span>
+│           ├── <span class="blue">AlertDetail.js</span>       <span class="comment">← 4 tabs: AI Triage · Evidence · Escalations · Timeline chart</span>
+│           ├── <span class="blue">TraderProfile.js</span>     <span class="comment">← Risk score 0–100, pattern breakdown, full alert history</span>
+│           ├── <span class="blue">Trades.js</span>            <span class="comment">← All 407 trades with 5 filters, suspicious traders highlighted</span>
+│           ├── <span class="blue">Logs.js</span>              <span class="comment">← Escalation log, CSV export, auto-refresh every 5 seconds</span>
+│           └── <span class="blue">Settings.js</span>          <span class="comment">← Health checks, Claude token/cost stats, API usage counters</span>
+│
+├── <span class="blue">render.yaml</span>                      <span class="comment">← Tells Render how to auto-deploy the backend (gunicorn config)</span>
+├── <span class="blue">ARCHITECTURE.md</span>                  <span class="comment">← Full system architecture for judges</span>
+├── <span class="blue">PRESENTATION.md</span>                  <span class="comment">← Judge-ready single-file overview with all details</span>
+└── <span class="blue">CLAUDE.md</span>                        <span class="comment">← Development notes and project status</span>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════ -->
+<!-- SECTION 2: DATABASE            -->
+<!-- ═══════════════════════════════ -->
+<div class="section">
+  <div class="section-title"><span class="section-num">02</span> Database — 5 Tables, What They Store</div>
+
+  <p style="font-size:12px;color:#475569;margin-bottom:14px">
+    SQLite database at <span class="inline-code">backend/surveillance.db</span>. Created automatically on first run by <span class="inline-code">database.py → init_db()</span>. Wiped and recreated on every Render redeploy (free tier has no persistent disk).
+  </p>
+
+  <div class="db-grid">
+    <div class="db-card">
+      <h4>TABLE: trades</h4>
+      <div class="db-field pk"><span class="fn">trade_id</span><span class="ft">TEXT PK</span></div>
+      <div class="db-field"><span class="fn">timestamp</span><span class="ft">TEXT</span></div>
+      <div class="db-field"><span class="fn">trader_id</span><span class="ft">TEXT</span></div>
+      <div class="db-field"><span class="fn">account_id</span><span class="ft">TEXT</span></div>
+      <div class="db-field"><span class="fn">instrument</span><span class="ft">TEXT</span></div>
+      <div class="db-field"><span class="fn">order_type</span><span class="ft">BUY / SELL</span></div>
+      <div class="db-field"><span class="fn">order_size</span><span class="ft">INTEGER (shares)</span></div>
+      <div class="db-field"><span class="fn">price</span><span class="ft">REAL (₹)</span></div>
+      <div class="db-field"><span class="fn">order_status</span><span class="ft">EXECUTED/CANCELLED/PLACED</span></div>
+      <div class="db-field"><span class="fn">cancel_time_ms</span><span class="ft">INTEGER (0 if not cancelled)</span></div>
+      <div class="db-field"><span class="fn">session_id</span><span class="ft">TEXT</span></div>
+    </div>
+    <div class="db-card">
+      <h4>TABLE: alerts</h4>
+      <div class="db-field pk"><span class="fn">alert_id</span><span class="ft">TEXT PK (ALT-XXXXXXXX)</span></div>
+      <div class="db-field"><span class="fn">detected_at</span><span class="ft">TEXT (ISO timestamp)</span></div>
+      <div class="db-field"><span class="fn">trader_id</span><span class="ft">TEXT</span></div>
+      <div class="db-field"><span class="fn">instrument</span><span class="ft">TEXT</span></div>
+      <div class="db-field"><span class="fn">pattern_type</span><span class="ft">LAYERING/SPOOFING/etc.</span></div>
+      <div class="db-field"><span class="fn">severity</span><span class="ft">HIGH / MEDIUM / LOW</span></div>
+      <div class="db-field"><span class="fn">evidence_summary</span><span class="ft">TEXT (1 sentence)</span></div>
+      <div class="db-field"><span class="fn">cancel_ratio</span><span class="ft">REAL (0.0 – 1.0)</span></div>
+      <div class="db-field"><span class="fn">sigma</span><span class="ft">REAL (standard deviations)</span></div>
+      <div class="db-field"><span class="fn">status</span><span class="ft">PENDING/ESCALATED/DISMISSED</span></div>
+    </div>
+    <div class="db-card">
+      <h4>TABLE: triage_results</h4>
+      <div class="db-field pk"><span class="fn">triage_id</span><span class="ft">TEXT PK (TRG-XXXXXXXX)</span></div>
+      <div class="db-field fk"><span class="fn">alert_id</span><span class="ft">FK → alerts</span></div>
+      <div class="db-field"><span class="fn">verdict</span><span class="ft">ESCALATE / DISMISS</span></div>
+      <div class="db-field"><span class="fn">confidence</span><span class="ft">INTEGER (0–100)</span></div>
+      <div class="db-field"><span class="fn">false_positive_probability</span><span class="ft">INTEGER</span></div>
+      <div class="db-field"><span class="fn">rationale</span><span class="ft">TEXT (Claude's reasoning)</span></div>
+      <div class="db-field"><span class="fn">simple_explanation</span><span class="ft">TEXT (plain English)</span></div>
+      <div class="db-field"><span class="fn">recommended_action</span><span class="ft">TEXT</span></div>
+      <div class="db-field"><span class="fn">risk_level</span><span class="ft">CRITICAL/HIGH/MEDIUM/LOW</span></div>
+      <div class="db-field"><span class="fn">regulatory_reference</span><span class="ft">TEXT (SEBI citation)</span></div>
+      <div class="db-field"><span class="fn">input_tokens</span><span class="ft">INTEGER (real from API)</span></div>
+      <div class="db-field"><span class="fn">output_tokens</span><span class="ft">INTEGER (real from API)</span></div>
+      <div class="db-field"><span class="fn">processing_time_ms</span><span class="ft">INTEGER</span></div>
+    </div>
+    <div class="db-card">
+      <h4>TABLE: escalations</h4>
+      <div class="db-field pk"><span class="fn">escalation_id</span><span class="ft">TEXT PK (UUID)</span></div>
+      <div class="db-field fk"><span class="fn">alert_id</span><span class="ft">FK → alerts</span></div>
+      <div class="db-field"><span class="fn">action_type</span><span class="ft">CASE_CREATED / SLACK_NOTIFIED / EMAIL_SENT / WATCHLIST_FLAGGED</span></div>
+      <div class="db-field"><span class="fn">payload</span><span class="ft">TEXT (JSON — case_id, channel, etc.)</span></div>
+      <div class="db-field"><span class="fn">created_at</span><span class="ft">TEXT (ISO timestamp)</span></div>
+      <br>
+      <h4 style="margin-top:8px">TABLE: subscribers</h4>
+      <div class="db-field pk"><span class="fn">subscriber_id</span><span class="ft">TEXT PK (UUID)</span></div>
+      <div class="db-field"><span class="fn">email</span><span class="ft">TEXT UNIQUE</span></div>
+      <div class="db-field"><span class="fn">active</span><span class="ft">INTEGER (1=active)</span></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════ -->
+<!-- SECTION 3: HOW DATA IS LOADED  -->
+<!-- ═══════════════════════════════ -->
+<div class="section">
+  <div class="section-title"><span class="section-num">03</span> How Data Is Loaded — On Startup vs On Refresh</div>
+
+  <div class="info-box">
+    <strong>There are two ways data gets into the system:</strong><br>
+    (A) <strong>Startup auto-seed</strong> — happens automatically when the Flask server starts<br>
+    (B) <strong>Manual refresh</strong> — triggered by the "Refresh Live Data" button or <span class="inline-code">POST /api/refresh-data</span>
+  </div>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-left"><div class="step-num">A</div><div class="step-line"></div></div>
+      <div class="step-body">
+        <h4>Startup Auto-Seed (app.py runs on Render boot)</h4>
+        <p>
+          When Render starts the server, <span class="inline-code">app.py</span> runs <span class="inline-code">with app.app_context()</span> block which calls:
+          <br><br>
+          1. <strong>init_db()</strong> — creates all 5 tables if they don't exist<br>
+          2. <strong>seed_from_csv()</strong> — checks if trades table is empty. If empty, fetches live NSE prices via yfinance and generates ~407 trades. If yfinance fails, falls back to <span class="inline-code">trades_sample.csv</span><br>
+          3. <strong>Auto-detection</strong> — runs all 4 detectors immediately, inserts any alerts found<br><br>
+          Result: Data is ready within seconds of Render waking up. No manual click needed.
+        </p>
+        <span class="step-file">app.py → database.py → market_data.py → detector.py</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="step-num">B</div><div class="step-line"></div></div>
+      <div class="step-body">
+        <h4>Manual Refresh — "Refresh Live Data" button</h4>
+        <p>
+          Calls <span class="inline-code">POST /api/refresh-data</span> in <span class="inline-code">app.py</span> which:<br><br>
+          1. Wipes all 4 tables (trades, alerts, triage_results, escalations)<br>
+          2. Calls <span class="inline-code">market_data.py → fetch_real_prices()</span> — gets live prices for 20 NSE stocks via yfinance<br>
+          3. Calls <span class="inline-code">generate_realistic_trades(prices)</span> — generates ~407 new trades at <em>today's live prices</em><br>
+          4. Inserts all trades into SQLite<br>
+          5. Automatically runs <span class="inline-code">POST /api/replay/start</span> to detect patterns<br>
+          6. Returns: <span class="inline-code">{"trades_inserted": 407, "prices_used": {"HDFCBANK": 748.0, ...}}</span>
+        </p>
+        <span class="step-file">app.py → market_data.py → SQLite</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- How market_data.py works -->
+  <div class="code-block">
+<span class="comment"># market_data.py — How live NSE prices are fetched</span>
+
+<span class="gold">NSE_SYMBOLS</span> = {
+  <span class="green">'HDFCBANK'</span>:  <span class="blue">'HDFCBANK.NS'</span>,   <span class="comment"># .NS suffix = NSE listing on Yahoo Finance</span>
+  <span class="green">'RELIANCE'</span>:  <span class="blue">'RELIANCE.NS'</span>,
+  <span class="green">'TCS'</span>:       <span class="blue">'TCS.NS'</span>,
+  <span class="gray">... 20 stocks total ...</span>
+}
+
+<span class="gold">def fetch_real_prices():</span>
+    <span class="comment"># Step 1: Check 5-minute cache (avoids hitting Yahoo Finance every call)</span>
+    if _price_cache and (time.time() - _cache_ts) &lt; 300:
+        return _price_cache
+
+    <span class="comment"># Step 2: For each stock, fetch last 5 days of 1-minute candles</span>
+    for symbol, ticker in NSE_SYMBOLS.items():
+        data = yf.Ticker(ticker)
+        hist = data.history(period=<span class="green">'5d'</span>, interval=<span class="green">'1m'</span>)
+
+        <span class="comment"># Step 3: Take the last closing price as "current price"</span>
+        prices[symbol] = {
+            <span class="green">'current'</span>: hist[<span class="green">'Close'</span>].iloc[-1],   <span class="comment"># e.g. ₹748.00</span>
+            <span class="green">'high'</span>:    hist[<span class="green">'High'</span>].max(),
+            <span class="green">'low'</span>:     hist[<span class="green">'Low'</span>].min(),
+        }
+
+<span class="gold">def generate_realistic_trades(prices):</span>
+    <span class="comment"># Step 4: Generate ~300 random trades for 50 normal traders at live prices</span>
+    <span class="comment"># Step 5: Inject 4 suspicious clusters (LAYERING, SPOOFING, WASH, PUMP)</span>
+    <span class="comment"># Step 6: All timestamps set to last 3 real trading days (Mon-Fri)</span>
+    return sorted(trades, key=lambda x: x[<span class="green">'timestamp'</span>])
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════ -->
+<!-- SECTION 4: DETECTION FLOW      -->
+<!-- ═══════════════════════════════ -->
+<div class="section">
+  <div class="section-title"><span class="section-num">04</span> How Pattern Detection Works — detector.py</div>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-left"><div class="step-num">1</div><div class="step-line"></div></div>
+      <div class="step-body">
+        <h4>ingestor.py — Load all trades from DB</h4>
+        <p><span class="inline-code">load_trades()</span> runs <span class="inline-code">SELECT * FROM trades</span> and returns all rows as dictionaries.</p>
+        <span class="step-file">ingestor.py</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="step-num">2</div><div class="step-line"></div></div>
+      <div class="step-body">
+        <h4>Group by every trader+instrument combination</h4>
+        <p><span class="inline-code">get_all_trader_instrument_pairs()</span> runs <span class="inline-code">SELECT DISTINCT trader_id, instrument FROM trades</span>. With 50 traders and 20 stocks, this gives ~330 pairs to scan.</p>
+        <span class="step-file">ingestor.py</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="step-num">3</div><div class="step-line"></div></div>
+      <div class="step-body">
+        <h4>Run all 4 detectors on each pair</h4>
+        <p>For each (trader_id, instrument) pair, <span class="inline-code">detector.py → run_all_detectors()</span> runs all 4 functions. Each function filters the trades for just that pair and checks the mathematical criteria. If criteria pass → creates an alert dict.</p>
+        <span class="step-file">detector.py</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="step-num">4</div><div class="step-line"></div></div>
+      <div class="step-body">
+        <h4>Deduplicate and store alerts</h4>
+        <p><span class="inline-code">alert_exists()</span> checks if an alert for this exact (trader_id, instrument, pattern_type) already exists in DB. If not, inserts it. This prevents duplicate alerts on repeated detection runs.</p>
+        <span class="step-file">database.py → app.py</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="code-block">
+<span class="comment"># app.py — POST /api/replay/start  (the "Run Detectors" button)</span>
+
+<span class="gold">@app.route</span>(<span class="green">"/api/replay/start"</span>, methods=[<span class="green">"POST"</span>])
+def replay_start():
+    trades = <span class="blue">load_trades()</span>                        <span class="comment"># ingestor.py — all trades from DB</span>
+    pairs  = <span class="blue">get_all_trader_instrument_pairs()</span>     <span class="comment"># ~330 unique combinations</span>
+
+    alerts_stored = 0
+    conn = get_db()
+
+    for trader_id, instrument in pairs:           <span class="comment"># scan every pair</span>
+        alerts = <span class="blue">run_all_detectors</span>(trader_id, instrument, trades)
+
+        for alert in alerts:
+            if not <span class="blue">alert_exists</span>(conn, trader_id, instrument, alert[<span class="green">"pattern_type"</span>]):
+                conn.execute(<span class="green">"INSERT INTO alerts ..."</span>, (...))
+                alerts_stored += 1
+
+    conn.commit()
+    return jsonify({<span class="green">"alerts_detected"</span>: alerts_stored, <span class="green">"pairs_scanned"</span>: len(pairs)})
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════ -->
+<!-- SECTION 5: CLAUDE API CALL     -->
+<!-- ═══════════════════════════════ -->
+<div class="section">
+  <div class="section-title"><span class="section-num">05</span> Exactly What Gets Sent to Claude API — triage.py</div>
+
+  <div class="warn-box">
+    <strong>Key design decision:</strong> Claude is NOT sent raw trade rows. It receives only pre-computed statistics.
+    This cuts tokens from ~15,000 to ~280 per call — a 97% reduction. Claude's job is to write the legal rationale, not to detect patterns.
+  </div>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-left"><div class="step-num">1</div><div class="step-line"></div></div>
+      <div class="step-body">
+        <h4>Frontend calls POST /api/triage/&lt;alert_id&gt;</h4>
+        <p>User clicks "Triage This Alert". The frontend sends a POST request to the backend with the alert ID.</p>
+        <span class="step-file">AlertDetail.js → app.py</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="step-num">2</div><div class="step-line"></div></div>
+      <div class="step-body">
+        <h4>app.py fetches the alert from DB and calls triage_alert()</h4>
+        <p>Reads the alert row from SQLite (alert_id, trader_id, instrument, pattern_type, cancel_ratio, sigma, evidence_summary). Passes it to <span class="inline-code">triage.py → triage_alert(alert)</span>.</p>
+        <span class="step-file">app.py → triage.py</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="step-num">3</div><div class="step-line"></div></div>
+      <div class="step-body">
+        <h4>triage.py builds the prompt and calls Claude API</h4>
+        <p>Two parts: (A) <strong>System prompt</strong> — sets Claude's persona as NSE CCO. (B) <strong>User prompt</strong> — the alert data as ~280 tokens. Sent via <span class="inline-code">anthropic.Anthropic().messages.create()</span>.</p>
+        <span class="step-file">triage.py → Anthropic API</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="step-num">4</div><div class="step-line"></div></div>
+      <div class="step-body">
+        <h4>Claude returns 8-field JSON → saved to triage_results table</h4>
+        <p>Response parsed with <span class="inline-code">json.loads()</span>. Real token counts read from <span class="inline-code">response.usage.input_tokens</span> and <span class="inline-code">response.usage.output_tokens</span>. All 8 fields + metrics stored in DB.</p>
+        <span class="step-file">triage.py → database.py</span>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="step-num">5</div><div class="step-line"></div></div>
+      <div class="step-body">
+        <h4>If ESCALATE → workflows.py fires 4 actions</h4>
+        <p>Case created, Slack notified, email sent, watchlist flagged. All logged to escalations table.</p>
+        <span class="step-file">app.py → workflows.py</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SYSTEM PROMPT -->
+  <div class="prompt-box">
+    <div class="prompt-header">System Prompt — sent on every Claude API call (triage.py line 11)</div>
+    <div class="prompt-body">
+<span class="gold">SYSTEM_PROMPT</span> = <span class="green">"""</span>
+<span class="white">You are a Chief Compliance Officer at NSE (National Stock Exchange
+of India) with 20 years of experience in market surveillance and
+SEBI regulatory proceedings. You have testified as an expert witness
+in multiple market manipulation cases. You analyze trade alerts and
+produce verdicts that can be submitted as evidence to SEBI.
+Respond ONLY with valid JSON. No text outside the JSON.</span>
+<span class="green">"""</span>
+    </div>
+  </div>
+
+  <!-- USER PROMPT -->
+  <div class="prompt-box">
+    <div class="prompt-header">User Prompt — built at runtime by build_prompt(alert) — triage.py line 28</div>
+    <div class="prompt-body">
+<span class="comment"># This is what gets sent to Claude for a LAYERING alert on T-1042:</span>
+
+<span class="gold">Alert ID:</span>    <span class="white">ALT-B5500555</span>
+<span class="gold">Timestamp:</span>   <span class="white">2026-06-06T16:11:32 UTC</span>
+<span class="gold">Trader:</span>      <span class="white">T-1042</span>
+<span class="gold">Instrument:</span>  <span class="white">HDFCBANK (NSE: HDFCBANK)</span>
+<span class="gold">Severity:</span>    <span class="white">HIGH</span>
+<span class="gold">Pattern:</span>     <span class="white">LAYERING</span>
+<span class="gold">Evidence:</span>    <span class="white">Trader placed 14 orders, 12 cancelled within 616ms median.
+             2 sell(s) executed at elevated price.</span>
+<span class="gold">Stats:</span>       <span class="white">cancel_ratio=0.857, sigma=14.14</span>
+
+<span class="comment"># Notice: NO raw trade rows sent. Only the pre-computed stats.
+# cancel_ratio and sigma were computed by detector.py locally.
+# This is what makes it 97% cheaper than sending all 416 raw trades.</span>
+
+Respond with ONLY this JSON:
+{
+  <span class="green">"verdict"</span>:                  <span class="white">"ESCALATE or DISMISS"</span>,
+  <span class="green">"confidence"</span>:               <span class="white">91,</span>
+  <span class="green">"false_positive_probability"</span>:<span class="white">9,</span>
+  <span class="green">"risk_level"</span>:               <span class="white">"HIGH"</span>,
+  <span class="green">"rationale"</span>:                <span class="white">"4-5 sentences citing specific numbers..."</span>,
+  <span class="green">"simple_explanation"</span>:       <span class="white">"1-2 sentences for non-traders..."</span>,
+  <span class="green">"recommended_action"</span>:       <span class="white">"Freeze account / File STR / Audit log..."</span>,
+  <span class="green">"regulatory_reference"</span>:     <span class="white">"SEBI PFUTP Regulations 2003, Regulation 4(2)(a)"</span>
+}
+    </div>
+  </div>
+
+  <!-- CLAUDE RESPONSE -->
+  <div class="prompt-box">
+    <div class="prompt-header">Claude's Actual Response — what comes back from the API (~195 tokens)</div>
+    <div class="prompt-body">
+{
+  <span class="green">"verdict"</span>:                   <span class="white">"ESCALATE"</span>,
+  <span class="green">"confidence"</span>:                <span class="white">93</span>,
+  <span class="green">"false_positive_probability"</span>: <span class="white">7</span>,
+  <span class="green">"risk_level"</span>:                <span class="white">"HIGH"</span>,
+  <span class="green">"rationale"</span>:                 <span class="white">"Trader T-1042 employed a classic layering strategy
+    in HDFCBANK by placing 14 orders of which 12 were cancelled within a median
+    window of 616 milliseconds, yielding a cancel-to-order ratio of 85.71% —
+    well above the surveillance threshold of 60%. The sub-second cancellation
+    cadence is machine-assisted and not consistent with genuine price discovery,
+    indicating deliberate algorithmic spoofing designed to mislead other market
+    participants about true supply and demand in HDFCBANK."</span>,
+  <span class="green">"simple_explanation"</span>:        <span class="white">"Trader T-1042 flooded the HDFCBANK order book with
+    fake buy orders to artificially push the price up, then cancelled them in
+    milliseconds after selling at the inflated price."</span>,
+  <span class="green">"recommended_action"</span>:        <span class="white">"Immediately freeze trading account T-1042 pending
+    investigation. File STR with FIU-IND within 24 hours."</span>,
+  <span class="green">"regulatory_reference"</span>:      <span class="white">"SEBI PFUTP Regulations 2003, Regulation 4(2)(a)
+    and 4(2)(b) — Prohibition on manipulation of price of securities."</span>
+}
+
+<span class="comment"># Parsed by json.loads() in triage.py
+# input_tokens = response.usage.input_tokens   (real count from API)
+# output_tokens = response.usage.output_tokens  (real count from API)
+# Both stored in triage_results table</span>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════ -->
+<!-- SECTION 6: ESCALATION FLOW     -->
+<!-- ═══════════════════════════════ -->
+<div class="section">
+  <div class="section-title"><span class="section-num">06</span> What Happens After Claude Says ESCALATE — workflows.py</div>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-left"><div class="step-num">1</div><div class="step-line"></div></div>
+      <div class="step-body">
+        <h4>create_compliance_case()</h4>
+        <p>Generates case ID (COMP-XXXX), writes a JSON case file to <span class="inline-code">cases/</span> folder, inserts CASE_CREATED row into escalations table. Assigns to "Surveillance Desk L2".</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="step-num">2</div><div class="step-line"></div></div>
+      <div class="step-body">
+        <h4>send_slack_notification()</h4>
+        <p>POSTs a rich Slack block message to the configured webhook URL. Includes verdict, rationale, case ID, recommended action. Inserts SLACK_NOTIFIED row into escalations table.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="step-num">3</div><div class="step-line"></div></div>
+      <div class="step-body">
+        <h4>send_email_notifications()</h4>
+        <p>Reads all active subscriber emails from DB. Calls <span class="inline-code">emailer.py → send_alert_email()</span> which POSTs to SendGrid HTTP API (port 443 — SMTP ports are blocked on Render). Sends styled HTML email to each subscriber.</p>
+      </div>
+    </div>
+    <div class="flow-step">
+      <div class="flow-left"><div class="step-num">4</div><div class="step-line"></div></div>
+      <div class="step-body">
+        <h4>flag_watchlist()</h4>
+        <p>Inserts WATCHLIST_FLAGGED row into escalations table with 72-hour monitoring window and reason. Alerts table updated: status → ESCALATED.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════ -->
+<!-- SECTION 7: FRONTEND DATA FLOW  -->
+<!-- ═══════════════════════════════ -->
+<div class="section">
+  <div class="section-title"><span class="section-num">07</span> How the Frontend Fetches and Displays Data</div>
+
+  <div class="code-block">
+<span class="comment"># api.js — API_BASE auto-detects environment</span>
+
+const <span class="gold">API_BASE</span> = window.location.hostname === <span class="green">'localhost'</span>
+  ? <span class="green">'http://localhost:5000'</span>
+  : <span class="green">'https://smart-trade-compliance-monitor.onrender.com'</span>
+
+<span class="comment"># On production: all fetch() calls go to Render backend.
+# On local dev:  all fetch() calls go to localhost:5000.</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Page</th>
+        <th>API Call Made</th>
+        <th>What It Returns</th>
+        <th>When Called</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Dashboard</strong></td>
+        <td><span class="mono">GET /api/stats</span><br><span class="mono">GET /api/alerts</span><br><span class="mono">GET /api/correlated-alerts</span></td>
+        <td>Counts, alert list, correlated groups</td>
+        <td>On mount, every 30s auto-refresh</td>
+      </tr>
+      <tr>
+        <td><strong>Header</strong></td>
+        <td><span class="mono">GET /api/market-prices</span></td>
+        <td>20 live NSE prices with ▲/▼</td>
+        <td>On mount, every 60s</td>
+      </tr>
+      <tr>
+        <td><strong>Alert Detail</strong></td>
+        <td><span class="mono">GET /api/alert/:id/full</span></td>
+        <td>Alert + triage + escalations + trades</td>
+        <td>On page load</td>
+      </tr>
+      <tr>
+        <td><strong>Triage button</strong></td>
+        <td><span class="mono">POST /api/triage/:id</span></td>
+        <td>Claude verdict + escalation results</td>
+        <td>On button click</td>
+      </tr>
+      <tr>
+        <td><strong>Trader Profile</strong></td>
+        <td><span class="mono">GET /api/trader/:id</span></td>
+        <td>Risk score, all alerts, pattern breakdown</td>
+        <td>On page load</td>
+      </tr>
+      <tr>
+        <td><strong>Logs</strong></td>
+        <td><span class="mono">GET /api/escalations</span></td>
+        <td>Full escalation history</td>
+        <td>On mount, every 5s</td>
+      </tr>
+      <tr>
+        <td><strong>Settings</strong></td>
+        <td><span class="mono">GET /api/health</span><br><span class="mono">GET /api/token-stats</span></td>
+        <td>Service status, real token counts + cost</td>
+        <td>On mount, every 30s</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+
+<!-- ═══════════════════════════════ -->
+<!-- SECTION 8: QUICK ANSWERS       -->
+<!-- ═══════════════════════════════ -->
+<div class="section">
+  <div class="section-title"><span class="section-num">08</span> Quick Answers for Judge Questions</div>
+
+  <table>
+    <thead>
+      <tr><th>Judge asks</th><th>Answer</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>"Where does the trade data come from?"</strong></td>
+        <td>Generated synthetically by <span class="mono">market_data.py</span> at <em>real live NSE prices</em> fetched from Yahoo Finance via yfinance. 4 suspicious clusters are injected deliberately. Timestamps are last 3 real trading days.</td>
+      </tr>
+      <tr>
+        <td><strong>"How does it refresh with new data?"</strong></td>
+        <td><span class="mono">POST /api/refresh-data</span> wipes all tables, fetches today's live NSE prices, generates ~407 new trades at those prices, re-runs detection. Old data is gone, fresh data in.</td>
+      </tr>
+      <tr>
+        <td><strong>"What exactly does Claude receive?"</strong></td>
+        <td>Only: alert_id, trader_id, instrument, severity, pattern_type, evidence_summary (1 sentence), cancel_ratio (float), sigma (float). Total ~280 tokens. <em>NOT</em> raw trade rows.</td>
+      </tr>
+      <tr>
+        <td><strong>"Why not send raw trades to Claude?"</strong></td>
+        <td>416 trades × 35 tokens = 14,560 tokens = $0.045/call. With pre-computed stats: 280 tokens = $0.00014/call. 97% cheaper. Same verdict quality.</td>
+      </tr>
+      <tr>
+        <td><strong>"How do you know Claude's output is correct?"</strong></td>
+        <td>Claude doesn't decide if a trade is suspicious — the mathematical detectors do. Claude only writes the legal rationale for an alert that already passed statistical thresholds.</td>
+      </tr>
+      <tr>
+        <td><strong>"What if Claude returns bad JSON?"</strong></td>
+        <td><span class="mono">triage.py</span> strips markdown fences, then uses <span class="mono">json.loads()</span> inside <span class="mono">try/except JSONDecodeError</span>. If parsing fails, returns a 500 error with the raw text for debugging.</td>
+      </tr>
+      <tr>
+        <td><strong>"How is the database created?"</strong></td>
+        <td><span class="mono">database.py → init_db()</span> runs on server startup. Creates all 5 tables if they don't exist. Runs column migrations safely (ALTER TABLE skips existing columns).</td>
+      </tr>
+      <tr>
+        <td><strong>"Why SQLite and not PostgreSQL?"</strong></td>
+        <td>Zero config for a demo. Schema is drop-in compatible with PostgreSQL. The only difference would be the connection string in <span class="mono">database.py</span>.</td>
+      </tr>
+      <tr>
+        <td><strong>"How does the frontend know which backend to call?"</strong></td>
+        <td><span class="mono">api.js → API_BASE</span> checks <span class="mono">window.location.hostname</span>. If localhost → <span class="mono">http://localhost:5000</span>. If production → the Render backend URL. No environment files needed.</td>
+      </tr>
+      <tr>
+        <td><strong>"How does real-time price update work?"</strong></td>
+        <td><span class="mono">Header.js</span> calls <span class="mono">GET /api/market-prices</span> every 60 seconds. Backend has a 5-minute in-memory cache to avoid hammering Yahoo Finance. If yfinance fails, hardcoded fallback prices are used.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+
+<!-- FOOTER -->
+<div class="footer">
+  Trade Surveillance Engine &nbsp;·&nbsp; Wissen Technology Hackathon 2026
+  &nbsp;·&nbsp; Built by Mayank Gupta &nbsp;·&nbsp; Powered by Claude Sonnet 4.6
+</div>
+
+</div>
+</body>
+</html>
