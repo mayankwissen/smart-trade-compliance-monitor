@@ -2030,6 +2030,67 @@ def handle_500(error):
     return jsonify({"error": "Internal server error"}), 500
 
 
+@app.route("/api/github/status")
+def github_status():
+    token = os.getenv("GITHUB_TOKEN", "")
+    return jsonify({
+        "configured": bool(token),
+        "repo": _GITHUB_REPO,
+        "auto_issue_on_500": True,
+        "cooldown_seconds": 300,
+        "token_prefix": (token[:8] + "…") if token else None,
+    })
+
+
+@app.route("/api/github/test-issue", methods=["POST"])
+def github_test_issue():
+    global _github_last_issue_ts
+    token = os.getenv("GITHUB_TOKEN", "")
+    if not token:
+        return jsonify({"success": False, "error": "GITHUB_TOKEN not set in environment variables"}), 400
+
+    # Bypass cooldown for test
+    with _github_cooldown_lock:
+        _github_last_issue_ts = 0.0
+
+    ts = datetime.now(timezone.utc).isoformat()
+    title = f"[TEST] Manual test from Config page — {ts[:16]}"
+    body = (
+        "**This is a manually triggered test issue from the Trade Surveillance Config page.**\n\n"
+        f"- Triggered at: `{ts}`\n"
+        f"- System: Trade Surveillance Engine v2.0\n"
+        f"- Repo: `{_GITHUB_REPO}`\n\n"
+        "The GitHub auto-issue feature is working correctly. "
+        "In production, issues are automatically created when any backend endpoint returns a 500 error."
+    )
+    try:
+        payload = json.dumps({
+            "title": title,
+            "body": body,
+            "labels": ["test", "auto-report"],
+        }).encode("utf-8")
+        req = _urllib_req.Request(
+            f"https://api.github.com/repos/{_GITHUB_REPO}/issues",
+            data=payload,
+            headers={
+                "Authorization": f"token {token}",
+                "Content-Type": "application/json",
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "TradeSurveillanceBot/2.0",
+            },
+        )
+        with _urllib_req.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+        return jsonify({
+            "success": True,
+            "issue_number": result.get("number"),
+            "issue_url": result.get("html_url"),
+            "title": title,
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)

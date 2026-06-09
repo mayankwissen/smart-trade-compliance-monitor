@@ -10,6 +10,32 @@ window.SettingsPage = function SettingsPage() {
   const [healthLoading, setHealthLoading]   = _suseS(false);
   const [feedbackStats, setFeedbackStats]   = _suseS(null);
 
+  // GitHub integration state
+  const [githubStatus, setGithubStatus]   = _suseS(null);
+  const [githubTesting, setGithubTesting] = _suseS(false);
+  const [githubResult, setGithubResult]   = _suseS(null);
+
+  const loadGithubStatus = _suseC(async () => {
+    try {
+      const d = await fetch(`${window.API_BASE}/api/github/status`).then(r => r.json());
+      setGithubStatus(d);
+    } catch {}
+  }, []);
+
+  const testGithubIssue = async () => {
+    setGithubTesting(true);
+    setGithubResult(null);
+    try {
+      const d = await fetch(`${window.API_BASE}/api/github/test-issue`, { method: 'POST' }).then(r => r.json());
+      setGithubResult(d);
+    } catch (e) {
+      setGithubResult({ success: false, error: String(e) });
+    }
+    setGithubTesting(false);
+  };
+
+  _suseE(() => { loadGithubStatus(); }, [loadGithubStatus]);
+
   const runHealthChecks = _suseC(async () => {
     try {
       const [h, ts, sc, fb] = await Promise.all([
@@ -229,6 +255,84 @@ window.SettingsPage = function SettingsPage() {
           </div>
         ) : (
           <window.EmptyState icon="🤝" msg="No analyst feedback submitted yet. Override a triage verdict in Alert Detail to see stats." />
+        )}
+      </window.Card>
+
+      {/* GitHub Auto-Issue Monitor */}
+      <window.Card style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 18 }}>🐙</span>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 15, color: t.text }}>GitHub Auto-Issue Monitor</div>
+          </div>
+          <window.Btn small variant="outline" onClick={loadGithubStatus}>Refresh</window.Btn>
+        </div>
+
+        {/* Status row */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 14 }}>
+          {[
+            ['Token Configured', githubStatus?.configured ? '✓ YES' : '✗ NO', githubStatus?.configured ? t.success : t.danger],
+            ['Repository',       githubStatus?.repo || '…', t.info],
+            ['Auto-Issue on 500','Always Active', t.warning],
+          ].map(([k, v, c]) => (
+            <div key={k} style={{ background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, padding: '10px 14px' }}>
+              <div style={{ fontSize: 10, color: t.textMuted, fontFamily: "'Inter',sans-serif", fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 4 }}>{k}</div>
+              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: c, fontSize: 12 }}>{v}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* How it works */}
+        <div style={{ padding: '10px 14px', background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: t.textMuted, fontFamily: "'Inter',sans-serif", lineHeight: 1.7 }}>
+            <strong style={{ color: t.textSec }}>How it works:</strong> When any backend endpoint crashes with a 500 error, a GitHub Issue is automatically created in <code style={{ background: '#1a1a1a', padding: '1px 5px', borderRadius: 3, color: t.gold }}>{githubStatus?.repo}</code> with the endpoint, error message, and timestamp. 5-minute cooldown prevents spam.
+          </div>
+        </div>
+
+        {/* Test button */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <button
+            onClick={testGithubIssue}
+            disabled={githubTesting || !githubStatus?.configured}
+            style={{
+              background: githubTesting ? '#1a1a1a' : '#f0b42922',
+              border: `1px solid ${!githubStatus?.configured ? t.border : '#f0b429'}`,
+              color: !githubStatus?.configured ? t.textMuted : '#f0b429',
+              borderRadius: 6, padding: '7px 16px', cursor: githubStatus?.configured ? 'pointer' : 'not-allowed',
+              fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12,
+              display: 'flex', alignItems: 'center', gap: 6, transition: 'all .15s',
+            }}>
+            {githubTesting ? '⏳ Creating issue…' : '🐙 Test: Create GitHub Issue'}
+          </button>
+          {!githubStatus?.configured && (
+            <span style={{ fontSize: 11, color: t.danger, fontFamily: "'Inter',sans-serif" }}>
+              GITHUB_TOKEN not found in environment
+            </span>
+          )}
+        </div>
+
+        {/* Result */}
+        {githubResult && (
+          <div style={{
+            marginTop: 12, padding: '12px 14px', borderRadius: 8,
+            background: githubResult.success ? '#22c55e18' : '#ef444418',
+            border: `1px solid ${githubResult.success ? '#22c55e44' : '#ef444444'}`,
+          }}>
+            {githubResult.success ? (
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, color: t.text }}>
+                <span style={{ color: '#22c55e', fontWeight: 700 }}>✓ Issue #{githubResult.issue_number} created!</span>
+                {' · '}
+                <a href={githubResult.issue_url} target="_blank" rel="noreferrer"
+                  style={{ color: t.info, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>
+                  {githubResult.issue_url}
+                </a>
+              </div>
+            ) : (
+              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: '#ef4444' }}>
+                ✗ Failed: {githubResult.error}
+              </div>
+            )}
+          </div>
         )}
       </window.Card>
     </div>
