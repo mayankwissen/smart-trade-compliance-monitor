@@ -753,8 +753,12 @@ def generate_str(alert_id):
 
         # Calculate total and suspicious transaction values
         total_value_inr = sum(int(t.get("order_size", 0)) * float(t.get("price", 0)) for t in trades)
-        suspicious_trades = [t for t in trades if t.get("order_status") == "CANCELLED" and int(t.get("cancel_time_ms", 0)) < 600]
-        suspicious_value_inr = sum(int(t.get("order_size", 0)) * float(t.get("price", 0)) for t in suspicious_trades)
+        pattern_type = alert.get("pattern_type", "")
+        if pattern_type in ("WASH_TRADING", "PUMP_AND_DUMP"):
+            suspicious_value_inr = total_value_inr
+        else:
+            suspicious_trades = [t for t in trades if t.get("order_status") == "CANCELLED" and int(t.get("cancel_time_ms", 0)) < 600]
+            suspicious_value_inr = sum(int(t.get("order_size", 0)) * float(t.get("price", 0)) for t in suspicious_trades)
 
         # Reporting period
         if trades:
