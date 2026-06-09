@@ -91,6 +91,13 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
   const [xaiData, setXaiData]           = _aduseS(null);
   const [xaiLoading, setXaiLoading]     = _aduseS(false);
 
+  // Crime Scene Replay state — MUST be at top level, never inside conditional
+  const [playing, setPlaying]         = _aduseS(false);
+  const [currentStep, setCurrentStep] = _aduseS(-1);
+  const [replaySpeed, setReplaySpeed] = _aduseS(1);
+  const [crimeLog, setCrimeLog]       = _aduseS([]);
+  const intervalRef                   = React.useRef(null);
+
   const load = _aduseC(async () => {
     try {
       const d = await fetch(`${window.API_BASE}/api/alert/${alertId}/full`).then(r => r.json());
@@ -107,6 +114,37 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
     setDeepDive(null); setDeepError(null);
     load();
   }, [load]);
+
+  // Cleanup replay interval on unmount
+  _aduseE(() => { return () => { if (intervalRef.current) clearInterval(intervalRef.current); }; }, []);
+
+  const stopPlay = () => {
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+    setPlaying(false);
+  };
+  const resetPlay = () => { stopPlay(); setCurrentStep(-1); setCrimeLog([]); };
+  const startPlay = (tradesToPlay) => {
+    if (!tradesToPlay || tradesToPlay.length === 0) return;
+    setCurrentStep(0); setCrimeLog([]); setPlaying(true);
+    let step = 0;
+    intervalRef.current = setInterval(() => {
+      step += 1;
+      if (step >= tradesToPlay.length) {
+        clearInterval(intervalRef.current); intervalRef.current = null;
+        setPlaying(false); return;
+      }
+      setCurrentStep(step);
+      const tr = tradesToPlay[step];
+      const ts = (tr.timestamp || '').slice(11, 19);
+      if (tr.order_status === 'CANCELLED') {
+        setCrimeLog(l => [...l, { ts, msg: `ORDER CANCELLED after ${tr.cancel_time_ms}ms — ${tr.cancel_time_ms < 600 ? '⚠ SUSPICIOUS' : 'normal'}`, color: '#ef4444' }]);
+      } else if (tr.order_type === 'BUY') {
+        setCrimeLog(l => [...l, { ts, msg: `BUY order placed: ${tr.order_size?.toLocaleString()} shares @ ₹${parseFloat(tr.price).toFixed(2)}`, color: '#22c55e' }]);
+      } else {
+        setCrimeLog(l => [...l, { ts, msg: `SELL executed: ${tr.order_size?.toLocaleString()} shares @ ₹${parseFloat(tr.price).toFixed(2)}`, color: '#f59e0b' }]);
+      }
+    }, Math.round(1000 / replaySpeed));
+  };
 
   const doTriage = async () => {
     setTriaging(true);
@@ -639,67 +677,19 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
 
           {/* ── TAB 4: TIMELINE (Crime Scene Replay) ── */}
           {tab === 'timeline' && (() => {
-            const [playing, setPlaying] = _aduseS(false);
-            const [currentStep, setCurrentStep] = _aduseS(-1);
-            const [speed, setSpeed] = _aduseS(1);
-            const [log, setLog] = _aduseS([]);
-            const intervalRef = React.useRef(null);
-
-            const stopPlay = () => {
-              if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
-              setPlaying(false);
-            };
-
-            const resetPlay = () => {
-              stopPlay();
-              setCurrentStep(-1);
-              setLog([]);
-            };
-
-            const startPlay = () => {
-              if (!trades || trades.length === 0) return;
-              setCurrentStep(0);
-              setLog([]);
-              setPlaying(true);
-              let step = 0;
-              intervalRef.current = setInterval(() => {
-                step += 1;
-                if (step >= trades.length) {
-                  clearInterval(intervalRef.current);
-                  intervalRef.current = null;
-                  setPlaying(false);
-                  return;
-                }
-                setCurrentStep(step);
-                const tr = trades[step];
-                const ts = (tr.timestamp || '').slice(11, 19);
-                if (tr.order_status === 'CANCELLED') {
-                  setLog(l => [...l, { ts, msg: `ORDER CANCELLED after ${tr.cancel_time_ms}ms — ${tr.cancel_time_ms < 600 ? '⚠ SUSPICIOUS' : 'normal'}`, color: '#ef4444' }]);
-                } else if (tr.order_type === 'BUY') {
-                  setLog(l => [...l, { ts, msg: `BUY order placed: ${tr.order_size?.toLocaleString()} shares @ ₹${parseFloat(tr.price).toFixed(2)}`, color: '#22c55e' }]);
-                } else {
-                  setLog(l => [...l, { ts, msg: `SELL executed: ${tr.order_size?.toLocaleString()} shares @ ₹${parseFloat(tr.price).toFixed(2)}`, color: '#f59e0b' }]);
-                }
-              }, Math.round(1000 / speed));
-            };
-
-            React.useEffect(() => { return () => stopPlay(); }, []);
-
             const displayTrades = trades || [];
             const maxSize = Math.max(...displayTrades.map(tr => tr.order_size || 0), 1);
-
             const totalCancelled = displayTrades.filter(tr => tr.order_status === 'CANCELLED').length;
             const fastCancel = displayTrades.filter(tr => tr.order_status === 'CANCELLED' && tr.cancel_time_ms > 0 && tr.cancel_time_ms < 600).length;
             const prices = displayTrades.map(tr => parseFloat(tr.price) || 0).filter(p => p > 0);
             const priceMove = prices.length > 1 ? ((Math.max(...prices) - Math.min(...prices)) / Math.min(...prices) * 100).toFixed(2) : '0.00';
             const totalValue = displayTrades.reduce((s, tr) => s + (tr.order_size || 0) * (parseFloat(tr.price) || 0), 0);
-
             return (
               <div>
                 {/* Controls */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
                   <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, color: t.text, marginRight: 4 }}>Crime Scene Replay</span>
-                  <button onClick={playing ? stopPlay : startPlay}
+                  <button onClick={playing ? stopPlay : () => startPlay(displayTrades)}
                     style={{ background: playing ? '#ef4444' : t.gold, color: '#000', border: 'none', borderRadius: 6, padding: '6px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'Inter',sans-serif" }}>
                     {playing ? '⏸ Pause' : '▶ Play Investigation'}
                   </button>
@@ -709,8 +699,8 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                   </button>
                   <span style={{ fontSize: 11, color: t.textMuted, fontFamily: "'Inter',sans-serif", marginLeft: 4 }}>Speed:</span>
                   {[0.5, 1, 2, 3].map(s => (
-                    <button key={s} onClick={() => setSpeed(s)}
-                      style={{ background: speed === s ? t.gold + '22' : 'transparent', border: `1px solid ${speed === s ? t.gold : t.border}`, color: speed === s ? t.gold : t.textSec, borderRadius: 4, padding: '3px 8px', fontSize: 11, cursor: 'pointer', fontFamily: "'JetBrains Mono',monospace" }}>
+                    <button key={s} onClick={() => setReplaySpeed(s)}
+                      style={{ background: replaySpeed === s ? t.gold + '22' : 'transparent', border: `1px solid ${replaySpeed === s ? t.gold : t.border}`, color: replaySpeed === s ? t.gold : t.textSec, borderRadius: 4, padding: '3px 8px', fontSize: 11, cursor: 'pointer', fontFamily: "'JetBrains Mono',monospace" }}>
                       {s}x
                     </button>
                   ))}
@@ -729,7 +719,6 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                       const isActive = i <= currentStep;
                       const isCurrent = i === currentStep;
                       const isCan = tr.order_status === 'CANCELLED';
-                      const isExe = tr.order_status === 'EXECUTED';
                       let barColor = isCan ? '#f59e0b' : tr.order_type === 'BUY' ? '#22c55e' : '#ef4444';
                       if (isCan && isActive && !isCurrent) barColor = '#374151';
                       const opacity = currentStep === -1 ? 1 : isActive ? 1 : 0.25;
@@ -755,10 +744,10 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                 {/* Crime Timeline log */}
                 <div style={{ background: '#0a0f1c', border: `1px solid ${t.border}`, borderRadius: 8, padding: '10px 14px', marginBottom: 14, minHeight: 80, maxHeight: 160, overflowY: 'auto' }}>
                   <div style={{ fontSize: 10, color: t.textMuted, fontFamily: "'Inter',sans-serif", fontWeight: 700, letterSpacing: '.1em', marginBottom: 8, textTransform: 'uppercase' }}>Crime Timeline</div>
-                  {log.length === 0 && (
+                  {crimeLog.length === 0 && (
                     <div style={{ color: '#525252', fontSize: 12, fontFamily: "'Inter',sans-serif" }}>Press ▶ Play to start animated replay...</div>
                   )}
-                  {log.map((entry, i) => (
+                  {crimeLog.map((entry, i) => (
                     <div key={i} style={{ display: 'flex', gap: 10, fontSize: 11, fontFamily: "'JetBrains Mono',monospace", marginBottom: 3 }}>
                       <span style={{ color: '#525252', flexShrink: 0 }}>{entry.ts}</span>
                       <span style={{ color: entry.color }}>{entry.msg}</span>
@@ -771,12 +760,12 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                   <div style={{ fontSize: 10, color: t.gold, fontFamily: "'Inter',sans-serif", fontWeight: 700, letterSpacing: '.15em', marginBottom: 12, textTransform: 'uppercase' }}>Investigation Summary</div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10 }}>
                     {[
-                      ['Total Orders',       displayTrades.length,    t.text],
-                      ['Cancelled Orders',   totalCancelled,           t.warning],
-                      ['Fast Cancels <600ms',fastCancel,               fastCancel > 0 ? t.danger : t.success],
-                      ['Price Impact',       `+${priceMove}%`,         t.info],
-                      ['Total Value',        `₹${(totalValue/1e7).toFixed(2)}Cr`, t.gold],
-                      ['SEBI Violation',     'Reg 4(2)(a)',             '#a855f7'],
+                      ['Total Orders',        displayTrades.length,                       t.text],
+                      ['Cancelled Orders',    totalCancelled,                              t.warning],
+                      ['Fast Cancels <600ms', fastCancel,                                  fastCancel > 0 ? t.danger : t.success],
+                      ['Price Impact',        `+${priceMove}%`,                            t.info],
+                      ['Total Value',         `₹${(totalValue/1e7).toFixed(2)}Cr`,         t.gold],
+                      ['SEBI Violation',      'Reg 4(2)(a)',                               '#a855f7'],
                     ].map(([k, v, c]) => (
                       <div key={k} style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 6, padding: '8px 12px' }}>
                         <div style={{ fontSize: 10, color: t.textMuted, fontFamily: "'Inter',sans-serif", fontWeight: 700, letterSpacing: '.08em', marginBottom: 3 }}>{k}</div>
