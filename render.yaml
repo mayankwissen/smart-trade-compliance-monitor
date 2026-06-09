@@ -14,5 +14,25 @@ services:
         sync: false
       - key: EMAIL_PASSWORD
         sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
       - key: PYTHON_VERSION
         value: 3.11.0
+
+  - type: static
+    name: trade-surveillance-ui
+    rootDir: frontend
+    buildCommand: ""
+    staticPublishPath: .
+    headers:
+      - path: "/*.js"
+        name: Cache-Control
+        value: no-cache, no-store, must-revalidate
+      - path: "/*.css"
+        name: Cache-Control
+        value: no-cache, no-store, must-revalidate
+      - path: "/*.html"
+        name: Cache-Control
+        value: no-cache, no-store, must-revalidate

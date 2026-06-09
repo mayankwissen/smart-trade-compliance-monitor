@@ -11,27 +11,21 @@ Built for Wissen Technology Hackathon 2026.
 - **Triage AI**: `claude-sonnet-4-6` (hardcoded in `backend/triage.py`)
 - **Claude Code session**: Sonnet 4.6 (default) — change with `/model` in the CLI
 
-## Current Status — as of 2026-06-09 (FINAL BUILD)
-- **Backend**: Flask + SQLite, 26 endpoints, all working, no Pylance errors
-- **Frontend**: Multi-file React 18, 8 pages (+ NETWORK graph), gold/black Bloomberg theme, fully restructured
+## Current Status — as of 2026-06-10 (FINAL + POLISHED)
+- **Backend**: Flask + SQLite (WAL mode), 28 endpoints, all working, no Pylance errors
+- **Frontend**: Multi-file React 18, 8 pages (+ NETWORK graph), gold/black Bloomberg theme
 - **Triage**: Claude Sonnet CCO persona, 8-field SEBI-quality JSON, model: claude-sonnet-4-6
 - **Layout**: Fixed sidebar + header, per-page scrolling, works at 100% zoom
-- **Refresh button**: One click does refresh-data → replay/start → updates state (no reload)
-- **Demo Mode button**: Full auto-demo in one click (refresh → detect → triage first HIGH alert)
-- **Reset Demo button**: Fresh trades + wipe alerts/triage/escalations
-- **Timestamps**: Dynamic — always uses last 3 real trading days (Mon–Fri)
-- **7 traders**: 4 genuine (ESCALATE) + 3 borderline (DISMISS) — T-0501/T-0502/T-0503
-- **Token usage bar**: Live AI usage shown in Dashboard (calls, tokens, cost)
-- **CORS**: Explicit origins for Render frontend + localhost
-- **Deployment**: Backend on Render, frontend on Render Static
-- **STR Generator**: /api/generate-str/:id returns print-ready FIU-IND filing HTML
-- **Trade Timeline**: 4th tab in AlertDetail — Chart.js bar chart of order flow
-- **Trader Profile**: /trader/:id page — risk score, pattern breakdown, alert history
-- **Market Impact**: /api/market-impact/:id — price movement + financial harm estimate
-- **AI Chat Widget**: 💬 floating button on Dashboard, Claude-powered Q&A on live DB data
-- **Voice Commands**: 🎤 button in Header, 16 commands via Web Speech API (Chrome/Edge)
-- **Leaderboard**: /api/leaderboard — top suspects ranked by criticality + risk score
-- **Alert Correlation**: Dashboard panel groups alerts within 10-minute windows
+- **Live Clock**: Ticking HH:MM:SS in header bar
+- **Sidebar**: Brighter labels (#808080) with hover/active glow
+- **Trades autoscroll**: "Live Feed" toggle scrolls table at mid speed like a trading terminal
+- **Network Graph**: Freeze/Animate, Fit view, click-to-inspect node panel, pulsing suspicious nodes
+- **Voice TTS**: 🔊/🔇 toggle in chat widget, per-message speak button, auto-reads AI replies
+- **GitHub Auto-Issue**: 500 errors auto-create GitHub issues; test button in Config page
+- **Chatbot**: Full TECHNICAL_GUIDE knowledge base injected — answers judge questions about math
+- **Deployment**: render.yaml now includes BOTH backend web service AND frontend static site
+- **SESSION field**: AlertDetail now shows session_id from trades (was always blank "—")
+- **Cache-Control**: frontend JS/CSS/HTML served with no-cache headers for instant updates
 
 ## How to run locally
 
@@ -215,10 +209,12 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 | `/api/subscribe` | POST | Subscribe email to alerts |
 | `/api/reset` | POST | Delete alerts + triage + escalations (keep trades) |
 | `/api/leaderboard` | GET | Top suspects ranked by criticality + risk score |
-| `/api/chat` | POST | Claude-powered Q&A on live surveillance data |
+| `/api/chat` | POST | Claude-powered Q&A — includes TECHNICAL_GUIDE knowledge base |
 | `/api/ping` | GET | Keep-alive for Render free tier |
 | `/api/network-graph` | GET | Trader network nodes, edges, clusters, circular patterns |
 | `/api/verify-evidence/<id>` | GET | XAI claim verification — math checks Claude's rationale |
+| `/api/github/status` | GET | GitHub token configured, repo name, cooldown settings |
+| `/api/github/test-issue` | POST | Create a real test GitHub issue (bypasses cooldown) |
 
 ## Claude AI Triage
 
@@ -258,6 +254,24 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 | Voice command stale closure — `handleCommandRef` updated each render, `onresult` calls ref | ✅ |
 | Voice mic-denied — toast error messages for `not-allowed` and `no-speech` events | ✅ |
 | `/api/leaderboard` added — was 404, now returns ranked suspects with risk score | ✅ |
+
+## Polish & Production Hardening (2026-06-10)
+
+| Feature | Status |
+|---------|--------|
+| SQLite WAL mode — permanent fix for "database is locked" under concurrent threads | ✅ |
+| Live clock (HH:MM:SS) in header bar | ✅ |
+| Sidebar labels visible in dark mode — #808080 + hover glow + active golden glow | ✅ |
+| SESSION field in AlertDetail — derives from trades[0].session_id (was always blank) | ✅ |
+| Trade Explorer Live Feed autoscroll toggle (mid-speed, loops) | ✅ |
+| Network Graph: Freeze/Animate, Fit button, click-inspect panel, pulsing red nodes | ✅ |
+| Voice TTS in chat widget — 🔊/🔇 toggle + per-message speak + auto-read new replies | ✅ |
+| GitHub Auto-Issue on 500 errors — background thread, 5-min cooldown | ✅ |
+| /api/github/status + /api/github/test-issue — visible in Config page | ✅ |
+| /api/chat knowledge base — TECHNICAL_GUIDE injected for judge Q&A | ✅ |
+| render.yaml — added frontend static site service (auto-deploy on git push) | ✅ |
+| Cache-Control: no-cache on all frontend JS/CSS/HTML | ✅ |
+| TECHNICAL_GUIDE.md — 18-section 1550-line study document | ✅ |
 
 ## Final Build Additions (2026-06-09 — Presentation Day)
 
@@ -368,14 +382,23 @@ Render wipes SQLite on every deploy. Before judges see the app, always run:
 4. Triage all alerts (or click **Demo Mode** — does all 3 steps automatically)
 5. Show T-0501/T-0502/T-0503 DISMISS verdicts — "FALSE POSITIVE SUPPRESSED" green badge
 
-## Production Status — as of 2026-06-07
+## Production Status — as of 2026-06-10
 
 - [x] Frontend deployed → https://smart-trade-compliance-monitor-1.onrender.com
 - [x] Backend deployed → https://smart-trade-compliance-monitor.onrender.com
 - [x] ANTHROPIC_API_KEY set in Render env vars
+- [x] GITHUB_TOKEN set in Render env vars
 - [x] Slack webhook configured
-- [x] All 24 endpoints verified working (including new /api/leaderboard, /api/chat)
+- [x] SendGrid API key configured
+- [x] All 28 endpoints verified working
 - [x] Case Report returns HTML (not JSON) — print/PDF ready for judges
-- [x] AI Chat Widget working — portal render, z-index clear, Claude responding
+- [x] AI Chat Widget working — full TECHNICAL_GUIDE knowledge base included
 - [x] Voice Commands working — 16 commands, stale-closure fix applied
-- [ ] Full demo rehearsal with fresh Render deploy before judging
+- [x] Voice TTS in chatbot — 🔊/🔇 toggle, per-message speak button
+- [x] GitHub Auto-Issue — 500 errors create issues; test button in Config page
+- [x] SQLite WAL mode — no more "database is locked" errors
+- [x] render.yaml includes BOTH backend + frontend static site (auto-deploy on git push)
+- [x] Live clock in header, sidebar labels visible, SESSION field fixed in AlertDetail
+- [x] Trade Explorer Live Feed autoscroll added
+- [x] Network Graph: Freeze, Fit, node inspect, pulsing suspicious nodes
+- [x] TECHNICAL_GUIDE.md — 18-section judge study guide (1550 lines)

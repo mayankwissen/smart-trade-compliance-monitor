@@ -22,9 +22,11 @@ An end-to-end AI compliance pipeline that:
 2. **Triages** each alert using Claude Sonnet acting as an NSE Chief Compliance Officer
 3. **Acts** automatically — opens compliance case, notifies Slack, emails the team, flags watchlist
 4. **Explains** — generates FIU-IND ready STR filing, trade timeline visualization, trader risk profile
-5. **Visualizes** — cartel network graph detects coordinated multi-trader manipulation with vis.js
+5. **Visualizes** — cartel network graph with pulsing suspicious nodes, freeze/animate, click-to-inspect
 6. **Replays** — animated crime scene replay shows millisecond-by-millisecond manipulation sequence
 7. **Verifies** — XAI Truth Anchors mathematically verify every Claude claim against raw DB data
+8. **Speaks** — AI chat assistant with voice TTS toggle; reads responses aloud on demand
+9. **Self-heals** — auto-raises a GitHub issue when the backend returns a 500 error (5-minute cooldown)
 
 The AI doesn't just say "suspicious" — it produces an 8-field SEBI-quality verdict with
 confidence score, rationale citing specific trade statistics, plain-English explanation for
@@ -115,6 +117,13 @@ NSE compliance officers spend 2–3 hours drafting Suspicious Transaction Report
 The system generates a pre-filled, print-ready FIU-IND STR from the AI verdict in one click.
 This alone reduces per-case time from hours to seconds.
 
+### Why WAL Journal Mode?
+
+SQLite defaults to DELETE journal mode, which requires an exclusive write lock — causing
+`database is locked` errors under concurrent gunicorn threads. WAL (Write-Ahead Logging)
+allows simultaneous reads and one writer. Reads never block. Set once in `init_db()`,
+persists to the database file permanently.
+
 ---
 
 ## Suspicious Clusters in the Data
@@ -175,8 +184,10 @@ python -m http.server 3000       # → http://localhost:3000
 | GET | `/api/correlated-alerts` | Alerts grouped by 10-minute windows (coordinated manipulation) |
 | POST | `/api/subscribe` | Subscribe email to alert notifications |
 | GET | `/api/leaderboard` | Top suspects — traders ranked by alert count, criticality, risk score |
-| POST | `/api/chat` | AI chat assistant — natural-language Q&A about live surveillance data |
+| POST | `/api/chat` | AI chat assistant — natural-language Q&A + full TECHNICAL_GUIDE knowledge base |
 | GET | `/api/health` | Service health + trade count |
+| GET | `/api/github/status` | GitHub auto-issue config — token status, repo, cooldown |
+| POST | `/api/github/test-issue` | Fire a test GitHub issue immediately (bypasses 5-min cooldown) |
 
 ---
 
@@ -187,6 +198,7 @@ ANTHROPIC_API_KEY=sk-ant-...       # Required — Claude triage + AI chat
 SLACK_WEBHOOK_URL=https://...      # Optional — Slack notifications
 EMAIL_SENDER=you@gmail.com         # Optional — verified sender address for SendGrid
 SENDGRID_API_KEY=SG.xxx...         # Optional — SendGrid HTTP API (SMTP blocked on Render)
+GITHUB_TOKEN=ghp_xxx...            # Optional — auto-raise issues on backend 500 errors
 ENVIRONMENT=production             # Required on Render — disables background agent thread
 PORT=5000                          # Optional — defaults to 5000
 ```
@@ -222,9 +234,10 @@ If `ready` is `false`, hit `POST /api/replay/start` once.
 
 1. Push to GitHub
 2. Render → New → Blueprint → connect repo (reads `render.yaml` automatically)
-3. Set `ANTHROPIC_API_KEY` in Render env vars
+   - Creates **two services**: backend Python web service + frontend static site
+3. Set `ANTHROPIC_API_KEY` (required) and `GITHUB_TOKEN` (optional) in Render env vars
 4. Backend live at `https://your-service.onrender.com`
-5. Deploy `frontend/` as Render Static Site — serves `index.html` (landing) and `app.html` (dashboard) directly
+5. Frontend served as Render Static Site with `no-cache` headers on all JS/CSS/HTML
 
 ---
 
@@ -238,18 +251,29 @@ If `ready` is `false`, hit `POST /api/replay/start` once.
 | Cost per call | ~$0.00014 |
 | Token reduction vs naive | 97% |
 | Full pipeline (refresh → detect → triage) | < 15 seconds |
-| API endpoints | 24 |
-| Frontend pages | 7 (Dashboard, Alerts, Alert Detail, Trader Profile, Trades, Logs, Settings) |
+| API endpoints | 26 |
+| Frontend pages | 8 (Dashboard, Alerts, Alert Detail, Trader Profile, Trades, Network Graph, Logs, Settings) |
 
 ---
 
 ## Tech Stack
 
-- **AI**: Claude Sonnet (`claude-sonnet-4-6`) — CCO persona, SEBI domain expert
-- **Backend**: Python 3.12, Flask, SQLite, gunicorn
+- **AI**: Claude Sonnet (`claude-sonnet-4-6`) — CCO persona, SEBI domain expert + judge Q&A knowledge base
+- **Backend**: Python 3.12, Flask, SQLite (WAL mode), gunicorn
 - **Market Data**: yfinance (live NSE prices, no API key required)
-- **Frontend**: React 18 via CDN, Babel Standalone, Chart.js 4.4
-- **Notifications**: Slack Webhooks, SendGrid email
+- **Frontend**: React 18 via CDN, Babel Standalone, Chart.js 4.4, vis.js (network graph)
+- **Notifications**: Slack Webhooks, SendGrid email, GitHub Issues (auto-raise on 500)
+- **Voice**: Web Speech API — TTS for AI chat responses (toggle on/off per message)
 - **Voice Commands**: Web Speech API — 16 navigation + action commands (Chrome/Edge)
-- **AI Chat**: Claude Sonnet-powered natural-language assistant on the Dashboard
-- **Deployment**: Render (backend + frontend static)
+- **AI Chat**: Claude Sonnet-powered assistant with full TECHNICAL_GUIDE knowledge base
+- **Deployment**: Render (backend Python web service + frontend static site via `render.yaml`)
+
+---
+
+## Documentation
+
+| File | Contents |
+|------|----------|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Full system design, data flow, component diagrams |
+| [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md) | 18-section deep-dive: math formulas, all patterns, XAI, judge Q&A, demo flow |
+| [CLAUDE.md](CLAUDE.md) | Development context, feature changelog, production status |
