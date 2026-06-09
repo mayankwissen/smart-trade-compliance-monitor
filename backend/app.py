@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import os
 import uuid
 import json
+import logging
 from datetime import datetime, timezone
 
 load_dotenv()
@@ -65,7 +66,11 @@ with app.app_context():
     except Exception as _e:
         app.logger.error(f"Startup auto-detection failed: {_e}")
 
-start_agent()
+if os.getenv('ENVIRONMENT') != 'production':
+    start_agent()
+    logging.info("Agent started (local mode)")
+else:
+    logging.info("Agent disabled in production (SQLite concurrency limit)")
 
 
 # ── Health / Ping ─────────────────────────────────────────────────────────────
@@ -485,6 +490,19 @@ def reset_demo():
     conn.commit()
     conn.close()
     return jsonify({"status": "reset", "message": "Demo reset complete. Ready for fresh run."})
+
+
+@app.route("/api/db/reset", methods=["POST"])
+def reset_database():
+    try:
+        db_path = os.path.join(os.path.dirname(__file__), "surveillance.db")
+        if os.path.exists(db_path):
+            os.remove(db_path)
+        init_db()
+        seed_from_csv()
+        return jsonify({"status": "ok", "message": "Database recreated fresh"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 # ── Subscribers ───────────────────────────────────────────────────────────────

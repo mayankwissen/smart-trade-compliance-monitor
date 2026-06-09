@@ -8,9 +8,40 @@ CSV_PATH = os.path.join(os.path.dirname(__file__), "data", "trades_sample.csv")
 
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        conn.execute("SELECT 1")
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+        except Exception:
+            pass
+        conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute("PRAGMA synchronous=NORMAL")
+        return conn
+    except sqlite3.DatabaseError as e:
+        if "malformed" in str(e) or "corrupt" in str(e):
+            logging.error(f"Database corrupted, deleting and recreating: {e}")
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            if os.path.exists(DB_PATH):
+                os.remove(DB_PATH)
+            init_db()
+            seed_from_csv()
+            fresh = sqlite3.connect(DB_PATH)
+            fresh.row_factory = sqlite3.Row
+            try:
+                fresh.execute("PRAGMA journal_mode=WAL")
+            except Exception:
+                pass
+            fresh.execute("PRAGMA busy_timeout=5000")
+            fresh.execute("PRAGMA synchronous=NORMAL")
+            return fresh
+        raise
 
 
 def init_db():
