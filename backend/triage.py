@@ -28,8 +28,8 @@ def _parse_claude_json(raw):
     if first != -1 and last != -1 and last > first:
         raw = raw[first:last + 1]
     try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
+        return json.loads(raw, strict=False)
+    except Exception as parse_err:
         # Escape raw newlines/tabs/carriage returns that appear inside string
         # literals — walk the string tracking whether we're inside quotes.
         out = []
@@ -58,7 +58,12 @@ def _parse_claude_json(raw):
                 out.append("\\t")
                 continue
             out.append(ch)
-        return json.loads("".join(out))
+        
+        try:
+            return json.loads("".join(out), strict=False)
+        except Exception as e:
+            # Re-raise with the actual string and exception to help debug unescaped quotes
+            raise ValueError(f"JSON Parse Error: {e} | Original Error: {parse_err} | Raw string: {raw}")
 
 SYSTEM_PROMPT = """You are a Chief Compliance Officer at NSE (National Stock \
 Exchange of India) with 20 years of experience in market \
@@ -333,7 +338,7 @@ Provide a comprehensive JSON investigation report with EXACTLY these 8 keys:
   "sebi_prosecution_likelihood": "Probability of successful prosecution as percentage, what additional evidence is needed"
 }}
 
-Respond ONLY with valid JSON. No text outside the JSON."""
+Respond ONLY with valid JSON. No text outside the JSON. All string values MUST have their internal double quotes properly escaped (e.g. \\"). Do NOT use unescaped newlines inside strings (use \\n)."""
 
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
     response = client.messages.create(
