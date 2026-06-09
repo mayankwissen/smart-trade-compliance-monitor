@@ -2,11 +2,63 @@ import anthropic
 from anthropic.types import TextBlock
 import os
 import json
+import re
 import uuid
 import time
 import logging
 from datetime import datetime, timezone
 from database import get_db
+
+
+def _parse_claude_json(raw):
+    """Robustly parse JSON from Claude, handling code fences and literal
+    newlines inside string values (which break strict json.loads)."""
+    raw = raw.strip()
+    # Strip code fences
+    if raw.startswith("```"):
+        parts = raw.split("```")
+        if len(parts) >= 2:
+            raw = parts[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    raw = raw.strip()
+    # Extract the outermost JSON object if extra prose surrounds it
+    first = raw.find("{")
+    last = raw.rfind("}")
+    if first != -1 and last != -1 and last > first:
+        raw = raw[first:last + 1]
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        # Escape raw newlines/tabs/carriage returns that appear inside string
+        # literals — walk the string tracking whether we're inside quotes.
+        out = []
+        in_str = False
+        escaped = False
+        for ch in raw:
+            if escaped:
+                out.append(ch)
+                escaped = False
+                continue
+            if ch == "\\":
+                out.append(ch)
+                escaped = True
+                continue
+            if ch == '"':
+                in_str = not in_str
+                out.append(ch)
+                continue
+            if in_str and ch == "\n":
+                out.append("\\n")
+                continue
+            if in_str and ch == "\r":
+                out.append("\\r")
+                continue
+            if in_str and ch == "\t":
+                out.append("\\t")
+                continue
+            out.append(ch)
+        return json.loads("".join(out))
 
 SYSTEM_PROMPT = """You are a Chief Compliance Officer at NSE (National Stock \
 Exchange of India) with 20 years of experience in market \
@@ -103,12 +155,8 @@ def triage_alert(alert):
     if not isinstance(block, TextBlock):
         raise ValueError(f"Claude returned unexpected content type: {type(block)}")
     raw = block.text.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
     try:
-        result = json.loads(raw.strip())
+        result = _parse_claude_json(raw)
     except json.JSONDecodeError as e:
         logging.error(f"Claude returned non-JSON for {alert['alert_id']}: {raw[:300]}")
         raise ValueError(f"AI returned invalid JSON: {e}")
@@ -217,11 +265,7 @@ def retriage_with_feedback(alert, existing_triage, feedback_data):
     if not isinstance(block, TextBlock):
         raise ValueError(f"Unexpected content type: {type(block)}")
     raw = block.text.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    result = json.loads(raw.strip())
+    result = _parse_claude_json(raw)
 
     if not result.get('regulatory_reference'):
         result['regulatory_reference'] = _REGULATORY_DEFAULTS.get(
@@ -303,10 +347,6 @@ Respond ONLY with valid JSON. No text outside the JSON."""
     if not isinstance(block, TextBlock):
         raise ValueError(f"Unexpected content type: {type(block)}")
     raw = block.text.strip()
-    if raw.startswith("```"):
-        raw = raw.split("```")[1]
-        if raw.startswith("json"):
-            raw = raw[4:]
-    result = json.loads(raw.strip())
+    result = _parse_claude_json(raw)
     result["tokens_used"] = response.usage.input_tokens + response.usage.output_tokens
     return result
