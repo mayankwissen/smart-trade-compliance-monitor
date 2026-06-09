@@ -11,9 +11,11 @@ window.SettingsPage = function SettingsPage() {
   const [feedbackStats, setFeedbackStats]   = _suseS(null);
 
   // GitHub integration state
-  const [githubStatus, setGithubStatus]   = _suseS(null);
-  const [githubTesting, setGithubTesting] = _suseS(false);
-  const [githubResult, setGithubResult]   = _suseS(null);
+  const [githubStatus, setGithubStatus]     = _suseS(null);
+  const [githubTesting, setGithubTesting]   = _suseS(false);
+  const [githubResult, setGithubResult]     = _suseS(null);
+  const [githubPrTesting, setGithubPrTesting] = _suseS(false);
+  const [githubPrResult, setGithubPrResult]   = _suseS(null);
 
   const loadGithubStatus = _suseC(async () => {
     try {
@@ -32,6 +34,18 @@ window.SettingsPage = function SettingsPage() {
       setGithubResult({ success: false, error: String(e) });
     }
     setGithubTesting(false);
+  };
+
+  const createGithubPR = async () => {
+    setGithubPrTesting(true);
+    setGithubPrResult(null);
+    try {
+      const d = await fetch(`${window.API_BASE}/api/github/create-pr`, { method: 'POST' }).then(r => r.json());
+      setGithubPrResult(d);
+    } catch (e) {
+      setGithubPrResult({ success: false, error: String(e) });
+    }
+    setGithubPrTesting(false);
   };
 
   _suseE(() => { loadGithubStatus(); }, [loadGithubStatus]);
@@ -258,22 +272,23 @@ window.SettingsPage = function SettingsPage() {
         )}
       </window.Card>
 
-      {/* GitHub Auto-Issue Monitor */}
+      {/* GitHub Self-Healing Monitor */}
       <window.Card style={{ marginTop: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 18 }}>🐙</span>
-            <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 15, color: t.text }}>GitHub Auto-Issue Monitor</div>
+            <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 15, color: t.text }}>GitHub Self-Healing Monitor</div>
           </div>
           <window.Btn small variant="outline" onClick={loadGithubStatus}>Refresh</window.Btn>
         </div>
 
-        {/* Status row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, marginBottom: 14 }}>
+        {/* Status row — 4 tiles */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 14 }}>
           {[
-            ['Token Configured', githubStatus?.configured ? '✓ YES' : '✗ NO', githubStatus?.configured ? t.success : t.danger],
-            ['Repository',       githubStatus?.repo || '…', t.info],
-            ['Auto-Issue on 500','Always Active', t.warning],
+            ['Token',          githubStatus?.configured ? '✓ SET' : '✗ MISSING', githubStatus?.configured ? t.success : t.danger],
+            ['Repository',     githubStatus?.repo ? githubStatus.repo.split('/')[1] : '…', t.info],
+            ['Auto-Issue',     'On 500 error', t.warning],
+            ['Auto-PR',        'On 500 error', '#a78bfa'],
           ].map(([k, v, c]) => (
             <div key={k} style={{ background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, padding: '10px 14px' }}>
               <div style={{ fontSize: 10, color: t.textMuted, fontFamily: "'Inter',sans-serif", fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 4 }}>{k}</div>
@@ -285,42 +300,63 @@ window.SettingsPage = function SettingsPage() {
         {/* How it works */}
         <div style={{ padding: '10px 14px', background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, marginBottom: 14 }}>
           <div style={{ fontSize: 11, color: t.textMuted, fontFamily: "'Inter',sans-serif", lineHeight: 1.7 }}>
-            <strong style={{ color: t.textSec }}>How it works:</strong> When any backend endpoint crashes with a 500 error, a GitHub Issue is automatically created in <code style={{ background: '#1a1a1a', padding: '1px 5px', borderRadius: 3, color: t.gold }}>{githubStatus?.repo}</code> with the endpoint, error message, and timestamp. 5-minute cooldown prevents spam.
+            <strong style={{ color: t.textSec }}>How it works:</strong> When a 500 error occurs, the system fires two actions in parallel:
+            {' '}<strong style={{ color: t.warning }}>① Issue</strong> — bug report with endpoint + error details (5-min cooldown).
+            {' '}<strong style={{ color: '#a78bfa' }}>② PR stub</strong> — creates branch <code style={{ background: '#1a1a1a', padding: '1px 4px', borderRadius: 3, color: t.gold }}>auto-incident/…</code>, commits an incident report file, opens a pull request against <code style={{ background: '#1a1a1a', padding: '1px 4px', borderRadius: 3, color: t.gold }}>main</code> for a human to review and push a fix.
           </div>
         </div>
 
-        {/* Test button */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        {/* Two test buttons side by side */}
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
+          {/* Issue button */}
           <button
             onClick={testGithubIssue}
             disabled={githubTesting || !githubStatus?.configured}
             style={{
-              background: githubTesting ? '#1a1a1a' : '#f0b42922',
+              background: githubTesting ? '#1a1a1a' : '#f0b42914',
               border: `1px solid ${!githubStatus?.configured ? t.border : '#f0b429'}`,
               color: !githubStatus?.configured ? t.textMuted : '#f0b429',
-              borderRadius: 6, padding: '7px 16px', cursor: githubStatus?.configured ? 'pointer' : 'not-allowed',
+              borderRadius: 6, padding: '7px 16px',
+              cursor: githubStatus?.configured ? 'pointer' : 'not-allowed',
               fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12,
               display: 'flex', alignItems: 'center', gap: 6, transition: 'all .15s',
             }}>
-            {githubTesting ? '⏳ Creating issue…' : '🐙 Test: Create GitHub Issue'}
+            {githubTesting ? '⏳ Creating…' : '🐙 Test Issue'}
           </button>
+
+          {/* PR button */}
+          <button
+            onClick={createGithubPR}
+            disabled={githubPrTesting || !githubStatus?.configured}
+            style={{
+              background: githubPrTesting ? '#1a1a1a' : '#a78bfa14',
+              border: `1px solid ${!githubStatus?.configured ? t.border : '#a78bfa'}`,
+              color: !githubStatus?.configured ? t.textMuted : '#a78bfa',
+              borderRadius: 6, padding: '7px 16px',
+              cursor: githubStatus?.configured ? 'pointer' : 'not-allowed',
+              fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12,
+              display: 'flex', alignItems: 'center', gap: 6, transition: 'all .15s',
+            }}>
+            {githubPrTesting ? '⏳ Creating PR…' : '🔀 Test PR Stub'}
+          </button>
+
           {!githubStatus?.configured && (
-            <span style={{ fontSize: 11, color: t.danger, fontFamily: "'Inter',sans-serif" }}>
-              GITHUB_TOKEN not found in environment
+            <span style={{ fontSize: 11, color: t.danger, fontFamily: "'Inter',sans-serif", alignSelf: 'center' }}>
+              GITHUB_TOKEN not configured
             </span>
           )}
         </div>
 
-        {/* Result */}
+        {/* Issue result */}
         {githubResult && (
           <div style={{
-            marginTop: 12, padding: '12px 14px', borderRadius: 8,
-            background: githubResult.success ? '#22c55e18' : '#ef444418',
+            marginTop: 10, padding: '10px 14px', borderRadius: 8,
+            background: githubResult.success ? '#22c55e14' : '#ef444414',
             border: `1px solid ${githubResult.success ? '#22c55e44' : '#ef444444'}`,
           }}>
             {githubResult.success ? (
-              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 13, color: t.text }}>
-                <span style={{ color: '#22c55e', fontWeight: 700 }}>✓ Issue #{githubResult.issue_number} created!</span>
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: t.text }}>
+                <span style={{ color: '#22c55e', fontWeight: 700 }}>✓ Issue #{githubResult.issue_number} created</span>
                 {' · '}
                 <a href={githubResult.issue_url} target="_blank" rel="noreferrer"
                   style={{ color: t.info, fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>
@@ -328,8 +364,32 @@ window.SettingsPage = function SettingsPage() {
                 </a>
               </div>
             ) : (
-              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: '#ef4444' }}>
-                ✗ Failed: {githubResult.error}
+              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: '#ef4444' }}>
+                ✗ Issue failed: {githubResult.error}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* PR result */}
+        {githubPrResult && (
+          <div style={{
+            marginTop: 8, padding: '10px 14px', borderRadius: 8,
+            background: githubPrResult.success ? '#a78bfa14' : '#ef444414',
+            border: `1px solid ${githubPrResult.success ? '#a78bfa44' : '#ef444444'}`,
+          }}>
+            {githubPrResult.success ? (
+              <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: t.text }}>
+                <span style={{ color: '#a78bfa', fontWeight: 700 }}>✓ PR #{githubPrResult.pr_number} opened</span>
+                {' · '}
+                <a href={githubPrResult.pr_url} target="_blank" rel="noreferrer"
+                  style={{ color: '#a78bfa', fontFamily: "'JetBrains Mono',monospace", fontSize: 11 }}>
+                  {githubPrResult.pr_url}
+                </a>
+              </div>
+            ) : (
+              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: '#ef4444' }}>
+                ✗ PR failed: {githubPrResult.error}
               </div>
             )}
           </div>
