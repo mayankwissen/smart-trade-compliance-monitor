@@ -14,7 +14,7 @@ def get_db():
         conn.row_factory = sqlite3.Row
         conn.execute("SELECT 1")
         try:
-            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA journal_mode=DELETE")
         except Exception:
             pass
         conn.execute("PRAGMA busy_timeout=10000")
@@ -35,7 +35,7 @@ def get_db():
             fresh = sqlite3.connect(DB_PATH)
             fresh.row_factory = sqlite3.Row
             try:
-                fresh.execute("PRAGMA journal_mode=WAL")
+                fresh.execute("PRAGMA journal_mode=DELETE")
             except Exception:
                 pass
             fresh.execute("PRAGMA busy_timeout=5000")
