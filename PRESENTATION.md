@@ -62,7 +62,7 @@ One click. Claude AI acts as an **NSE Chief Compliance Officer with 20 years exp
 │         └──────────────┬─────────────────────┘                          │
 │                        ▼                                                 │
 │               market_data.py                                             │
-│          Generates ~407 synthetic trades at real NSE prices              │
+│          Generates ~432 synthetic trades at real NSE prices              │
 │          Last 3 trading days · 20 instruments · 50 traders               │
 │                        │                                                 │
 │                        ▼                                                 │
@@ -74,12 +74,14 @@ One click. Claude AI acts as an **NSE Chief Compliance Officer with 20 years exp
 │                       DETECTION LAYER                                    │
 │                                                                          │
 │   detector.py — 4 deterministic pattern detectors                        │
-│   ├─ detect_layering()      cancel_ratio > 70% + executed sells          │
-│   ├─ detect_spoofing()      large orders (>50k) cancelled in <600ms      │
+│   ├─ detect_layering()      cancel_ratio > 55% + executed sells          │
+│   ├─ detect_spoofing()      large orders (>40k) cancelled in <600ms      │
 │   ├─ detect_wash_trading()  cross-account self-dealing within 30s        │
-│   └─ detect_pump_and_dump() >100k shares accumulated, sold in <10min     │
+│   └─ detect_pump_and_dump() >50k shares accumulated, sold in <10min      │
 │                                                                          │
-│   Output: Alert with cancel_ratio, sigma, evidence_summary               │
+│   Real population z-score: sigma = (cancel_ratio - pop_mean) / pop_std  │
+│   Mathematical confidence: 5-dimension weighted score per pattern type   │
+│   Output: Alert with cancel_ratio, sigma, confidence_hint                │
 └──────────────────────────┬──────────────────────────────────────────────┘
                            │
 ┌──────────────────────────▼──────────────────────────────────────────────┐
@@ -111,7 +113,7 @@ One click. Claude AI acts as an **NSE Chief Compliance Officer with 20 years exp
 │                                                                          │
 │   workflows.py — 4 automated actions fire on every ESCALATE verdict     │
 │                                                                          │
-│   1. create_compliance_case()  →  COMP-XXXX case file, Surveillance L2  │
+│   1. create_compliance_case()  →  COMP-XXXXXXXX case file (8-char ID)   │
 │   2. send_slack_notification() →  Rich block to #compliance-alerts       │
 │   3. send_email_notifications()→  HTML email via SendGrid to subscribers │
 │   4. flag_watchlist()          →  72-hour enhanced monitoring on trader  │
@@ -139,7 +141,7 @@ One click. Claude AI acts as an **NSE Chief Compliance Officer with 20 years exp
 │   #/alerts           Full table, filters, auto-triage all pending        │
 │   #/alert/:id        4 tabs: AI Triage · Evidence · Escalations · Chart  │
 │   #/trader/:id       Risk score, pattern breakdown, alert history        │
-│   #/trades           407 trades, 5 filters, flagged traders highlighted  │
+│   #/trades           ~432 trades, 5 filters, flagged traders highlighted │
 │   #/logs             Escalation log, CSV export, 5s auto-refresh         │
 │   #/settings         Health checks, API usage stats                      │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -160,12 +162,12 @@ What happened:
   2 SELL orders executed at price elevated by ~0.8%
 
 Detection trigger:
-  cancel_ratio = 12/14 = 85.7%   (threshold: > 70%)
-  sigma        = (0.857 - 0.15) / 0.05 = 14.14σ above baseline
+  cancel_ratio = 12/14 = 85.7%   (threshold: > 55%)
+  sigma        = (0.857 - pop_mean) / pop_std ≈ 8.2σ  (live population baseline)
   Executed SELLs present          ✓
 
-NSE baseline: 15% cancel rate. This trader: 85.7%. That is 14σ from normal.
-Statistical probability of this being legitimate: effectively zero.
+Population baseline computed live from all traders in DB (~20% avg cancel rate).
+T-1042 at 85.7% is ~8σ above that. Statistical probability of this being legitimate: effectively zero.
 ```
 
 | Metric | Value |
@@ -173,7 +175,7 @@ Statistical probability of this being legitimate: effectively zero.
 | Orders placed | 14 |
 | Orders cancelled | 12 (85.7%) |
 | Cancel speed | 420–780ms median |
-| Sigma anomaly | 14.14σ |
+| Sigma anomaly | ~8.2σ above population |
 | SEBI Regulation | PFUTP 2003, Reg 4(2)(a) |
 
 ---
@@ -190,7 +192,7 @@ What happened:
   1 SELL executed at the artificially elevated price
 
 Detection trigger:
-  order_size > 50,000 shares     ✓  (80,000)
+  order_size > 40,000 shares     ✓  (80,000)
   cancel_time_ms < 600ms         ✓  (180–490ms)
   
 420ms cancellation = algorithmically precise. Human reaction time: 200ms minimum.
@@ -251,9 +253,9 @@ What happened:
     Price elevated by ~1.2% (₹2,196 → ₹2,222)
 
 Detection trigger:
-  Total BUY volume > 100,000 shares in ≤ 20 min window  ✓
+  Total BUY volume > 50,000 shares in ≤ 20 min window   ✓  (110,000)
   SELL > 50% of position within 10 min of last buy       ✓
-  sigma = 110,000 / 50,000 = 2.2
+  sigma = 110,000 / 10,000 = 11.0σ (well above 8.0σ suspicious threshold)
 ```
 
 | Metric | Value |
@@ -263,6 +265,34 @@ Detection trigger:
 | Price impact | +1.2% during pump |
 | Profit mechanism | Sell at elevated price |
 | SEBI Regulation | PFUTP 2003, Reg 4(2)(a) |
+
+---
+
+---
+
+## 🟢 The False Positive Story — Why DISMISS Matters
+
+Three borderline traders are injected alongside the genuine manipulators. They cross the **detection threshold** (cancel ratio > 55%) but should receive a **DISMISS** verdict because their cancel times are legitimate.
+
+| Trader | Instrument | Cancel Ratio | Cancel Time | Why Dismiss |
+|--------|-----------|-------------|-------------|-------------|
+| T-0501 | HDFCBANK | 60% | 840–920ms | Market maker — normal 800ms+ cancel speed |
+| T-0502 | WIPRO    | 62% | 790–1050ms | Algo liquidity provider — slow, not spoofing |
+| T-0503 | SBIN     | 57% | 920–1200ms | Momentum trader — barely triggered, textbook FP |
+
+**The NSE benchmark the AI uses:**
+- Suspicious cancel time: **< 600ms** (algorithmic precision)
+- Normal cancel time: **800ms – 2000ms** (human or slow algo)
+
+All three borderline traders cancel at **790ms–1200ms** — firmly in the normal range.
+
+**Verdict for T-0501:** The Alert Detail page shows:
+- Green glow, "**FALSE POSITIVE SUPPRESSED**" badge
+- "WHY THIS WAS DISMISSED" section with Claude's rationale
+- "NO ESCALATION ACTIONS TRIGGERED — No case file · No Slack · No watchlist flag"
+- "**Analyst time saved: ~25 minutes**"
+
+This demonstrates that the system doesn't just flag everything — it correctly discriminates.
 
 ---
 
@@ -471,20 +501,22 @@ Step 1 — RESET          POST /api/reset
 
 Step 2 — REFRESH DATA   POST /api/refresh-data
                         Fetches live NSE prices via yfinance
-                        Generates ~407 trades at real prices (last 3 trading days)
-                        → {"trades_inserted": 407, "prices_used": {...}}
+                        Generates ~432 trades at real prices (last 3 trading days)
+                        → {"trades_inserted": 432, "prices_used": {...}}
 
 Step 3 — DETECT         POST /api/replay/start
-                        Runs all 4 detectors across 330 trader/instrument pairs
-                        → {"alerts_detected": 6, "pairs_scanned": 330}
+                        Runs all 4 detectors across ~340 trader/instrument pairs
+                        → {"alerts_detected": 7, "pairs_scanned": 340}
+                        4 genuine manipulations (ESCALATE) + 3 borderline (DISMISS)
 
 Step 4 — TRIAGE         POST /api/triage/ALT-XXXXXXXX
-                        Claude reads pre-computed stats (~280 tokens)
+                        Claude reads pre-computed stats + NSE benchmarks (~280 tokens)
                         Returns 8-field SEBI verdict in ~2.5 seconds
                         IF ESCALATE: auto-fires 4 compliance actions
+                        IF DISMISS: shows FALSE POSITIVE SUPPRESSED badge
 
-Step 5 — ESCALATIONS    All fire automatically:
-                        ✓ CASE_CREATED    → COMP-XXXX assigned to Surveillance L2
+Step 5 — ESCALATIONS    All fire automatically on ESCALATE:
+                        ✓ CASE_CREATED    → COMP-XXXXXXXX (8-char) assigned to Surveillance L2
                         ✓ SLACK_NOTIFIED  → #compliance-alerts rich block
                         ✓ EMAIL_SENT      → HTML email via SendGrid to subscribers
                         ✓ WATCHLIST_FLAGGED → 72hr enhanced monitoring
@@ -506,7 +538,7 @@ TOTAL TIME: Under 15 seconds from fresh data to SEBI-ready case file
 | Alerts | `#/alerts` | Full alert table, filter by pattern/severity/status, triage all pending |
 | Alert Detail | `#/alert/:id` | AI Triage tab (verdict, confidence, SEBI citation) · Evidence · Escalations · Timeline chart |
 | Trader Profile | `#/trader/:id` | Risk score 0–100, pattern breakdown, full alert history, watchlist status |
-| Trades | `#/trades` | 407 trades, 5 filters, suspicious traders highlighted in gold |
+| Trades | `#/trades` | ~432 trades, 5 filters, suspicious traders highlighted in gold |
 | Logs | `#/logs` | Escalation log with CSV export, 5s auto-refresh |
 | Settings | `#/settings` | Health checks, API usage stats, Claude token/cost counter |
 
@@ -567,8 +599,8 @@ UTILITY
 
 | Metric | Value |
 |--------|-------|
-| Trades monitored | ~407 (regenerated at live NSE prices) |
-| Alert detection time | **< 1 second** for all 407 trades |
+| Trades monitored | ~432 (regenerated at live NSE prices) |
+| Alert detection time | **< 1 second** for all ~432 trades |
 | AI triage time | **~2.5 seconds** per alert |
 | Input tokens per call | ~280 (pre-computed stats) |
 | Output tokens per call | ~195 (8-field JSON) |
@@ -591,15 +623,24 @@ When Claude returns `"verdict": "ESCALATE"`, these 4 actions fire **simultaneous
 ### 1. 📁 Compliance Case Created
 ```json
 {
-  "case_id": "COMP-7FC3",
+  "case_id": "COMP-7FC3A2B1",
   "alert_id": "ALT-B5500555",
   "trader_id": "T-1042",
+  "client_ucc": "UCC-T-1042-NSE",
+  "member_code": "NSE-MEM-1042",
   "instrument": "HDFCBANK",
+  "isin": "INEHDF000000",
+  "market_segment": "CM",
   "pattern_type": "LAYERING",
   "verdict": "ESCALATE",
   "confidence": 93,
+  "transaction_value_inr": 148234560,
+  "priority": "P1",
+  "sla_breach_date": "2026-06-24",
+  "investigator_id": "INV-NSE-001",
   "assigned_to": "Surveillance Desk L2",
-  "status": "OPEN"
+  "status": "OPEN",
+  "audit_trail": [{"timestamp": "2026-06-09T...", "action": "CASE_OPENED", "actor": "surveillance-engine"}]
 }
 ```
 

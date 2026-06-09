@@ -43,12 +43,14 @@ Frontend:  https://smart-trade-compliance-monitor-1.onrender.com
    - Automatically: fetches live prices → generates trades → detects alerts → triages first HIGH alert
 
 **Option B — Manual**
-1. Click **Refresh Live Data** → generates ~414 trades at live NSE prices + auto-detects alerts
+1. Click **Refresh Live Data** → generates ~432 trades at live NSE prices + auto-detects up to 7 alerts
 2. Click any alert row → **Triage This Alert** → Claude analyzes → SEBI-quality verdict
-3. On Alert Detail → **Timeline** tab → see Chart.js visualization of suspicious order flow
-4. Click **Trader ID** in the overview → Trader Risk Profile (risk score, all history)
-5. If verdict is ESCALATE → **Escalations** tab → **Generate STR Filing** → print-ready FIU-IND document
-6. Click **Case Report (Print/PDF)** on any alert → human-readable HTML report judges can print or save as PDF
+3. Watch the verdict: **ESCALATE** (genuine manipulation) triggers full workflow; **DISMISS** shows green
+   "FALSE POSITIVE SUPPRESSED" badge — T-0501/T-0502/T-0503 are designed to DISMISS
+4. On Alert Detail → **Timeline** tab → see Chart.js visualization of suspicious order flow
+5. Click **Trader ID** in the overview → Trader Risk Profile (risk score, all history)
+6. If verdict is ESCALATE → **Escalations** tab → **Generate STR Filing** → print-ready FIU-IND document
+7. Click **Case Report (Print/PDF)** on any alert → human-readable HTML report judges can print or save as PDF
 
 **Reset between demos**
 - Click **Reset Demo** → wipes alerts/triage/escalations, generates fresh trade data
@@ -114,14 +116,19 @@ This alone reduces per-case time from hours to seconds.
 
 ## Suspicious Clusters in the Data
 
-Four injected patterns that always trigger detection:
+Four genuine patterns that always ESCALATE, plus three borderline traders that DISMISS:
 
-| Cluster | Trader | Instrument | Pattern | Evidence |
-|---------|--------|------------|---------|---------|
-| A | T-1042 | HDFCBANK | LAYERING | 14 orders, 12 BUY cancelled in 420–780ms, 2 SELLs at +0.8% |
-| B | T-2891 | RELIANCE | SPOOFING | 8×80,000-share orders cancelled in 180–490ms |
-| C | T-3301 | INFY | WASH TRADING | BUY on A-3301, SELL on A-3302, same size, 18 seconds apart |
-| D | T-4401 | TCS | PUMP AND DUMP | 5×22K shares accumulated in 14min, 2×55K sold within 4min |
+| Cluster | Trader | Instrument | Pattern | Expected Verdict |
+|---------|--------|------------|---------|-----------------|
+| A | T-1042 | HDFCBANK | LAYERING | **ESCALATE** — 14 orders, 12 BUY cancelled in 420–780ms, sigma ≈ 8.2σ |
+| B | T-2891 | RELIANCE | SPOOFING | **ESCALATE** — 8×80,000-share orders cancelled in 180–490ms, sigma ≈ 8.6σ |
+| C | T-3301 | INFY | WASH TRADING | **ESCALATE** — BUY A-3301 / SELL A-3302, same size, 18 seconds apart |
+| D | T-4401 | TCS | PUMP AND DUMP | **ESCALATE** — 5×22K shares in 14min, 2×55K sold in 4min, sigma 11.0σ |
+| BL-1 | T-0501 | HDFCBANK | LAYERING (borderline) | **DISMISS** — 60% cancel ratio but cancels at 840–920ms (legitimate market maker) |
+| BL-2 | T-0502 | WIPRO | LAYERING (borderline) | **DISMISS** — 62% cancel ratio, cancels at 790–1050ms (algo liquidity provision) |
+| BL-3 | T-0503 | SBIN | LAYERING (borderline) | **DISMISS** — 57% cancel ratio, cancels at 920–1200ms (barely triggered, textbook FP) |
+
+The borderline traders demonstrate that the AI correctly distinguishes slow-cancel market makers from rapid-cancel manipulators, even when the cancel ratio alone crosses the detection threshold.
 
 ---
 
@@ -177,6 +184,8 @@ ANTHROPIC_API_KEY=sk-ant-...       # Required — Claude triage + AI chat
 SLACK_WEBHOOK_URL=https://...      # Optional — Slack notifications
 EMAIL_SENDER=you@gmail.com         # Optional — verified sender address for SendGrid
 SENDGRID_API_KEY=SG.xxx...         # Optional — SendGrid HTTP API (SMTP blocked on Render)
+ENVIRONMENT=production             # Required on Render — disables background agent thread
+PORT=5000                          # Optional — defaults to 5000
 ```
 
 ---
@@ -200,7 +209,7 @@ process start. When Render wakes up, data is ready within seconds — no manual 
 **Check readiness before demo:**
 ```
 GET https://smart-trade-compliance-monitor.onrender.com/api/warmup
-→ { "status": "warm", "trades": 407, "alerts": 4, "ready": true }
+→ { "status": "warm", "trades": 432, "alerts": 7, "ready": true }
 ```
 If `ready` is `false`, hit `POST /api/replay/start` once.
 
@@ -220,7 +229,7 @@ If `ready` is `false`, hit `POST /api/replay/start` once.
 
 | Metric | Value |
 |--------|-------|
-| Alert detection (407 trades) | < 1 second |
+| Alert detection (~432 trades) | < 1 second |
 | AI triage per alert | ~2.5 seconds |
 | Tokens per call | ~460 (280 input + 180 output) |
 | Cost per call | ~$0.00014 |

@@ -27,7 +27,7 @@ the estimated financial harm to the market — all from a single API call.**
 │         └──────────────┬───────────────┘                                 │
 │                        ▼                                                 │
 │               market_data.py                                             │
-│          (generates ~407 synthetic trades                                │
+│          (generates ~432 synthetic trades                                │
 │           at real-time NSE prices across                                 │
 │           20 instruments, last 3 trading days)                           │
 │                        │                                                 │
@@ -47,13 +47,15 @@ the estimated financial harm to the market — all from a single API call.**
 │   └─ Loads trades, groups by trader+instrument pair                      │
 │                                                                          │
 │   detector.py — 4 deterministic pattern detectors                        │
-│   ├─ detect_layering()      cancel_ratio > 70% + executed sells          │
-│   ├─ detect_spoofing()      large orders (>50k) cancelled in <600ms      │
+│   ├─ detect_layering()      cancel_ratio > 55% + executed sells          │
+│   ├─ detect_spoofing()      large orders (>40k) cancelled in <600ms      │
 │   ├─ detect_wash_trading()  cross-account self-dealing within 30s        │
-│   └─ detect_pump_and_dump() >100k shares accumulated ≤20min,            │
+│   └─ detect_pump_and_dump() >50k shares accumulated ≤20min,             │
 │                             sold within 10min                            │
 │                                                                          │
-│   Output: Alert objects with cancel_ratio, sigma, evidence_summary       │
+│   Population z-score sigma: (cancel_ratio - pop_mean) / pop_std         │
+│   Mathematical confidence: 5-dimension weighted score per pattern type   │
+│   Output: Alert objects with cancel_ratio, sigma, confidence_hint        │
 └──────────────────────────────┬──────────────────────────────────────────┘
                                │
 ┌──────────────────────────────▼──────────────────────────────────────────┐
@@ -69,6 +71,8 @@ the estimated financial harm to the market — all from a single API call.**
 │   Input: ~280 tokens (pre-computed stats, NOT raw trade rows)            │
 │   ├─ cancel_ratio, sigma, evidence_summary                               │
 │   ├─ pattern_type, severity, trader_id                                   │
+│   ├─ confidence_hint (pre-computed mathematical score, anchors Claude)   │
+│   ├─ NSE benchmarks table (suspicious: >70%, >8.0σ, <600ms)             │
 │   └─ structured JSON output format                                       │
 │                                                                          │
 │   Output: 8-field SEBI-quality verdict                                   │
@@ -92,7 +96,9 @@ the estimated financial harm to the market — all from a single API call.**
 │   workflows.py — 4 automated actions on ESCALATE                        │
 │                                                                          │
 │   1. create_compliance_case()                                            │
-│      └─ Writes COMP-XXXX.json case file with full audit trail            │
+│      └─ Writes COMP-XXXXXXXX.json (8-char ID) with full audit trail     │
+│         Fields: client_ucc, member_code, isin, transaction_value_inr,   │
+│         sla_breach_date (T+15), investigator_id, audit_trail[]           │
 │         Assigns to "Surveillance Desk L2"                                │
 │                                                                          │
 │   2. send_slack_notification()                                           │
@@ -173,7 +179,7 @@ the estimated financial harm to the market — all from a single API call.**
 │                  STR Filing button on ESCALATE verdict                   │
 │   Trader Profile Risk score (0–100), pattern breakdown, alert history,  │
 │                  watchlist status — reach via clickable trader IDs       │
-│   Trades         407 trades, 5 filters, flagged traders highlighted      │
+│   Trades         ~432 trades, 5 filters, flagged traders highlighted     │
 │   Logs           Escalation history, CSV export, 5s auto-refresh        │
 │   Settings       Architecture diagram, health checks, API usage stats    │
 │                                                                          │
@@ -196,13 +202,17 @@ VISIT DASHBOARD (first time)
 1. fetch_real_prices()          yfinance → 20 NSE symbols (live)
          │
          ▼
-2. generate_realistic_trades()  ~407 trades across last 3 trading days
+2. generate_realistic_trades()  ~432 trades across last 3 trading days
    ├─ 50 normal traders, 3–8 trades each
-   └─ 4 injected suspicious clusters:
-      ├─ T-1042 / HDFCBANK  → LAYERING      (14 orders, 12 cancelled 420–780ms)
-      ├─ T-2891 / RELIANCE  → SPOOFING      (8×80k orders cancelled 180–490ms)
-      ├─ T-3301 / INFY      → WASH TRADING  (cross-account, 18 seconds apart)
-      └─ T-4401 / TCS       → PUMP_AND_DUMP (5×22K BUY in 14min, sell in 4min)
+   ├─ 4 genuine suspicious clusters (will ESCALATE):
+   │  ├─ T-1042 / HDFCBANK  → LAYERING      (14 orders, 12 cancelled 420–780ms)
+   │  ├─ T-2891 / RELIANCE  → SPOOFING      (8×80k orders cancelled 180–490ms)
+   │  ├─ T-3301 / INFY      → WASH TRADING  (cross-account, 18 seconds apart)
+   │  └─ T-4401 / TCS       → PUMP_AND_DUMP (5×22K BUY in 14min, sell in 4min)
+   └─ 3 borderline traders (trigger detector, should DISMISS):
+      ├─ T-0501 / HDFCBANK  → 60% cancel ratio, cancel_ms 840–920ms (market maker)
+      ├─ T-0502 / WIPRO     → 62% cancel ratio, cancel_ms 790–1050ms (algo liquidity)
+      └─ T-0503 / SBIN      → 57% cancel ratio, cancel_ms 920–1200ms (momentum)
          │
          ▼
 3. Wipe trades + alerts + triage_results + escalations
@@ -211,7 +221,7 @@ VISIT DASHBOARD (first time)
          ▼
 4. POST /api/replay/start
    For each trader+instrument pair, run all 4 detectors
-   → 4–6 alerts stored
+   → Up to 7 alerts stored (4 genuine + 3 borderline)
          │
          ▼
 5. CLICK "Triage This Alert" on any alert
@@ -222,7 +232,7 @@ VISIT DASHBOARD (first time)
    ├─ Parse 8-field JSON verdict (with regulatory_reference fallback)
    ├─ Store to triage_results
    └─ IF ESCALATE:
-      ├─ Create COMP-XXXX.json case file
+      ├─ Create COMP-XXXXXXXX.json case file (8-char UUID)
       ├─ POST to Slack #compliance-alerts (rich blocks)
       ├─ Email all subscribers
       └─ Flag trader for 72h watchlist monitoring
@@ -230,11 +240,11 @@ VISIT DASHBOARD (first time)
          ▼
 6. Alert Detail page (4 tabs):
    AI Triage tab:
-   ├─ ESCALATE/DISMISS verdict (52px animated)
+   ├─ ESCALATE/DISMISS verdict (52px animated, green glow for DISMISS)
    ├─ Confidence bar
-   ├─ AI Triage Narrative (full rationale)
-   ├─ IN PLAIN TERMS — board member language
-   ├─ RECOMMENDED ACTION — specific next steps
+   ├─ DISMISS path: FALSE POSITIVE SUPPRESSED badge, WHY DISMISSED section,
+   │               NO ESCALATION ACTIONS block, "Analyst time saved: ~25min"
+   ├─ ESCALATE path: AI Triage Narrative, IN PLAIN TERMS, RECOMMENDED ACTION
    ├─ REGULATORY REFERENCE — SEBI PFUTP citation
    └─ AI Metrics (real tokens, cost, processing time)
    Evidence tab:
@@ -245,7 +255,7 @@ VISIT DASHBOARD (first time)
       BUY=green, SELL=red, CANCELLED=amber
       Hover: timestamp, cancel speed, price
    Escalations tab:
-   ├─ Compliance Case (COMP-XXXX, case file download)
+   ├─ Compliance Case (COMP-XXXXXXXX, case file download)
    ├─ Slack notification status
    ├─ Watchlist status
    ├─ Email notification status
@@ -324,24 +334,37 @@ Each field serves a specific compliance purpose:
 
 ### LAYERING
 ```
-Trigger: cancel_ratio > 70% AND at least 1 executed SELL
-Signal:  sigma = (cancel_ratio - 0.15) / 0.05
-         (baseline: 15% cancel rate, 5% std dev)
+Trigger: cancel_ratio > 55% AND at least 1 executed SELL AND ≥5 orders
+Signal:  sigma = (cancel_ratio - pop_mean) / pop_std
+         pop_mean/pop_std computed live from all active traders in DB
 
-Cluster A: T-1042 / HDFCBANK
-  14 orders placed, 12 BUY orders cancelled in 420–780ms
+Cluster A: T-1042 / HDFCBANK  → genuine → ESCALATE
+  14 orders placed, 12 BUY orders cancelled in 420–780ms (median ~580ms)
   2 SELL orders executed at price elevated by ~0.8%
-  cancel_ratio = 0.857 → sigma = 14.1
+  cancel_ratio = 0.857, sigma ≈ 8.2 (well above 8.0σ suspicious threshold)
+
+Borderline T-0501 / HDFCBANK  → triggers detection → DISMISS
+  10 orders, 6 cancelled (60%), cancel_time 840–920ms (above 600ms threshold)
+  sigma ≈ 5.0 — below 8.0σ suspicious threshold → Claude should DISMISS
+
+Borderline T-0502 / WIPRO  → triggers detection → DISMISS
+  8 orders, 5 cancelled (62.5%), cancel_time 790–1050ms
+  sigma ≈ 5.3, cancel times clearly in "normal" range (800ms–2000ms)
+
+Borderline T-0503 / SBIN  → triggers detection → DISMISS
+  7 orders, 4 cancelled (57%), cancel_time 920–1200ms
+  sigma ≈ 4.6 — barely triggered, very slow cancels → textbook false positive
 ```
 
 ### SPOOFING
 ```
-Trigger: order_size > 50,000 AND cancelled in < 600ms
+Trigger: order_size > 40,000 AND cancelled in < 600ms
 
-Cluster B: T-2891 / RELIANCE
+Cluster B: T-2891 / RELIANCE  → genuine → ESCALATE
   8 orders of 80,000 shares each
-  All cancelled within 180–490ms
+  All cancelled within 180–490ms (well below 600ms)
   1 SELL executed at elevated price after artificial demand created
+  sigma ≈ 8.6 — clearly suspicious
 ```
 
 ### WASH TRADING
@@ -350,21 +373,21 @@ Trigger: Same trader_id, different account_id,
          matching instrument + size (within 10%),
          BUY and SELL within 30 seconds
 
-Cluster C: T-3301 / INFY
+Cluster C: T-3301 / INFY  → genuine → ESCALATE
   BUY 10,000 INFY on account A-3301
   SELL 10,000 INFY on account A-3302  ← same trader, different account
-  18 seconds apart — classic self-dealing
+  18 seconds apart — classic self-dealing, sigma hardcoded 10.0
 ```
 
 ### PUMP AND DUMP
 ```
-Trigger: total buy volume > 100,000 shares in ≤ 20 min window,
+Trigger: total buy volume > 50,000 shares in ≤ 20 min window,
          followed by sell within 10 min
 
-Cluster D: T-4401 / TCS
+Cluster D: T-4401 / TCS  → genuine → ESCALATE
   5 × 22,000 share BUY orders in 14-minute window (110,000 total)
   2 × 55,000 share SELL orders within 4 minutes of last buy
-  Sigma = total_buy / 50,000 = 2.2
+  sigma = total_buy / 10,000 = 11.0 — well above 8.0σ suspicious threshold
 ```
 
 ---
@@ -388,8 +411,8 @@ Cluster D: T-4401 / TCS
 
 | Metric | Value |
 |--------|-------|
-| Trades in system | ~407 (regenerated at live prices) |
-| Alert detection time | < 1 second for all 407 trades |
+| Trades in system | ~432 (407 normal/genuine + 25 borderline cluster trades) |
+| Alert detection time | < 1 second for all ~432 trades |
 | AI triage time | ~2.5 seconds per alert |
 | Tokens per triage call | ~280 input + ~180 output = 460 total |
 | Cost per triage call | ~$0.00014 |
@@ -421,7 +444,8 @@ trade-surveillance/
 │       └── trades_sample.csv   # 415 seed trades, 4 suspicious clusters
 │
 ├── frontend/                   # React 18 (no build step)
-│   ├── index.html              # Thin loader — 18 Babel script tags
+│   ├── index.html              # Landing page — Bloomberg-themed marketing
+│   ├── app.html                # React dashboard — loads 18 Babel script tags
 │   ├── vercel.json             # SPA hash routing
 │   ├── css/styles.css          # Fixed layout, gold scrollbar, price panel
 │   └── js/
@@ -438,12 +462,14 @@ trade-surveillance/
 │           ├── Dashboard.js    # Alert feed, token bar, correlated activity panel
 │           ├── Alerts.js       # Full alert table, auto-triage all
 │           ├── AlertDetail.js  # 4 tabs: AI Triage, Evidence, Escalations, Timeline
+│           │                   # DISMISS: green glow + FALSE POSITIVE SUPPRESSED badge
 │           ├── TraderProfile.js # Risk score, pattern breakdown, alert history
-│           ├── Trades.js       # 407 trades, filters, flagged highlighting
+│           ├── Watchlist.js    # AI Agent status, 72h monitoring, activity log
+│           ├── Trades.js       # ~432 trades, filters, flagged highlighting
 │           ├── Logs.js         # Escalation log, CSV export
 │           └── Settings.js     # Health checks, API usage stats
 │
-├── cases/                      # Generated COMP-XXXX.json compliance cases
+├── cases/                      # Generated COMP-XXXXXXXX.json compliance cases
 ├── render.yaml                 # Render blueprint (auto-deploy)
 ├── ARCHITECTURE.md             # This file
 ├── README.md                   # Setup + demo guide

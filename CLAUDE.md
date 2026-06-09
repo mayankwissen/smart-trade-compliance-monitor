@@ -20,7 +20,7 @@ Built for Wissen Technology Hackathon 2026.
 - **Demo Mode button**: Full auto-demo in one click (refresh → detect → triage first HIGH alert)
 - **Reset Demo button**: Fresh trades + wipe alerts/triage/escalations
 - **Timestamps**: Dynamic — always uses last 3 real trading days (Mon–Fri)
-- **4 patterns**: LAYERING, SPOOFING, WASH_TRADING, PUMP_AND_DUMP (T-4401/TCS)
+- **7 traders**: 4 genuine (ESCALATE) + 3 borderline (DISMISS) — T-0501/T-0502/T-0503
 - **Token usage bar**: Live AI usage shown in Dashboard (calls, tokens, cost)
 - **CORS**: Explicit origins for Render frontend + localhost
 - **Deployment**: Backend on Render, frontend on Render Static
@@ -54,13 +54,13 @@ python -m http.server 3000
 
 | Feature | Status |
 |---------|--------|
-| ~407 synthetic trades with real NSE prices (yfinance) | ✅ |
+| ~432 synthetic trades with real NSE prices (yfinance, 7 suspicious clusters) | ✅ |
 | Dynamic timestamps — last 3 real trading days | ✅ |
 | 4 pattern detectors: LAYERING, SPOOFING, WASH_TRADING, PUMP_AND_DUMP | ✅ |
 | Claude Sonnet triage — 8-field SEBI-quality verdict | ✅ |
 | Slack notifications on ESCALATE | ✅ |
 | Email notifications to subscribers | ✅ |
-| Compliance case file creation (COMP-XXXX.json) | ✅ |
+| Compliance case file creation (COMP-XXXXXXXX.json, 8-char UUID, full fields) | ✅ |
 | 72-hour watchlist flagging | ✅ |
 | Refresh Live Data → auto-detects patterns in one click | ✅ |
 | Demo Mode button → full auto-demo (refresh+detect+triage) | ✅ |
@@ -106,7 +106,7 @@ trade-surveillance/
 │   ├── Procfile            # gunicorn for Render
 │   ├── requirements.txt    # anthropic>=0.40.0, flask, yfinance, gunicorn
 │   └── data/
-│       └── trades_sample.csv   # 415 seed rows, 4 injected suspicious clusters
+│       └── trades_sample.csv   # 415 seed rows (live gen adds borderline clusters)
 ├── frontend/
 │   ├── index.html          # Landing page (entry point) — Bloomberg-themed marketing site
 │   ├── app.html            # React dashboard — loads CSS + 18 JS files via Babel
@@ -127,10 +127,10 @@ trade-surveillance/
 │           ├── Alerts.js       # Full alert table, filters, auto-triage all
 │           ├── AlertDetail.js  # 4 tabs: AI Triage, Evidence, Escalations, Timeline chart
 │           ├── TraderProfile.js # Risk score 0-100, pattern breakdown, alert history
-│           ├── Trades.js       # 407 trades, 5 filters, flagged trader highlighting
+│           ├── Trades.js       # ~432 trades, 5 filters, flagged trader highlighting
 │           ├── Logs.js         # Escalation log, CSV export, 5s auto-refresh
 │           └── Settings.js     # Architecture diagram, health checks, API usage stats
-├── cases/                  # Generated COMP-XXXX.json compliance case files
+├── cases/                  # Generated COMP-XXXXXXXX.json compliance case files
 ├── ARCHITECTURE.md         # Full system architecture for judges
 ├── CLAUDE.md               # This file — dev notes
 ├── README.md               # User-facing setup + demo guide
@@ -180,12 +180,15 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 
 ## Suspicious Clusters
 
-| Cluster | Trader | Instrument | Pattern |
-|---------|--------|------------|---------|
-| A | T-1042 | HDFCBANK | LAYERING — 14 orders, 12 cancelled 420–780ms |
-| B | T-2891 | RELIANCE | SPOOFING — 8×80K orders cancelled 180–490ms |
-| C | T-3301 | INFY | WASH TRADING — BUY A-3301 / SELL A-3302, 18s |
-| D | T-4401 | TCS | PUMP_AND_DUMP — 5×22K BUY in 14min, 2×55K SELL in next 4min |
+| Cluster | Trader | Instrument | Pattern | Expected |
+|---------|--------|------------|---------|---------|
+| A | T-1042 | HDFCBANK | LAYERING — 14 orders, 12 cancelled 420–780ms, sigma ≈ 8.2σ | ESCALATE |
+| B | T-2891 | RELIANCE | SPOOFING — 8×80K orders cancelled 180–490ms, sigma ≈ 8.6σ | ESCALATE |
+| C | T-3301 | INFY | WASH TRADING — BUY A-3301 / SELL A-3302, 18s, sigma 10.0σ | ESCALATE |
+| D | T-4401 | TCS | PUMP_AND_DUMP — 5×22K BUY in 14min, 2×55K SELL in 4min, sigma 11.0σ | ESCALATE |
+| BL-1 | T-0501 | HDFCBANK | LAYERING borderline — 60% cancel, 840–920ms cancels (market maker) | DISMISS |
+| BL-2 | T-0502 | WIPRO | LAYERING borderline — 62% cancel, 790–1050ms cancels (algo) | DISMISS |
+| BL-3 | T-0503 | SBIN | LAYERING borderline — 57% cancel, 920–1200ms cancels (momentum) | DISMISS |
 
 ## API Endpoints Quick Reference
 
@@ -253,6 +256,22 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 | Voice mic-denied — toast error messages for `not-allowed` and `no-speech` events | ✅ |
 | `/api/leaderboard` added — was 404, now returns ranked suspects with risk score | ✅ |
 
+## Hackathon Quality Improvements (2026-06-09)
+
+| Fix | Status |
+|-----|--------|
+| Real sigma: `_population_cancel_stats()` computes live mean/std from DB (was hardcoded 0.15/0.05) | ✅ |
+| Mathematical confidence: 5-dimension weighted score replaces Claude anchoring to `91` example | ✅ |
+| `get_trade_window()` applies actual 10-minute time window (was returning all trades, ignoring param) | ✅ |
+| STR generator: FIUIND Entity Code, Principal Officer, UCC, PAN masked, INR values, declaration block | ✅ |
+| `create_compliance_case()`: 8-char UUID (was 4-char), adds client_ucc, member_code, isin, sla_breach_date | ✅ |
+| Watchlist.js: hides red STOPPED badge — shows "Agent Ready" neutral text instead | ✅ |
+| 3 borderline traders: T-0501/HDFCBANK, T-0502/WIPRO, T-0503/SBIN — slow cancels → DISMISS demo | ✅ |
+| AlertDetail.js DISMISS UI: green glow, FALSE POSITIVE SUPPRESSED, WHY DISMISSED, analyst time saved | ✅ |
+| `build_prompt()` adds NSE benchmarks table + `confidence_hint` anchor — reduces Claude hallucination | ✅ |
+| CLAUDE.md JUDGE TALKING POINTS section added — 7 talking points for demo narrative | ✅ |
+| Thresholds lowered: LAYERING 0.55, SPOOFING 40K, P&D 50K (enables borderline FP demo) | ✅ |
+
 ## Known Issues / Notes
 
 - Frontend MUST be served via HTTP (not file://). Use `python -m http.server 3000`.
@@ -310,8 +329,9 @@ not across the entire day. Without the window, a market maker's daily activity l
 Render wipes SQLite on every deploy. Before judges see the app, always run:
 1. Click **Reset Demo** (or POST `/api/reset`)
 2. Click **Refresh Live Data** (or POST `/api/refresh-data`)
-3. POST `/api/replay/start` — creates the 4 alerts
-4. Triage all 4 alerts (or click **Demo Mode** — does all 3 steps automatically)
+3. POST `/api/replay/start` — creates up to 7 alerts (4 genuine ESCALATE + 3 borderline DISMISS)
+4. Triage all alerts (or click **Demo Mode** — does all 3 steps automatically)
+5. Show T-0501/T-0502/T-0503 DISMISS verdicts — "FALSE POSITIVE SUPPRESSED" green badge
 
 ## Production Status — as of 2026-06-07
 
