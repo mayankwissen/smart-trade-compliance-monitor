@@ -343,7 +343,7 @@ Respond ONLY with valid JSON. No text outside the JSON. All string values MUST h
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
     response = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=2048,
+        max_tokens=4096,
         system="You are NSE's senior Market Surveillance Investigator. Respond ONLY with valid JSON.",
         messages=[{"role": "user", "content": prompt}],
     )
