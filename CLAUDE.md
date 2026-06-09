@@ -270,7 +270,7 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 | Agent log download — Export Logs CSV button in Watchlist page | ✅ |
 | Loading shimmer animations + new-data-pulse CSS classes | ✅ |
 | NETWORK item added to Sidebar between Watch and Config | ✅ |
-| DB WAL removed — DELETE journal mode only, timeout=30, check_same_thread=False | ✅ |
+| DB WAL enabled — WAL journal mode, concurrent reads never lock, wal_autocheckpoint=1000 | ✅ |
 | render.yaml ENVIRONMENT=production removed | ✅ |
 | start_agent() wrapped in try/except (non-fatal) | ✅ |
 | vis.js CDN added to app.html | ✅ |
