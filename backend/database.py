@@ -7,35 +7,41 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "surveillance.db")
 CSV_PATH = os.path.join(os.path.dirname(__file__), "data", "trades_sample.csv")
 
 
+def _raw_conn():
+    """Direct connection with only connection-level PRAGMAs — safe under concurrency."""
+    conn = sqlite3.connect(DB_PATH, timeout=30, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    # busy_timeout and synchronous are connection-level: safe to set every time
+    conn.execute("PRAGMA busy_timeout=15000")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    return conn
+
+
 def get_db():
     try:
-        conn = sqlite3.connect(DB_PATH, timeout=30, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=DELETE")
-        conn.execute("PRAGMA busy_timeout=15000")
-        conn.execute("PRAGMA synchronous=NORMAL")
-        conn.execute("SELECT 1")
-        return conn
+        return _raw_conn()
     except sqlite3.DatabaseError as e:
         if "malformed" in str(e) or "corrupt" in str(e):
             logging.error("DB corrupted, recreating")
-            try:
-                conn.close()
-            except Exception:
-                pass
             if os.path.exists(DB_PATH):
+                try:
+                    sqlite3.connect(DB_PATH).close()
+                except Exception:
+                    pass
                 os.remove(DB_PATH)
-            conn = sqlite3.connect(DB_PATH)
-            conn.row_factory = sqlite3.Row
-            conn.execute("PRAGMA journal_mode=DELETE")
             init_db()
             seed_from_csv()
-            return conn
+            return _raw_conn()
         raise
 
 
 def init_db():
-    conn = get_db()
+    # Create direct connection for init — sets journal_mode ONCE (file-level, persists)
+    conn = sqlite3.connect(DB_PATH, timeout=30, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=DELETE")
+    conn.execute("PRAGMA busy_timeout=15000")
+    conn.execute("PRAGMA synchronous=NORMAL")
 
     conn.execute("""CREATE TABLE IF NOT EXISTS trades (
         trade_id TEXT PRIMARY KEY,
