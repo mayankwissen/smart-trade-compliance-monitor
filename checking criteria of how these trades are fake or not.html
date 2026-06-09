@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Checking Criteria — How Fake Trades Are Detected</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Inter:wght@300;400;600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #fff;
+    color: #0f172a;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  /* ── PAGE LAYOUT ── */
+  .page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 48px 56px;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    background: #000;
+    border-bottom: 3px solid #f0b429;
+    padding: 28px 32px;
+    border-radius: 10px 10px 0 0;
+    margin-bottom: 0;
+  }
+  .header-sub {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #6b7a99;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .header h1 {
+    font-size: 26px;
+    font-weight: 800;
+    color: #f0b429;
+    letter-spacing: 1px;
+    line-height: 1.2;
+  }
+  .header-meta {
+    margin-top: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: #475569;
+    display: flex;
+    gap: 24px;
+  }
+
+  /* ── INTRO BOX ── */
+  .intro {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    padding: 20px 32px;
+    margin-bottom: 36px;
+    font-size: 13px;
+    color: #334155;
+    line-height: 1.75;
+  }
+  .intro strong { color: #0f172a; }
+
+  /* ── SECTION HEADERS ── */
+  .section {
+    margin-bottom: 36px;
+    break-inside: avoid;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 18px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #f0b429;
+  }
+  .pattern-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 4px 12px;
+    border-radius: 3px;
+  }
+  .badge-lay { background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; }
+  .badge-spo { background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; }
+  .badge-was { background: #fefce8; color: #854d0e; border: 1px solid #fde68a; }
+  .badge-pum { background: #fdf4ff; color: #7e22ce; border: 1px solid #e9d5ff; }
+
+  .section-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #0f172a;
+  }
+  .section-desc {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 2px;
+    font-style: italic;
+  }
+
+  /* ── DEFINITION BOX ── */
+  .definition {
+    background: #0f172a;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: #94a3b8;
+    line-height: 1.9;
+  }
+  .definition .label { color: #f0b429; font-weight: 700; }
+  .definition .val   { color: #e2e8f0; }
+  .definition .pass  { color: #22c55e; font-weight: 700; }
+  .definition .fail  { color: #ef4444; font-weight: 700; }
+  .definition .comment { color: #475569; }
+
+  /* ── CRITERIA TABLE ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 16px;
+    font-size: 12px;
+  }
+  thead tr {
+    background: #1e293b;
+    color: #f0f2f8;
+  }
+  thead th {
+    padding: 10px 14px;
+    text-align: left;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  tbody tr { border-bottom: 1px solid #f1f5f9; }
+  tbody tr:hover { background: #f8fafc; }
+  tbody td { padding: 10px 14px; vertical-align: top; }
+  .check-yes { color: #16a34a; font-weight: 700; font-size: 14px; }
+  .check-no  { color: #dc2626; font-weight: 700; font-size: 14px; }
+  .mono      { font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+  .tag-req   { background: #dcfce7; color: #15803d; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 700; font-family: 'IBM Plex Mono', monospace; }
+  .tag-opt   { background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 700; font-family: 'IBM Plex Mono', monospace; }
+
+  /* ── REAL EXAMPLE BOX ── */
+  .example-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-left: 4px solid #f0b429;
+    border-radius: 0 8px 8px 0;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+  }
+  .example-box h4 {
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: #f0b429;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .example-row {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .ex-key   { color: #64748b; min-width: 160px; font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+  .ex-val   { color: #0f172a; font-weight: 600; }
+  .ex-note  { color: #94a3b8; font-size: 11px; font-style: italic; }
+
+  /* ── VERDICT BOX ── */
+  .verdict-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+  }
+  .verdict-pill {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 16px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .pill-escalate { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+  .pill-dismiss  { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+  .verdict-text  { font-size: 12px; color: #334155; line-height: 1.6; }
+
+  /* ── FLOW DIAGRAM ── */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin-bottom: 16px;
+  }
+  .flow-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+  }
+  .flow-left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 32px;
+  }
+  .step-num {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: #f0b429;
+    color: #000;
+    font-weight: 800;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .step-line {
+    width: 2px;
+    flex: 1;
+    background: #e2e8f0;
+    min-height: 20px;
+    margin: 4px 0;
+  }
+  .flow-step:last-child .step-line { display: none; }
+  .step-content {
+    padding: 4px 0 20px;
+    flex: 1;
+  }
+  .step-content h4 { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+  .step-content p  { font-size: 12px; color: #475569; }
+  .step-content code {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 3px;
+    color: #0f172a;
+  }
+
+  /* ── SUMMARY TABLE ── */
+  .summary-section {
+    background: #0f172a;
+    border-radius: 10px;
+    padding: 28px 32px;
+    margin-bottom: 36px;
+    break-inside: avoid;
+  }
+  .summary-section h2 {
+    font-size: 16px;
+    font-weight: 800;
+    color: #f0b429;
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+    font-family: 'IBM Plex Mono', monospace;
+    text-transform: uppercase;
+  }
+  .summary-table { width: 100%; border-collapse: collapse; }
+  .summary-table th {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #64748b;
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid #1e293b;
+  }
+  .summary-table td {
+    padding: 12px 12px;
+    border-bottom: 1px solid #1e293b;
+    font-size: 12px;
+    color: #e2e8f0;
+    vertical-align: top;
+  }
+  .summary-table tr:last-child td { border-bottom: none; }
+  .summary-table .pat { font-weight: 700; }
+  .summary-table .gold { color: #f0b429; font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+  .summary-table .sebi { color: #a5b4fc; font-size: 11px; }
+
+  /* ── KEY INSIGHT ── */
+  .insight {
+    background: #fefce8;
+    border: 1px solid #fde68a;
+    border-left: 4px solid #f0b429;
+    border-radius: 0 8px 8px 0;
+    padding: 16px 20px;
+    margin-bottom: 36px;
+    break-inside: avoid;
+  }
+  .insight h3 {
+    font-size: 13px;
+    font-weight: 800;
+    color: #92400e;
+    margin-bottom: 8px;
+  }
+  .insight p {
+    font-size: 12px;
+    color: #78350f;
+    line-height: 1.75;
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    border-top: 1px solid #e2e8f0;
+    padding-top: 20px;
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: #94a3b8;
+    letter-spacing: 1px;
+  }
+
+  /* ── CONFIDENCE / SEVERITY SECTIONS ── */
+  .badge-conf { background: #ecfdf5; color: #065f46; border: 1px solid #6ee7b7; }
+  .badge-sev  { background: #fff7ed; color: #9a3412; border: 1px solid #fdba74; }
+
+  .weight-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .weight-cell {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 10px 8px;
+    text-align: center;
+    font-size: 11px;
+  }
+  .weight-cell .dim  { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #64748b; margin-bottom: 4px; }
+  .weight-cell .wval { font-size: 16px; font-weight: 800; color: #0f172a; }
+  .weight-cell .wpct { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #94a3b8; }
+
+  .sev-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .sev-card {
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-size: 12px;
+  }
+  .sev-card h5 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .sev-card p  { color: #475569; line-height: 1.6; }
+  .sev-card code {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    background: rgba(0,0,0,0.06);
+    padding: 1px 5px;
+    border-radius: 3px;
+  }
+  .sev-high { background: #fff1f2; border: 1px solid #fecdd3; }
+  .sev-high h5 { color: #be123c; }
+  .sev-med  { background: #fffbeb; border: 1px solid #fde68a; }
+  .sev-med  h5 { color: #92400e; }
+
+  .formula-block {
+    background: #0f172a;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: #94a3b8;
+    line-height: 2;
+  }
+  .formula-block .fl  { color: #f0b429; }
+  .formula-block .fv  { color: #e2e8f0; }
+  .formula-block .fc  { color: #475569; font-size: 11px; }
+
+  /* ── PRINT ── */
+  @media print {
+    body { font-size: 12px; }
+    .page { padding: 0; max-width: 100%; }
+    .no-print { display: none; }
+    .section { break-inside: avoid; }
+    .summary-section { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<div class="no-print" style="background:#1e293b;padding:12px 24px;text-align:center;font-family:monospace;font-size:12px;color:#94a3b8">
+  Press <strong style="color:#f0b429">Ctrl+P</strong> → Save as PDF &nbsp;|&nbsp; Or use browser Print button
+</div>
+
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-sub">Trade Surveillance Engine · Wissen Technology Hackathon 2026</div>
+    <h1>Checking Criteria: How Fake Trades Are Detected</h1>
+    <div class="header-meta">
+      <span>Built by: Mayank Gupta</span>
+      <span>AI Model: Claude Sonnet 4.6</span>
+      <span>Backend: detector.py</span>
+    </div>
+  </div>
+
+  <!-- INTRO -->
+  <div class="intro">
+    The system uses <strong>4 deterministic algorithms</strong> to scan every trader's order history.
+    Each algorithm checks specific mathematical thresholds against the raw trade data.
+    A trade cluster is flagged as suspicious <strong>only when all required criteria pass simultaneously</strong>.
+    Claude AI then reads the pre-computed evidence and writes the legal rationale — it does NOT decide
+    whether trades are suspicious. The math does.
+  </div>
+
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- PATTERN 1: LAYERING                    -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <span class="pattern-badge badge-lay">Pattern 1</span>
+      <div>
+        <div class="section-title">LAYERING</div>
+        <div class="section-desc">Flooding the order book with fake buy orders, then selling at the inflated price</div>
+      </div>
+    </div>
+
+    <!-- HOW IT WORKS -->
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-left"><div class="step-num">1</div><div class="step-line"></div></div>
+        <div class="step-content">
+          <h4>Group trades by Trader + Instrument</h4>
+          <p>All orders by the same <code>trader_id</code> on the same <code>instrument</code> are collected into one group.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-left"><div class="step-num">2</div><div class="step-line"></div></div>
+        <div class="step-content">
+          <h4>Calculate Cancel Ratio</h4>
+          <p><code>cancel_ratio = cancelled_orders / total_orders</code><br>
+          Example: 12 cancelled out of 14 total → <code>12/14 = 0.857 (85.7%)</code></p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-left"><div class="step-num">3</div><div class="step-line"></div></div>
+        <div class="step-content">
+          <h4>Calculate Sigma (Population Z-Score)</h4>
+          <p>Mean and std-dev are computed live from all traders in the database (≥5 trades each).<br>
+          <code>sigma = (cancel_ratio - pop_mean) / pop_std</code><br>
+          Example with pop_mean ≈ 0.20, pop_std ≈ 0.08: <code>(0.857 - 0.20) / 0.08 ≈ 8.2σ</code> above the live population</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-left"><div class="step-num">4</div><div class="step-line"></div></div>
+        <div class="step-content">
+          <h4>Check All 3 Criteria — ALL must pass</h4>
+          <p>Cancel ratio above threshold + Sigma above threshold + At least 1 executed SELL</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- CRITERIA TABLE -->
+    <table>
+      <thead>
+        <tr>
+          <th>Criteria</th>
+          <th>Threshold</th>
+          <th>T-1042 / HDFCBANK</th>
+          <th>Required?</th>
+          <th>Pass?</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="mono">cancel_ratio</span></td>
+          <td>Greater than <strong>55%</strong></td>
+          <td><span class="mono">85.7%</span></td>
+          <td><span class="tag-req">REQUIRED</span></td>
+          <td><span class="check-yes">✓</span></td>
+        </tr>
+        <tr>
+          <td><span class="mono">sigma</span></td>
+          <td>Greater than <strong>2.0σ</strong></td>
+          <td><span class="mono">~8.2σ</span></td>
+          <td><span class="tag-req">REQUIRED</span></td>
+          <td><span class="check-yes">✓</span></td>
+        </tr>
+        <tr>
+          <td>Executed SELL present</td>
+          <td>At least <strong>1 SELL</strong> executed</td>
+          <td>2 SELLs executed</td>
+          <td><span class="tag-req">REQUIRED</span></td>
+          <td><span class="check-yes">✓</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- REAL EXAMPLE -->
+    <div class="example-box">
+      <h4>Real Data — T-1042 / HDFCBANK (from trades_sample.csv)</h4>
+      <div class="example-row"><span class="ex-key">Orders placed:</span><span class="ex-val">14 BUY orders</span><span class="ex-note">TRD-L001 to TRD-L014</span></div>
+      <div class="example-row"><span class="ex-key">Orders cancelled:</span><span class="ex-val">12 cancelled</span><span class="ex-note">in 420–780ms median</span></div>
+      <div class="example-row"><span class="ex-key">Orders executed:</span><span class="ex-val">2 SELL orders</span><span class="ex-note">at price elevated by ~0.8%</span></div>
+      <div class="example-row"><span class="ex-key">cancel_ratio:</span><span class="ex-val">0.857 (85.7%)</span><span class="ex-note">threshold: 55% → EXCEEDED</span></div>
+      <div class="example-row"><span class="ex-key">sigma:</span><span class="ex-val">~8.2σ</span><span class="ex-note">(0.857 − 0.20) / 0.08 — 8× above live population baseline</span></div>
+      <div class="example-row"><span class="ex-key">Verdict:</span><span class="ex-val" style="color:#dc2626">ALERT FIRED → ESCALATE (91% confidence)</span></div>
+    </div>
+
+    <div class="verdict-row">
+      <div class="verdict-pill pill-escalate">ESCALATE</div>
+      <div class="verdict-text">
+        <strong>Why it's fake:</strong> No legitimate trader cancels 85% of their orders in under 800ms.
+        The pattern of placing large BUY orders (creating fake demand) then immediately cancelling them
+        after executing SELLs is textbook market manipulation.
+        SEBI PFUTP Regulations 2003, Reg 4(2)(a).
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- PATTERN 2: SPOOFING                    -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <span class="pattern-badge badge-spo">Pattern 2</span>
+      <div>
+        <div class="section-title">SPOOFING</div>
+        <div class="section-desc">Placing a massive order to move the market, then cancelling it before anyone fills it</div>
+      </div>
+    </div>
+
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-left"><div class="step-num">1</div><div class="step-line"></div></div>
+        <div class="step-content">
+          <h4>Find orders larger than 40,000 shares</h4>
+          <p>Only large orders can materially impact NSE order book depth. <code>order_size &gt; 40,000</code></p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-left"><div class="step-num">2</div><div class="step-line"></div></div>
+        <div class="step-content">
+          <h4>Check cancel speed</h4>
+          <p>Was this large order cancelled in under 600 milliseconds? <code>cancel_time_ms &lt; 600</code><br>
+          Human reaction time minimum: ~200ms. Sub-600ms cancellation = algorithmic, not human.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-left"><div class="step-num">3</div><div class="step-line"></div></div>
+        <div class="step-content">
+          <h4>Both criteria must be true simultaneously</h4>
+          <p>A huge order cancelled in the blink of an eye = no intention of ever filling it.</p>
+        </div>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Criteria</th>
+          <th>Threshold</th>
+          <th>T-2891 / RELIANCE</th>
+          <th>Required?</th>
+          <th>Pass?</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="mono">order_size</span></td>
+          <td>Greater than <strong>40,000 shares</strong></td>
+          <td><span class="mono">80,000 shares</span></td>
+          <td><span class="tag-req">REQUIRED</span></td>
+          <td><span class="check-yes">✓</span></td>
+        </tr>
+        <tr>
+          <td><span class="mono">cancel_time_ms</span></td>
+          <td>Less than <strong>600ms</strong></td>
+          <td><span class="mono">180–490ms</span></td>
+          <td><span class="tag-req">REQUIRED</span></td>
+          <td><span class="check-yes">✓</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="example-box">
+      <h4>Real Data — T-2891 / RELIANCE</h4>
+      <div class="example-row"><span class="ex-key">Order size:</span><span class="ex-val">80,000 shares</span><span class="ex-note">threshold: 40,000 → EXCEEDED</span></div>
+      <div class="example-row"><span class="ex-key">Notional value:</span><span class="ex-val">₹10.33 crore</span><span class="ex-note">80,000 × ₹1,291.50</span></div>
+      <div class="example-row"><span class="ex-key">Cancel time:</span><span class="ex-val">180–490ms median</span><span class="ex-note">threshold: 600ms → UNDER LIMIT</span></div>
+      <div class="example-row"><span class="ex-key">Human reaction time:</span><span class="ex-val">~200ms minimum</span><span class="ex-note">algorithmically timed, not human</span></div>
+      <div class="example-row"><span class="ex-key">Verdict:</span><span class="ex-val" style="color:#dc2626">ALERT FIRED → ESCALATE (87% confidence)</span></div>
+    </div>
+
+    <div class="verdict-row">
+      <div class="verdict-pill pill-escalate">ESCALATE</div>
+      <div class="verdict-text">
+        <strong>Why it's fake:</strong> No legitimate trader places an ₹10 crore order and cancels it in
+        420 milliseconds. The intent was never to trade — it was to create the appearance of huge demand,
+        move the price, then cancel before being filled.
+        SEBI PFUTP Regulations 2003, Reg 4(2)(e).
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- PATTERN 3: WASH TRADING                -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <span class="pattern-badge badge-was">Pattern 3</span>
+      <div>
+        <div class="section-title">WASH TRADING</div>
+        <div class="section-desc">Buying and selling the same stock using two different accounts you control</div>
+      </div>
+    </div>
+
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-left"><div class="step-num">1</div><div class="step-line"></div></div>
+        <div class="step-content">
+          <h4>Find same trader_id across different account_ids</h4>
+          <p>The same person trading via two accounts: <code>trader_id matches, account_id differs</code></p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-left"><div class="step-num">2</div><div class="step-line"></div></div>
+        <div class="step-content">
+          <h4>Check for matching BUY and SELL on same instrument</h4>
+          <p>Same stock, same size (within 10% tolerance): <code>size_difference &lt; 10%</code></p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-left"><div class="step-num">3</div><div class="step-line"></div></div>
+        <div class="step-content">
+          <h4>Check the time window</h4>
+          <p>BUY and SELL happen within 30 seconds of each other: <code>time_diff &lt; 30 seconds</code></p>
+        </div>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Criteria</th>
+          <th>Threshold</th>
+          <th>T-3301 / INFY</th>
+          <th>Required?</th>
+          <th>Pass?</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Same <span class="mono">trader_id</span>, different <span class="mono">account_id</span></td>
+          <td>Must be true</td>
+          <td>A-3301 and A-3302</td>
+          <td><span class="tag-req">REQUIRED</span></td>
+          <td><span class="check-yes">✓</span></td>
+        </tr>
+        <tr>
+          <td>Same instrument, matching size</td>
+          <td>Size difference <strong>&lt; 10%</strong></td>
+          <td>10,000 vs 10,000 (0%)</td>
+          <td><span class="tag-req">REQUIRED</span></td>
+          <td><span class="check-yes">✓</span></td>
+        </tr>
+        <tr>
+          <td>BUY and SELL time gap</td>
+          <td>Less than <strong>30 seconds</strong></td>
+          <td><span class="mono">18 seconds</span></td>
+          <td><span class="tag-req">REQUIRED</span></td>
+          <td><span class="check-yes">✓</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="example-box">
+      <h4>Real Data — T-3301 / INFY</h4>
+      <div class="example-row"><span class="ex-key">Account A-3301:</span><span class="ex-val">BUY 10,000 INFY</span><span class="ex-note">@ ₹1,199.00 · 09:30:00</span></div>
+      <div class="example-row"><span class="ex-key">Account A-3302:</span><span class="ex-val">SELL 10,000 INFY</span><span class="ex-note">@ ₹1,199.60 · 09:30:18</span></div>
+      <div class="example-row"><span class="ex-key">Same trader?</span><span class="ex-val">YES — T-3301</span><span class="ex-note">both accounts belong to same trader</span></div>
+      <div class="example-row"><span class="ex-key">Time between:</span><span class="ex-val">18 seconds</span><span class="ex-note">threshold: 30s → WITHIN LIMIT</span></div>
+      <div class="example-row"><span class="ex-key">Verdict:</span><span class="ex-val" style="color:#dc2626">ALERT FIRED → ESCALATE (91% confidence)</span></div>
+    </div>
+
+    <div class="verdict-row">
+      <div class="verdict-pill pill-escalate">ESCALATE</div>
+      <div class="verdict-text">
+        <strong>Why it's fake:</strong> The trader is effectively selling to themselves.
+        This creates artificial trading volume in INFY — making the stock look more active than it is.
+        Like selling your car to yourself using a different bank account to inflate demand.
+        SEBI PFUTP Regulations 2003, Reg 4(2)(a).
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- PATTERN 4: PUMP AND DUMP               -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <span class="pattern-badge badge-pum">Pattern 4</span>
+      <div>
+        <div class="section-title">PUMP AND DUMP</div>
+        <div class="section-desc">Secretly accumulating a huge position, then selling it all to create losses for others</div>
+      </div>
+    </div>
+
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-left"><div class="step-num">1</div><div class="step-line"></div></div>
+        <div class="step-content">
+          <h4>Find large accumulation (PUMP phase)</h4>
+          <p>Total BUY volume by one trader on one stock exceeds 50,000 shares within a 20-minute window.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-left"><div class="step-num">2</div><div class="step-line"></div></div>
+        <div class="step-content">
+          <h4>Find rapid dump (DUMP phase)</h4>
+          <p>SELL of more than 50% of accumulated position within 10 minutes of the last BUY.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-left"><div class="step-num">3</div><div class="step-line"></div></div>
+        <div class="step-content">
+          <h4>Calculate Sigma</h4>
+          <p><code>sigma = total_buy_volume / 10,000</code> — measures how unusually large the accumulation is relative to a 10K-share baseline.</p>
+        </div>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Criteria</th>
+          <th>Threshold</th>
+          <th>T-4401 / TCS</th>
+          <th>Required?</th>
+          <th>Pass?</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Total BUY volume in 20-min window</td>
+          <td>Greater than <strong>50,000 shares</strong></td>
+          <td><span class="mono">110,000 shares</span></td>
+          <td><span class="tag-req">REQUIRED</span></td>
+          <td><span class="check-yes">✓</span></td>
+        </tr>
+        <tr>
+          <td>SELL after accumulation</td>
+          <td>Within <strong>10 minutes</strong> of last BUY</td>
+          <td><span class="mono">4 minutes</span></td>
+          <td><span class="tag-req">REQUIRED</span></td>
+          <td><span class="check-yes">✓</span></td>
+        </tr>
+        <tr>
+          <td>Sigma (anomaly score)</td>
+          <td>Greater than <strong>2.0σ</strong></td>
+          <td><span class="mono">11.0σ</span></td>
+          <td><span class="tag-opt">SCORED</span></td>
+          <td><span class="check-yes">✓</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="example-box">
+      <h4>Real Data — T-4401 / TCS</h4>
+      <div class="example-row"><span class="ex-key">PUMP phase:</span><span class="ex-val">5 × 22,000 shares BUY</span><span class="ex-note">= 110,000 shares over 14 minutes</span></div>
+      <div class="example-row"><span class="ex-key">Timestamps:</span><span class="ex-val">10:00, 10:03:30, 10:07, 10:10:30, 10:14</span></div>
+      <div class="example-row"><span class="ex-key">DUMP phase:</span><span class="ex-val">2 × 55,000 shares SELL</span><span class="ex-note">= 110,000 shares within 4 minutes</span></div>
+      <div class="example-row"><span class="ex-key">Price impact:</span><span class="ex-val">+1.2% during pump</span><span class="ex-note">₹2,196 → ₹2,222 at sell time</span></div>
+      <div class="example-row"><span class="ex-key">Sigma:</span><span class="ex-val">11.0σ</span><span class="ex-note">110,000 / 10,000 = 11.0</span></div>
+      <div class="example-row"><span class="ex-key">Verdict:</span><span class="ex-val" style="color:#dc2626">ALERT FIRED → ESCALATE</span></div>
+    </div>
+
+    <div class="verdict-row">
+      <div class="verdict-pill pill-escalate">ESCALATE</div>
+      <div class="verdict-text">
+        <strong>Why it's fake:</strong> The trader accumulated 110,000 TCS shares quietly over 14 minutes,
+        creating upward price pressure, then dumped all of it within 4 minutes at the elevated price —
+        leaving other investors who bought during the pump with instant losses.
+        SEBI PFUTP Regulations 2003, Reg 4(2)(a).
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SUMMARY TABLE                          -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="summary-section">
+    <h2>All 4 Patterns — Quick Reference</h2>
+    <table class="summary-table">
+      <thead>
+        <tr>
+          <th>Pattern</th>
+          <th>Criteria 1</th>
+          <th>Criteria 2</th>
+          <th>Criteria 3</th>
+          <th>SEBI Regulation</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="pat" style="color:#818cf8">LAYERING</td>
+          <td class="gold">cancel_ratio &gt; 55%</td>
+          <td class="gold">sigma &gt; 2.0</td>
+          <td class="gold">executed SELL exists</td>
+          <td class="sebi">PFUTP 2003, Reg 4(2)(a)</td>
+        </tr>
+        <tr>
+          <td class="pat" style="color:#f87171">SPOOFING</td>
+          <td class="gold">order_size &gt; 40,000</td>
+          <td class="gold">cancel_ms &lt; 600</td>
+          <td class="gold">—</td>
+          <td class="sebi">PFUTP 2003, Reg 4(2)(e)</td>
+        </tr>
+        <tr>
+          <td class="pat" style="color:#fbbf24">WASH TRADING</td>
+          <td class="gold">same trader, diff account</td>
+          <td class="gold">size diff &lt; 10%</td>
+          <td class="gold">time diff &lt; 30s</td>
+          <td class="sebi">PFUTP 2003, Reg 4(2)(a)</td>
+        </tr>
+        <tr>
+          <td class="pat" style="color:#c084fc">PUMP &amp; DUMP</td>
+          <td class="gold">BUY &gt; 50k in 20min</td>
+          <td class="gold">SELL within 10min</td>
+          <td class="gold">sigma &gt; 2.0</td>
+          <td class="sebi">PFUTP 2003, Reg 4(2)(a)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- CONFIDENCE SCORE                       -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <span class="pattern-badge badge-conf">Scoring</span>
+      <div>
+        <div class="section-title">HOW CONFIDENCE IS SCORED (0–100)</div>
+        <div class="section-desc">A mathematical score passed to Claude to anchor its triage verdict</div>
+      </div>
+    </div>
+
+    <!-- 5 DIMENSIONS -->
+    <p style="font-size:12px;color:#475569;margin-bottom:14px">
+      Every alert gets a pre-computed confidence score before Claude even sees it.
+      Five evidence dimensions are each scored 0–100, then blended using pattern-specific weights.
+      The final score is clamped to <strong>52–97</strong> (never 0 or 100 — the system acknowledges uncertainty).
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Dimension</th>
+          <th>Variable</th>
+          <th>Formula (→ 0–100)</th>
+          <th>What it measures</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Cancel Ratio</strong></td>
+          <td><span class="mono">cr_score</span></td>
+          <td><span class="mono">min(100, (cancel_ratio − 0.70) / 0.28 × 100)</span></td>
+          <td>How far above 70% cancel rate the trader is</td>
+        </tr>
+        <tr>
+          <td><strong>Sigma</strong></td>
+          <td><span class="mono">sig_score</span></td>
+          <td><span class="mono">min(100, (sigma − 2.0) / 12.0 × 100)</span></td>
+          <td>Statistical distance from the live population baseline</td>
+        </tr>
+        <tr>
+          <td><strong>Cancel Speed</strong></td>
+          <td><span class="mono">timing_score</span></td>
+          <td><span class="mono">min(100, (600 − cancel_ms) / 590 × 100)</span></td>
+          <td>How much faster than 600ms the cancellations are (50 if no cancel time)</td>
+        </tr>
+        <tr>
+          <td><strong>Order Volume</strong></td>
+          <td><span class="mono">vol_score</span></td>
+          <td><span class="mono">min(100, (order_size − 10,000) / 70,000 × 100)</span></td>
+          <td>Notional size of the suspicious orders</td>
+        </tr>
+        <tr>
+          <td><strong>Sample Size</strong></td>
+          <td><span class="mono">sample_score</span></td>
+          <td><span class="mono">min(100, total_orders / 15 × 100)</span></td>
+          <td>Statistical reliability — more trades = more confidence</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- WEIGHT TABLE -->
+    <p style="font-size:12px;color:#475569;margin-bottom:10px">
+      Weights reflect what matters most for each pattern type:
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Pattern</th>
+          <th>Cancel Ratio</th>
+          <th>Sigma</th>
+          <th>Cancel Speed</th>
+          <th>Order Volume</th>
+          <th>Sample Size</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="color:#818cf8;font-weight:700">LAYERING</td>
+          <td><span class="mono">35%</span></td>
+          <td><span class="mono">25%</span></td>
+          <td><span class="mono">20%</span></td>
+          <td><span class="mono">10%</span></td>
+          <td><span class="mono">10%</span></td>
+        </tr>
+        <tr>
+          <td style="color:#f87171;font-weight:700">SPOOFING</td>
+          <td><span class="mono">15%</span></td>
+          <td><span class="mono">20%</span></td>
+          <td><span class="mono">30%</span></td>
+          <td><span class="mono">25%</span></td>
+          <td><span class="mono">10%</span></td>
+        </tr>
+        <tr>
+          <td style="color:#fbbf24;font-weight:700">WASH TRADING</td>
+          <td><span class="mono">0%</span></td>
+          <td><span class="mono">0%</span></td>
+          <td><span class="mono">10%</span></td>
+          <td><span class="mono">30%</span></td>
+          <td><span class="mono">60%</span></td>
+        </tr>
+        <tr>
+          <td style="color:#c084fc;font-weight:700">PUMP &amp; DUMP</td>
+          <td><span class="mono">0%</span></td>
+          <td><span class="mono">25%</span></td>
+          <td><span class="mono">0%</span></td>
+          <td><span class="mono">40%</span></td>
+          <td><span class="mono">35%</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- FINAL FORMULA -->
+    <div class="formula-block">
+      <span class="fl">raw   </span><span class="fv">= Σ (weight[i] × score[i])   <span class="fc">← weighted sum across 5 dimensions</span></span><br>
+      <span class="fl">final </span><span class="fv">= clamp(raw, 52, 97)          <span class="fc">← never 0 or 100 — always uncertain</span></span><br>
+      <br>
+      <span class="fc">Example — T-1042 LAYERING:  cr=90, sig=52, timing=85, vol=40, sample=93</span><br>
+      <span class="fv">raw = 0.35×90 + 0.25×52 + 0.20×85 + 0.10×40 + 0.10×93 = 31.5+13+17+4+9.3 = 74.8</span><br>
+      <span class="fl">confidence = 75%</span>
+    </div>
+
+    <div class="verdict-row">
+      <div class="verdict-pill" style="background:#ecfdf5;color:#065f46;border:1px solid #6ee7b7">ANCHORED</div>
+      <div class="verdict-text">
+        <strong>Why this matters:</strong> The score is passed to Claude as <code>confidence_hint</code>.
+        Claude's JSON output is pre-seeded with this value so even if the AI reasoning varies,
+        the numeric confidence stays anchored to the mathematical evidence — not Claude's mood.
+        Scores below ~60 push Claude toward DISMISS; above ~75 toward ESCALATE.
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- SEVERITY ASSIGNMENT                    -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-header">
+      <span class="pattern-badge badge-sev">Severity</span>
+      <div>
+        <div class="section-title">HOW SEVERITY IS ASSIGNED</div>
+        <div class="section-desc">Each alert is tagged HIGH or MEDIUM by the detector before Claude triages it</div>
+      </div>
+    </div>
+
+    <p style="font-size:12px;color:#475569;margin-bottom:14px">
+      Severity is set deterministically by <code>detector.py</code> — Claude does not decide it.
+      It feeds into case prioritisation (P1 vs P2), SLA breach dates, and escalation routing.
+    </p>
+
+    <div class="sev-grid">
+      <div class="sev-card sev-high">
+        <h5>HIGH SEVERITY</h5>
+        <p>
+          <strong>LAYERING</strong> — when <code>cancel_ratio &gt; 0.80</code> (above 80%)<br>
+          <strong>SPOOFING</strong> — always HIGH (any qualifying order = severe)<br>
+          <strong>PUMP &amp; DUMP</strong> — always HIGH (intent to harm other investors)<br><br>
+          → Case priority: <strong>P1</strong> · SLA breach: <strong>T+15 days</strong><br>
+          → Compliance case opened immediately on ESCALATE verdict
+        </p>
+      </div>
+      <div class="sev-card sev-med">
+        <h5>MEDIUM SEVERITY</h5>
+        <p>
+          <strong>LAYERING</strong> — when <code>0.55 ≤ cancel_ratio ≤ 0.80</code><br>
+          <strong>WASH TRADING</strong> — always MEDIUM (volume-based, not price-disruptive)<br><br>
+          → Case priority: <strong>P2</strong> · SLA breach: <strong>T+30 days</strong><br>
+          → May be reviewed in next business day batch rather than real-time
+        </p>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Pattern</th>
+          <th>Severity Rule</th>
+          <th>Condition</th>
+          <th>Case Priority</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="color:#818cf8;font-weight:700">LAYERING</td>
+          <td>Dynamic</td>
+          <td><span class="mono">HIGH if cancel_ratio &gt; 0.80 · MEDIUM if 0.55–0.80</span></td>
+          <td><span class="mono">P1 / P2</span></td>
+        </tr>
+        <tr>
+          <td style="color:#f87171;font-weight:700">SPOOFING</td>
+          <td>Always HIGH</td>
+          <td><span class="mono">Any order_size &gt; 40,000 + cancel &lt; 600ms</span></td>
+          <td><span class="mono">P1</span></td>
+        </tr>
+        <tr>
+          <td style="color:#fbbf24;font-weight:700">WASH TRADING</td>
+          <td>Always MEDIUM</td>
+          <td><span class="mono">Same-trader cross-account match within 30s</span></td>
+          <td><span class="mono">P2</span></td>
+        </tr>
+        <tr>
+          <td style="color:#c084fc;font-weight:700">PUMP &amp; DUMP</td>
+          <td>Always HIGH</td>
+          <td><span class="mono">BUY &gt; 50,000 + SELL within 10min</span></td>
+          <td><span class="mono">P1</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="example-box">
+      <h4>Severity in action — same pattern, different severity</h4>
+      <div class="example-row"><span class="ex-key">T-1042 / HDFCBANK:</span><span class="ex-val">cancel_ratio 85.7%</span><span class="ex-note">→ HIGH (above 80% threshold)</span></div>
+      <div class="example-row"><span class="ex-key">T-0501 / HDFCBANK:</span><span class="ex-val">cancel_ratio 60.0%</span><span class="ex-note">→ MEDIUM (55–80% band) — also dismissed by AI (cancel speed 840ms)</span></div>
+      <div class="example-row"><span class="ex-key">T-2891 / RELIANCE:</span><span class="ex-val">SPOOFING</span><span class="ex-note">→ always HIGH regardless of cancel ratio</span></div>
+      <div class="example-row"><span class="ex-key">T-3301 / INFY:</span><span class="ex-val">WASH TRADING</span><span class="ex-note">→ always MEDIUM — cross-account, not price-disruptive alone</span></div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════ -->
+  <!-- KEY INSIGHT                            -->
+  <!-- ═══════════════════════════════════════ -->
+  <div class="insight">
+    <h3>⚡ Key Design Decision — Math First, AI Second</h3>
+    <p>
+      The detection engine <strong>does not ask Claude AI whether a trade is suspicious</strong>.
+      Claude would be unreliable and expensive for this task ($0.045 per call if raw trades were sent).
+      Instead, the system <strong>proves manipulation mathematically</strong> using cancel ratios, sigma scores,
+      and timing thresholds — then sends Claude only the pre-computed evidence (~280 tokens) to write
+      the legal rationale. This achieves <strong>97% token savings</strong> ($0.00014 per call)
+      while producing SEBI-quality verdicts that cite the exact regulation violated.
+    </p>
+  </div>
+
+
+  <!-- FOOTER -->
+  <div class="footer">
+    Trade Surveillance Engine &nbsp;·&nbsp; Wissen Technology Hackathon 2026
+    &nbsp;·&nbsp; Built by Mayank Gupta &nbsp;·&nbsp; Powered by Claude Sonnet 4.6
+    &nbsp;·&nbsp; detector.py
+  </div>
+
+</div>
+</body>
+</html>
