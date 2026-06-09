@@ -11,9 +11,9 @@ Built for Wissen Technology Hackathon 2026.
 - **Triage AI**: `claude-sonnet-4-6` (hardcoded in `backend/triage.py`)
 - **Claude Code session**: Sonnet 4.6 (default) — change with `/model` in the CLI
 
-## Current Status — as of 2026-06-07
-- **Backend**: Flask + SQLite, 24 endpoints, all working, no Pylance errors
-- **Frontend**: Multi-file React 18, 7 pages, gold/black Bloomberg theme, fully restructured
+## Current Status — as of 2026-06-09 (FINAL BUILD)
+- **Backend**: Flask + SQLite, 26 endpoints, all working, no Pylance errors
+- **Frontend**: Multi-file React 18, 8 pages (+ NETWORK graph), gold/black Bloomberg theme, fully restructured
 - **Triage**: Claude Sonnet CCO persona, 8-field SEBI-quality JSON, model: claude-sonnet-4-6
 - **Layout**: Fixed sidebar + header, per-page scrolling, works at 100% zoom
 - **Refresh button**: One click does refresh-data → replay/start → updates state (no reload)
@@ -129,7 +129,8 @@ trade-surveillance/
 │           ├── TraderProfile.js # Risk score 0-100, pattern breakdown, alert history
 │           ├── Trades.js       # ~432 trades, 5 filters, flagged trader highlighting
 │           ├── Logs.js         # Escalation log, CSV export, 5s auto-refresh
-│           └── Settings.js     # Architecture diagram, health checks, API usage stats
+│           ├── Settings.js     # Architecture diagram, health checks, API usage stats
+│           └── NetworkGraph.js # vis.js network graph, cartel detection, clusters
 ├── cases/                  # Generated COMP-XXXXXXXX.json compliance case files
 ├── ARCHITECTURE.md         # Full system architecture for judges
 ├── CLAUDE.md               # This file — dev notes
@@ -216,6 +217,8 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 | `/api/leaderboard` | GET | Top suspects ranked by criticality + risk score |
 | `/api/chat` | POST | Claude-powered Q&A on live surveillance data |
 | `/api/ping` | GET | Keep-alive for Render free tier |
+| `/api/network-graph` | GET | Trader network nodes, edges, clusters, circular patterns |
+| `/api/verify-evidence/<id>` | GET | XAI claim verification — math checks Claude's rationale |
 
 ## Claude AI Triage
 
@@ -255,6 +258,26 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 | Voice command stale closure — `handleCommandRef` updated each render, `onresult` calls ref | ✅ |
 | Voice mic-denied — toast error messages for `not-allowed` and `no-speech` events | ✅ |
 | `/api/leaderboard` added — was 404, now returns ranked suspects with risk score | ✅ |
+
+## Final Build Additions (2026-06-09 — Presentation Day)
+
+| Feature | Status |
+|---------|--------|
+| Cartel Network Graph — `/network` page, vis.js, nodes/edges/clusters | ✅ |
+| Crime Scene Replay — animated Timeline tab, Play/Pause/Speed controls | ✅ |
+| XAI Truth Anchors — Verify Evidence toggle, mathematical claim verification | ✅ |
+| Agent Slack + email on ESCALATE find — auto-notifies on watchlist agent hits | ✅ |
+| Agent log download — Export Logs CSV button in Watchlist page | ✅ |
+| Loading shimmer animations + new-data-pulse CSS classes | ✅ |
+| NETWORK item added to Sidebar between Watch and Config | ✅ |
+| DB WAL removed — DELETE journal mode only, timeout=30, check_same_thread=False | ✅ |
+| render.yaml ENVIRONMENT=production removed | ✅ |
+| start_agent() wrapped in try/except (non-fatal) | ✅ |
+| vis.js CDN added to app.html | ✅ |
+| GET /api/network-graph — nodes, edges, clusters, circular patterns | ✅ |
+| GET /api/verify-evidence/:alert_id — XAI claim verification | ✅ |
+| Landing page stats updated: 432 trades, 9 alerts, +33% FP suppressed stat | ✅ |
+| Landing page 3 new features: Network Graph, Crime Replay, XAI Anchors | ✅ |
 
 ## Hackathon Quality Improvements (2026-06-09)
 
@@ -318,6 +341,18 @@ NSE SLA: SEBI circular SEBI/HO/IVD/IVD-I/CIR/P/2022/170 requires case closure wi
 "280 tokens per triage call vs 15,000 tokens if we sent raw trades. That's a 97% reduction.
 We pre-compute cancel_ratio, sigma, cancel_ms — the AI doesn't count your data, it judges it."
 Cost: ~$0.00014 per triage. A real NSE setup triages ~2000 alerts/day = ~$0.28/day.
+
+### The Network Graph (new for final build)
+Navigate to NETWORK in the sidebar. Every trader becomes a node; trades between them become edges.
+Suspicious edges (red dashed) = traders active on the same instrument within 5 minutes with opposing order types.
+Clusters panel on the right identifies coordinated manipulation automatically.
+Circular trading pattern: A → B → C → A within 30 minutes — detected programmatically from order flow.
+
+### XAI Truth Anchors (new for final build)
+On any triaged alert → AI Triage tab → click "🔍 Verify Evidence (XAI)".
+Every statistical claim Claude makes is recalculated from raw DB data and compared.
+Show the panel: "cancel ratio 85.7% — Claude stated 85.7% — deviation 0.0000 — ✅ VERIFIED"
+Hallucination score: 0. "100% of statistical claims verified." This is the answer to "can you trust AI?"
 
 ### The 10-minute trade window
 detect_layering/spoofing use only trades within the first 10 minutes of a trader's session.

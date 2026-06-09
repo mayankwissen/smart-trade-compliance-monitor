@@ -21,6 +21,7 @@ window.useRoute = function useRoute() {
   else if (raw === '/logs')            page = 'logs';
   else if (raw === '/settings')        page = 'settings';
   else if (raw === '/watchlist')       page = 'watchlist';
+  else if (raw === '/network')         page = 'network';
   else if (raw.startsWith('/trader/')) { page = 'trader-profile'; traderId = raw.slice(8); }
   return { page, alertId, traderId, nav };
 };

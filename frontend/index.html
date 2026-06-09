@@ -1238,11 +1238,11 @@ footer a:hover{color:var(--gold)}
 
   <div class="metrics-bar" id="metricsBar">
     <div class="metric" id="m1">
-      <span class="metric-val" data-target="416">0</span>
+      <span class="metric-val" data-target="432">0</span>
       <span class="metric-label">Trades Monitored</span>
     </div>
     <div class="metric" id="m2">
-      <span class="metric-val" data-target="6">0</span>
+      <span class="metric-val" data-target="9">0</span>
       <span class="metric-label">Alerts Detected</span>
     </div>
     <div class="metric" id="m3">
@@ -1256,6 +1256,10 @@ footer a:hover{color:var(--gold)}
     <div class="metric" id="m5">
       <span class="metric-val">10s</span>
       <span class="metric-label">Full Pipeline</span>
+    </div>
+    <div class="metric" id="m6">
+      <span class="metric-val" style="color:var(--green)">33%</span>
+      <span class="metric-label">False Positives Suppressed</span>
     </div>
   </div>
 </section>
@@ -1333,7 +1337,7 @@ footer a:hover{color:var(--gold)}
         <div class="pipe-num">01 / INGEST</div>
         <span class="pipe-icon">📊</span>
         <div class="pipe-title">Data Ingestion</div>
-        <div class="pipe-desc">416 NSE trades loaded with real-time prices from Yahoo Finance. 20 instruments. Auto-refreshes every 60 seconds.</div>
+        <div class="pipe-desc">432 NSE trades loaded with real-time prices from Yahoo Finance. 20 instruments. Auto-refreshes every 60 seconds.</div>
       </div>
       <div class="pipe-item">
         <div class="pipe-num">02 / DETECT</div>
@@ -1444,7 +1448,7 @@ footer a:hover{color:var(--gold)}
             <div class="ai-point-icon">⚡</div>
             <div class="ai-point-text">
               <h4>97% Token Reduction</h4>
-              <p>Pre-computed statistics (cancel_ratio, sigma) sent instead of 416 raw trades. ~280 tokens vs ~15,000 tokens per call.</p>
+              <p>Pre-computed statistics (cancel_ratio, sigma) sent instead of 432 raw trades. ~280 tokens vs ~15,000 tokens per call.</p>
             </div>
           </div>
           <div class="ai-point">
@@ -1532,8 +1536,8 @@ footer a:hover{color:var(--gold)}
           </div>
         </div>
         <div class="mock-stats">
-          <div class="mock-stat"><span class="mv" style="color:var(--gold)">416</span><span class="ml">Total Trades</span></div>
-          <div class="mock-stat"><span class="mv" style="color:var(--text)">6</span><span class="ml">Alerts Detected</span></div>
+          <div class="mock-stat"><span class="mv" style="color:var(--gold)">432</span><span class="ml">Total Trades</span></div>
+          <div class="mock-stat"><span class="mv" style="color:var(--text)">9</span><span class="ml">Alerts Detected</span></div>
           <div class="mock-stat"><span class="mv" style="color:var(--red)">4</span><span class="ml">Escalated</span></div>
           <div class="mock-stat"><span class="mv" style="color:var(--green)">0</span><span class="ml">Dismissed</span></div>
           <div class="mock-stat"><span class="mv" style="color:var(--text3)">2</span><span class="ml">Pending</span></div>
@@ -1658,9 +1662,27 @@ footer a:hover{color:var(--gold)}
       </div>
       <div class="feat-card reveal delay-3">
         <div class="feat-icon">⚙️</div>
-        <h3>7-Page Dashboard</h3>
-        <p>Dashboard, Alerts, Alert Detail (4 tabs), Trader Profile, Trade Explorer, Logs with CSV export, Settings with health checks.</p>
+        <h3>8-Page Dashboard</h3>
+        <p>Dashboard, Alerts, Alert Detail (5 tabs), Trader Profile, Trade Explorer, Logs, Watchlist, Network Graph — full compliance platform.</p>
         <span class="feat-tag">Full Platform</span>
+      </div>
+      <div class="feat-card reveal delay-1">
+        <div class="feat-icon">🕸️</div>
+        <h3>Cartel Network Graph</h3>
+        <p>Detects coordinated multi-trader manipulation through visual network analysis. Circular trading patterns identified automatically with vis.js.</p>
+        <span class="feat-tag">Network Intelligence</span>
+      </div>
+      <div class="feat-card reveal delay-2">
+        <div class="feat-icon">🎬</div>
+        <h3>Crime Scene Replay</h3>
+        <p>Animated millisecond-by-millisecond replay of manipulation. Watch fake orders appear and vanish in real time with interactive speed control.</p>
+        <span class="feat-tag">Visual Proof</span>
+      </div>
+      <div class="feat-card reveal delay-3">
+        <div class="feat-icon">🔍</div>
+        <h3>XAI Truth Anchors</h3>
+        <p>Every Claude verdict is mathematically verified against raw data. Zero hallucinations. 100% evidence-backed analysis with formula verification.</p>
+        <span class="feat-tag">Zero Hallucinations</span>
       </div>
     </div>
   </div>
@@ -1680,6 +1702,7 @@ footer a:hover{color:var(--gold)}
       <div class="tech-chip"><span class="ic">💬</span> Slack Webhooks</div>
       <div class="tech-chip"><span class="ic">📧</span> Gmail SMTP</div>
       <div class="tech-chip"><span class="ic">🗄️</span> SQLite</div>
+      <div class="tech-chip"><span class="ic">🕸️</span> vis.js (Network Graph)</div>
       <div class="tech-chip"><span class="ic">☁️</span> Render.com</div>
       <div class="tech-chip"><span class="ic">🐙</span> GitHub</div>
     </div>

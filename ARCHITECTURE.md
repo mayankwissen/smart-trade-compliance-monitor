@@ -250,10 +250,11 @@ VISIT DASHBOARD (first time)
    Evidence tab:
    ├─ Cancel ratio, sigma, total orders, total volume
    └─ Trade table with FLAG markers on suspicious rows
-   Timeline tab (NEW):
-   └─ Chart.js bar chart — each order as a bar
-      BUY=green, SELL=red, CANCELLED=amber
-      Hover: timestamp, cancel speed, price
+   Timeline tab (ANIMATED CRIME SCENE REPLAY):
+   ├─ Play/Pause/Reset/Speed controls (0.5x-3x)
+   ├─ Bar chart animates order-by-order in sequence
+   ├─ Glowing current bar + crime log updating in real time
+   └─ Investigation Summary: fast-cancel count, price impact, total value
    Escalations tab:
    ├─ Compliance Case (COMP-XXXXXXXX, case file download)
    ├─ Slack notification status
@@ -268,10 +269,24 @@ VISIT DASHBOARD (first time)
    ├─ Full alert history (clickable rows)
    └─ Watchlist status
 
-8. Dashboard Correlated Activity panel (NEW):
+8. Dashboard Correlated Activity panel:
    ├─ Groups alerts firing within 10-minute windows
    ├─ Shows alert ID chips (clickable) + patterns
    └─ "Potential coordinated manipulation" warning
+
+9. NETWORK page (NEW — vis.js Cartel Detection):
+   ├─ GET /api/network-graph — builds nodes + edges from all trade data
+   ├─ Nodes: traders sized by alert count, colored by risk score
+   ├─ Edges: red dashed = suspicious (opposing types within 5 min same instrument)
+   ├─ Clusters panel: coordinated manipulation groups
+   └─ Circular trades: A → B → C → A patterns within 30 minutes
+
+10. XAI Truth Anchors (in AI Triage tab):
+    ├─ GET /api/verify-evidence/:alert_id
+    ├─ Recalculates cancel_ratio from raw DB — compares to Claude's stated value
+    ├─ Recalculates sigma using population_mean=0.23, population_std=0.08
+    ├─ Verifies regulatory_reference contains "PFUTP" or "SEBI"
+    └─ Returns: hallucination_score, verification_rate, all_verified flag
 ```
 
 ---

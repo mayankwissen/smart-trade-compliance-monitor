@@ -1,6 +1,6 @@
 window.Sidebar = function Sidebar({ page, nav }) {
   const t = window.useT();
-  const active = page === 'dashboard' ? '/' : page === 'alert-detail' ? '/alerts' : page === 'trader-profile' ? '/alerts' : `/${page}`;
+  const active = page === 'dashboard' ? '/' : page === 'alert-detail' ? '/alerts' : page === 'trader-profile' ? '/alerts' : page === 'network' ? '/network' : `/${page}`;
 
   const links = [
     {
@@ -44,6 +44,15 @@ window.Sidebar = function Sidebar({ page, nav }) {
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
           <circle cx="12" cy="12" r="3"/>
+        </svg>
+      ),
+    },
+    {
+      to: '/network', label: 'Network',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/>
+          <line x1="12" y1="7" x2="5" y2="17"/><line x1="12" y1="7" x2="19" y2="17"/><line x1="5" y1="19" x2="19" y2="19"/>
         </svg>
       ),
     },

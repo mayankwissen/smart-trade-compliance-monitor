@@ -131,9 +131,27 @@ def _monitor_trader(trader_id):
                 saved += 1
                 try:
                     from triage import triage_alert
-                    from workflows import run_escalation_workflow
+                    from workflows import run_escalation_workflow, send_slack_notification, send_email_notifications, create_compliance_case
                     triage_result = triage_alert(alert)
                     run_escalation_workflow(alert, triage_result)
+                    if triage_result.get('verdict') == 'ESCALATE':
+                        try:
+                            case_id = create_compliance_case(alert, triage_result)
+                            send_slack_notification(alert, triage_result, case_id)
+                        except Exception as slack_err:
+                            logging.error(f"Agent Slack: {slack_err}")
+                        try:
+                            case_id_for_email = case_id if 'case_id' in dir() else 'AGENT-ESCALATION'
+                            send_email_notifications(alert, triage_result, case_id_for_email)
+                        except Exception as email_err:
+                            logging.error(f"Agent email: {email_err}")
+                        _log_agent_action(
+                            trader_id=trader_id,
+                            status='ALERT_CREATED',
+                            alerts_found=1,
+                            message=f"Agent found and escalated {alert['pattern_type']} on {alert['instrument']} — {triage_result['verdict']} {triage_result.get('confidence', '')}%",
+                            action_taken='TRIAGE_ESCALATE_NOTIFY'
+                        )
                 except Exception as e:
                     logging.error(f"Auto-triage failed for {alert['alert_id']}: {e}")
 

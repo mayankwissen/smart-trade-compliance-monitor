@@ -86,6 +86,11 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
   const [deepLoading, setDeepLoading]   = _aduseS(false);
   const [deepError, setDeepError]       = _aduseS(null);
 
+  // XAI Truth Anchors state
+  const [xaiOpen, setXaiOpen]           = _aduseS(false);
+  const [xaiData, setXaiData]           = _aduseS(null);
+  const [xaiLoading, setXaiLoading]     = _aduseS(false);
+
   const load = _aduseC(async () => {
     try {
       const d = await fetch(`${window.API_BASE}/api/alert/${alertId}/full`).then(r => r.json());
@@ -138,6 +143,17 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
       setDeepError('Network error — retry');
     }
     setDeepLoading(false);
+  };
+
+  const doVerifyEvidence = async () => {
+    if (xaiData) { setXaiOpen(v => !v); return; }
+    setXaiLoading(true);
+    try {
+      const res = await fetch(`${window.API_BASE}/api/verify-evidence/${alertId}`).then(r => r.json());
+      if (!res.error) setXaiData(res);
+    } catch {}
+    setXaiLoading(false);
+    setXaiOpen(true);
   };
 
   if (loading) return (
@@ -388,6 +404,57 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                     </div>
                   )}
 
+                  {/* ── XAI TRUTH ANCHORS ── */}
+                  <div style={{ marginBottom: 16 }}>
+                    <button onClick={doVerifyEvidence}
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, background: xaiOpen ? '#3b82f622' : 'transparent', border: `1px solid ${xaiOpen ? t.info : t.border}`, color: xaiOpen ? t.info : t.textSec, borderRadius: 6, padding: '7px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: "'Inter',sans-serif" }}>
+                      {xaiLoading ? '⏳ Verifying...' : xaiOpen ? '🔍 Hide Evidence Verification' : '🔍 Verify Evidence (XAI)'}
+                    </button>
+
+                    {xaiOpen && xaiData && (
+                      <div style={{ marginTop: 10, background: t.bg, border: `1px solid ${t.info}33`, borderRadius: 10, padding: 16 }}>
+                        <div style={{ fontSize: 10, color: t.info, fontFamily: "'Inter',sans-serif", fontWeight: 700, letterSpacing: '.15em', marginBottom: 14, textTransform: 'uppercase' }}>Truth Anchor Panel — Mathematical Verification</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                          {(xaiData.claims || []).map((claim, i) => (
+                            <div key={i} style={{ background: t.card, border: `1px solid ${claim.verified ? '#22c55e33' : '#ef444433'}`, borderLeft: `3px solid ${claim.verified ? '#22c55e' : '#ef4444'}`, borderRadius: 8, padding: '12px 14px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                                <span style={{ background: '#f59e0b22', color: '#f59e0b', borderRadius: 3, padding: '1px 6px', fontSize: 10, fontWeight: 700, fontFamily: "'Inter',sans-serif" }}>CLAIM</span>
+                                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: t.text, fontWeight: 700 }}>{claim.claim_text}</span>
+                                <span style={{ marginLeft: 'auto', fontSize: 11, fontWeight: 700, fontFamily: "'Inter',sans-serif", color: claim.verified ? '#22c55e' : '#ef4444' }}>
+                                  {claim.verified ? '✅ VERIFIED' : '❌ UNVERIFIED'}
+                                </span>
+                              </div>
+                              <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: '#3b82f6', marginBottom: 6 }}>
+                                FORMULA: {claim.formula}
+                              </div>
+                              {typeof claim.calculated_value === 'number' && (
+                                <div style={{ display: 'flex', gap: 16, fontSize: 11, fontFamily: "'JetBrains Mono',monospace', color: t.textMuted" }}>
+                                  <span style={{ color: t.textMuted }}>Calculated: <span style={{ color: t.text, fontWeight: 700 }}>{typeof claim.calculated_value === 'number' ? claim.calculated_value.toFixed(4) : claim.calculated_value}</span></span>
+                                  <span style={{ color: t.textMuted }}>Claude stated: <span style={{ color: t.text, fontWeight: 700 }}>{typeof claim.claude_stated_value === 'number' ? claim.claude_stated_value.toFixed(4) : claim.claude_stated_value}</span></span>
+                                  <span style={{ color: t.textMuted }}>Deviation: <span style={{ color: claim.deviation < 0.05 ? '#22c55e' : '#ef4444', fontWeight: 700 }}>{typeof claim.deviation === 'number' ? claim.deviation.toFixed(4) : '0'}</span></span>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <div style={{ marginTop: 14, padding: '12px 16px', background: xaiData.all_verified ? '#22c55e0a' : '#ef44440a', border: `1px solid ${xaiData.all_verified ? '#22c55e44' : '#ef444444'}`, borderRadius: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, fontWeight: 700, color: xaiData.all_verified ? '#22c55e' : '#ef4444', marginBottom: 2 }}>
+                              {xaiData.hallucination_score === 0 ? '0 unverified claims detected' : `${xaiData.hallucination_score} unverified claim(s)`}
+                            </div>
+                            <div style={{ fontSize: 11, color: t.textMuted, fontFamily: "'Inter',sans-serif" }}>
+                              {xaiData.verification_rate}% of statistical claims verified · {xaiData.total_trades_analyzed} trades analyzed
+                            </div>
+                          </div>
+                          <window.Bdg
+                            label={xaiData.all_verified ? 'AI VERDICT MATHEMATICALLY VERIFIED' : 'VERIFICATION INCOMPLETE'}
+                            cfg={xaiData.all_verified ? { bg: '#22c55e22', c: '#22c55e' } : { bg: '#ef444422', c: '#ef4444' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* ── AI METRICS ── */}
                   <div style={{ background: t.bg, border: `1px solid ${t.gold}33`, borderRadius: 10, padding: 16, marginBottom: 16 }}>
                     <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 10, color: t.gold, letterSpacing: '.15em', marginBottom: 12 }}>AI METRICS</div>
@@ -570,43 +637,161 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
             </div>
           )}
 
-          {/* ── TAB 4: TIMELINE ── */}
-          {tab === 'timeline' && (
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, color: t.text }}>Order Flow Visualization</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: t.textMuted, fontFamily: "'Inter',sans-serif" }}>
-                    <span style={{ width: 9, height: 9, borderRadius: 2, background: '#22c55e', display: 'inline-block' }} />BUY
-                  </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: t.textMuted, fontFamily: "'Inter',sans-serif" }}>
-                    <span style={{ width: 9, height: 9, borderRadius: 2, background: '#ef4444', display: 'inline-block' }} />SELL
-                  </span>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: t.textMuted, fontFamily: "'Inter',sans-serif" }}>
-                    <span style={{ width: 9, height: 9, borderRadius: 2, background: '#f59e0b', display: 'inline-block' }} />CANCELLED
-                  </span>
+          {/* ── TAB 4: TIMELINE (Crime Scene Replay) ── */}
+          {tab === 'timeline' && (() => {
+            const [playing, setPlaying] = _aduseS(false);
+            const [currentStep, setCurrentStep] = _aduseS(-1);
+            const [speed, setSpeed] = _aduseS(1);
+            const [log, setLog] = _aduseS([]);
+            const intervalRef = React.useRef(null);
+
+            const stopPlay = () => {
+              if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+              setPlaying(false);
+            };
+
+            const resetPlay = () => {
+              stopPlay();
+              setCurrentStep(-1);
+              setLog([]);
+            };
+
+            const startPlay = () => {
+              if (!trades || trades.length === 0) return;
+              setCurrentStep(0);
+              setLog([]);
+              setPlaying(true);
+              let step = 0;
+              intervalRef.current = setInterval(() => {
+                step += 1;
+                if (step >= trades.length) {
+                  clearInterval(intervalRef.current);
+                  intervalRef.current = null;
+                  setPlaying(false);
+                  return;
+                }
+                setCurrentStep(step);
+                const tr = trades[step];
+                const ts = (tr.timestamp || '').slice(11, 19);
+                if (tr.order_status === 'CANCELLED') {
+                  setLog(l => [...l, { ts, msg: `ORDER CANCELLED after ${tr.cancel_time_ms}ms — ${tr.cancel_time_ms < 600 ? '⚠ SUSPICIOUS' : 'normal'}`, color: '#ef4444' }]);
+                } else if (tr.order_type === 'BUY') {
+                  setLog(l => [...l, { ts, msg: `BUY order placed: ${tr.order_size?.toLocaleString()} shares @ ₹${parseFloat(tr.price).toFixed(2)}`, color: '#22c55e' }]);
+                } else {
+                  setLog(l => [...l, { ts, msg: `SELL executed: ${tr.order_size?.toLocaleString()} shares @ ₹${parseFloat(tr.price).toFixed(2)}`, color: '#f59e0b' }]);
+                }
+              }, Math.round(1000 / speed));
+            };
+
+            React.useEffect(() => { return () => stopPlay(); }, []);
+
+            const displayTrades = trades || [];
+            const maxSize = Math.max(...displayTrades.map(tr => tr.order_size || 0), 1);
+
+            const totalCancelled = displayTrades.filter(tr => tr.order_status === 'CANCELLED').length;
+            const fastCancel = displayTrades.filter(tr => tr.order_status === 'CANCELLED' && tr.cancel_time_ms > 0 && tr.cancel_time_ms < 600).length;
+            const prices = displayTrades.map(tr => parseFloat(tr.price) || 0).filter(p => p > 0);
+            const priceMove = prices.length > 1 ? ((Math.max(...prices) - Math.min(...prices)) / Math.min(...prices) * 100).toFixed(2) : '0.00';
+            const totalValue = displayTrades.reduce((s, tr) => s + (tr.order_size || 0) * (parseFloat(tr.price) || 0), 0);
+
+            return (
+              <div>
+                {/* Controls */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+                  <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, color: t.text, marginRight: 4 }}>Crime Scene Replay</span>
+                  <button onClick={playing ? stopPlay : startPlay}
+                    style={{ background: playing ? '#ef4444' : t.gold, color: '#000', border: 'none', borderRadius: 6, padding: '6px 16px', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'Inter',sans-serif" }}>
+                    {playing ? '⏸ Pause' : '▶ Play Investigation'}
+                  </button>
+                  <button onClick={resetPlay}
+                    style={{ background: 'transparent', border: `1px solid ${t.border}`, color: t.textSec, borderRadius: 6, padding: '6px 12px', fontSize: 12, cursor: 'pointer', fontFamily: "'Inter',sans-serif" }}>
+                    ⏮ Reset
+                  </button>
+                  <span style={{ fontSize: 11, color: t.textMuted, fontFamily: "'Inter',sans-serif", marginLeft: 4 }}>Speed:</span>
+                  {[0.5, 1, 2, 3].map(s => (
+                    <button key={s} onClick={() => setSpeed(s)}
+                      style={{ background: speed === s ? t.gold + '22' : 'transparent', border: `1px solid ${speed === s ? t.gold : t.border}`, color: speed === s ? t.gold : t.textSec, borderRadius: 4, padding: '3px 8px', fontSize: 11, cursor: 'pointer', fontFamily: "'JetBrains Mono',monospace" }}>
+                      {s}x
+                    </button>
+                  ))}
+                  {currentStep >= 0 && (
+                    <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: t.textMuted, marginLeft: 4 }}>
+                      {currentStep + 1}/{displayTrades.length}
+                    </span>
+                  )}
+                </div>
+
+                {/* Animated bar chart */}
+                <div style={{ background: '#0a0f1c', border: `1px solid ${t.border}`, borderRadius: 8, padding: '16px 12px', marginBottom: 14, minHeight: 160 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 140, overflowX: 'auto' }}>
+                    {displayTrades.map((tr, i) => {
+                      const pct = Math.max(8, ((tr.order_size || 0) / maxSize) * 120);
+                      const isActive = i <= currentStep;
+                      const isCurrent = i === currentStep;
+                      const isCan = tr.order_status === 'CANCELLED';
+                      const isExe = tr.order_status === 'EXECUTED';
+                      let barColor = isCan ? '#f59e0b' : tr.order_type === 'BUY' ? '#22c55e' : '#ef4444';
+                      if (isCan && isActive && !isCurrent) barColor = '#374151';
+                      const opacity = currentStep === -1 ? 1 : isActive ? 1 : 0.25;
+                      return (
+                        <div key={i} title={`${tr.order_type} ${tr.order_status} ${tr.order_size} @ ₹${parseFloat(tr.price).toFixed(2)}`}
+                          style={{
+                            width: Math.max(8, Math.min(22, Math.floor(700 / displayTrades.length))),
+                            height: pct,
+                            background: barColor,
+                            flexShrink: 0,
+                            borderRadius: '3px 3px 0 0',
+                            opacity,
+                            transition: 'opacity .3s, background .3s',
+                            boxShadow: isCurrent ? `0 0 12px ${barColor}` : 'none',
+                            animation: isCurrent && isCan ? 'shake-bar .3s ease' : undefined,
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Crime Timeline log */}
+                <div style={{ background: '#0a0f1c', border: `1px solid ${t.border}`, borderRadius: 8, padding: '10px 14px', marginBottom: 14, minHeight: 80, maxHeight: 160, overflowY: 'auto' }}>
+                  <div style={{ fontSize: 10, color: t.textMuted, fontFamily: "'Inter',sans-serif", fontWeight: 700, letterSpacing: '.1em', marginBottom: 8, textTransform: 'uppercase' }}>Crime Timeline</div>
+                  {log.length === 0 && (
+                    <div style={{ color: '#525252', fontSize: 12, fontFamily: "'Inter',sans-serif" }}>Press ▶ Play to start animated replay...</div>
+                  )}
+                  {log.map((entry, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 10, fontSize: 11, fontFamily: "'JetBrains Mono',monospace", marginBottom: 3 }}>
+                      <span style={{ color: '#525252', flexShrink: 0 }}>{entry.ts}</span>
+                      <span style={{ color: entry.color }}>{entry.msg}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Investigation summary */}
+                <div style={{ background: t.bg, border: `1px solid ${t.gold}44`, borderRadius: 8, padding: '14px 16px' }}>
+                  <div style={{ fontSize: 10, color: t.gold, fontFamily: "'Inter',sans-serif", fontWeight: 700, letterSpacing: '.15em', marginBottom: 12, textTransform: 'uppercase' }}>Investigation Summary</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10 }}>
+                    {[
+                      ['Total Orders',       displayTrades.length,    t.text],
+                      ['Cancelled Orders',   totalCancelled,           t.warning],
+                      ['Fast Cancels <600ms',fastCancel,               fastCancel > 0 ? t.danger : t.success],
+                      ['Price Impact',       `+${priceMove}%`,         t.info],
+                      ['Total Value',        `₹${(totalValue/1e7).toFixed(2)}Cr`, t.gold],
+                      ['SEBI Violation',     'Reg 4(2)(a)',             '#a855f7'],
+                    ].map(([k, v, c]) => (
+                      <div key={k} style={{ background: t.card, border: `1px solid ${t.border}`, borderRadius: 6, padding: '8px 12px' }}>
+                        <div style={{ fontSize: 10, color: t.textMuted, fontFamily: "'Inter',sans-serif", fontWeight: 700, letterSpacing: '.08em', marginBottom: 3 }}>{k}</div>
+                        <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: c, fontSize: 14 }}>{v}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ color: t.textMuted, fontSize: 11, fontFamily: "'Inter',sans-serif", marginTop: 10, textAlign: 'center' }}>
+                  Each bar = one order · Green = BUY · Red = SELL · Amber = CANCELLED · Glowing bar = current step
                 </div>
               </div>
-              <_AlertTimelineChart trades={trades} />
-              <div style={{ color: t.textMuted, fontSize: 11, fontFamily: "'Inter',sans-serif", marginTop: 10, textAlign: 'center' }}>
-                Each bar represents one order. Height = order size. Hover for details.
-              </div>
-              {alert && (() => {
-                const insightMap = {
-                  LAYERING: 'The chart above shows the classic layering signature: a wall of cancelled orders (amber) used to create artificial price pressure before the executed sell (red).',
-                  SPOOFING: 'Large orders placed and immediately cancelled (amber spikes) to manipulate the perceived order book depth.',
-                  WASH_TRADING: 'Matched buy and sell orders of near-identical size between related accounts.',
-                  PUMP_AND_DUMP: 'Rapid accumulation phase (green cluster) followed by concentrated distribution (red).',
-                };
-                const msg = insightMap[alert.pattern_type] || 'Order flow analysis for this manipulation pattern.';
-                return (
-                  <div style={{ fontStyle: 'italic', color: t.textSec, fontSize: 12, lineHeight: 1.7, padding: '12px 16px', background: t.bg, border: `1px solid ${t.border}88`, borderRadius: 8, marginTop: 12 }}>
-                    {msg}
-                  </div>
-                );
-              })()}
-            </div>
-          )}
+            );
+          })()}
 
           {/* ── TAB 3: ESCALATION ACTIONS ── */}
           {tab === 'actions' && (

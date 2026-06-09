@@ -22,6 +22,9 @@ An end-to-end AI compliance pipeline that:
 2. **Triages** each alert using Claude Sonnet acting as an NSE Chief Compliance Officer
 3. **Acts** automatically — opens compliance case, notifies Slack, emails the team, flags watchlist
 4. **Explains** — generates FIU-IND ready STR filing, trade timeline visualization, trader risk profile
+5. **Visualizes** — cartel network graph detects coordinated multi-trader manipulation with vis.js
+6. **Replays** — animated crime scene replay shows millisecond-by-millisecond manipulation sequence
+7. **Verifies** — XAI Truth Anchors mathematically verify every Claude claim against raw DB data
 
 The AI doesn't just say "suspicious" — it produces an 8-field SEBI-quality verdict with
 confidence score, rationale citing specific trade statistics, plain-English explanation for

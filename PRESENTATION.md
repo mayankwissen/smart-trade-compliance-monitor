@@ -536,15 +536,31 @@ TOTAL TIME: Under 15 seconds from fresh data to SEBI-ready case file
 |------|------|-----------------|
 | Dashboard | `#/` | Alert feed, 5 stats, pattern/severity charts, correlated activity panel, top suspects |
 | Alerts | `#/alerts` | Full alert table, filter by pattern/severity/status, triage all pending |
-| Alert Detail | `#/alert/:id` | AI Triage tab (verdict, confidence, SEBI citation) · Evidence · Escalations · Timeline chart |
+| Alert Detail | `#/alert/:id` | AI Triage (verdict, XAI verify) · Evidence · Escalations · Crime Scene Replay · Deep Dive |
 | Trader Profile | `#/trader/:id` | Risk score 0–100, pattern breakdown, full alert history, watchlist status |
 | Trades | `#/trades` | ~432 trades, 5 filters, suspicious traders highlighted in gold |
 | Logs | `#/logs` | Escalation log with CSV export, 5s auto-refresh |
+| Watchlist | `#/watchlist` | 72hr monitoring, agent start/stop, activity log + CSV export |
+| Network | `#/network` | vis.js network graph, cartel clusters, circular trading detection |
 | Settings | `#/settings` | Health checks, API usage stats, Claude token/cost counter |
 
 ---
 
-## 🗄️ API Reference (22 Endpoints)
+---
+
+## 🆕 Final Build — 7 Things No Other Team Has
+
+1. **Real population sigma** — `_population_cancel_stats()` computes live mean/std from DB, not hardcoded
+2. **Mathematical confidence formula** — 5-dimension weighted score before Claude is called
+3. **DISMISS verdicts** — false positive suppression with 33% FP rate, 3 borderline traders
+4. **STR legal document** — FIUIND entity code, Principal Officer, UCC, PAN masked, PMLA Section 12(1)(b)
+5. **Cartel network graph** — vis.js, coordinated manipulation detection, circular trading patterns
+6. **XAI mathematical verification** — every Claude claim recalculated from raw DB, hallucination score = 0
+7. **Human-in-loop reinforcement** — analyst overrides Claude, Claude reconsiders with analyst context
+
+---
+
+## 🗄️ API Reference (26 Endpoints)
 
 ```
 CORE FLOW

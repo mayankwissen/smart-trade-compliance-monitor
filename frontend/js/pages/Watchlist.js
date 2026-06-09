@@ -256,7 +256,38 @@ window.WatchlistPage = function WatchlistPage({ nav }) {
       <window.Card style={{ padding: 0, overflow: 'hidden' }}>
         <div className="card-header">
           <span className="section-title">AGENT ACTIVITY LOG</span>
-          <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: t.textMuted }}>auto-refresh 30s</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: t.textMuted }}>auto-refresh 30s</span>
+            <button
+              onClick={async () => {
+                try {
+                  const res = await fetch(window.API_BASE + '/api/agent/logs?limit=1000').then(r => r.json());
+                  const headers = ['Time','Trader','Status','Alerts Found','Action','Message'];
+                  const rows = (res.logs || []).map(l => [
+                    l.checked_at, l.trader_id, l.status,
+                    l.alerts_found, l.action_taken, (l.message || '').replace(/,/g, ' ')
+                  ]);
+                  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+                  const blob = new Blob([csv], { type: 'text/csv' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `agent-logs-${new Date().toISOString().slice(0,10)}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch {}
+              }}
+              style={{
+                background: 'transparent', border: `1px solid ${t.border}`,
+                color: t.textSec, borderRadius: 4, padding: '4px 12px',
+                fontSize: 11, cursor: 'pointer', fontFamily: "'Inter',sans-serif",
+                transition: 'border-color .15s, color .15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = t.gold; e.currentTarget.style.color = t.gold; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = t.textSec; }}>
+              ⬇ Export Logs
+            </button>
+          </div>
         </div>
 
         {agentLogs.length === 0 ? (
