@@ -312,39 +312,28 @@ def deep_investigate(alert, triage, trades, trader_history):
             )
         return "\n".join(lines)
 
-    prompt = f"""You are NSE's most senior Market Surveillance Investigator.
-Conduct a deep forensic investigation of this alert.
+    cancel_ratio_pct = round((alert.get("cancel_ratio") or 0) * 100, 1)
+    sigma = alert.get("sigma", "N/A")
+    top_trades = trades[:15]
+    prompt = f"""NSE Market Surveillance — Forensic report. Be concise (1-2 sentences per field).
 
-ALERT: {alert.get('alert_id', '')}
-TRADER: {alert.get('trader_id', '')}
-PATTERN: {alert.get('pattern_type', '')}
-CONFIDENCE: {triage.get('confidence', '') if triage else 'N/A'}%
+ALERT: {alert.get('alert_id','')} | TRADER: {alert.get('trader_id','')} | PATTERN: {alert.get('pattern_type','')}
+CANCEL RATIO: {cancel_ratio_pct}% | SIGMA: {sigma} | VERDICT: {triage.get('verdict','N/A') if triage else 'N/A'} ({triage.get('confidence','N/A') if triage else 'N/A'}%)
 
-TRADE-BY-TRADE EVIDENCE:
-{_fmt_trades(trades)}
+KEY TRADES (top {len(top_trades)}):
+{_fmt_trades(top_trades)}
 
-TRADER HISTORY:
+PRIOR HISTORY:
 {_fmt_history(trader_history)}
 
-Provide a comprehensive JSON investigation report with EXACTLY these 8 keys:
-{{
-  "manipulation_mechanics": "Step-by-step explanation of HOW the manipulation was executed using actual trade timestamps and sizes",
-  "price_impact_analysis": "Did cancelled orders move the price? By how much? For how long?",
-  "profit_estimation": "Estimate manipulation profit in INR based on trade sizes and prices",
-  "behavioral_fingerprint": "Specific behaviors identifying manipulation vs legitimate trading — timing patterns, order sizes, account relationships",
-  "similar_patterns": "Based on trader history — is this isolated or systematic?",
-  "evidence_strength": "Rate each evidence piece 1-10 with explanation: cancel_ratio /10, sigma /10, cancel_speed /10, order_size /10, account_links /10",
-  "recommended_investigation_steps": "List 5 specific next steps an NSE investigator should take",
-  "sebi_prosecution_likelihood": "Probability of successful prosecution as percentage, what additional evidence is needed"
-}}
-
-Respond ONLY with valid JSON. No text outside the JSON. All string values MUST have their internal double quotes properly escaped (e.g. \\"). Do NOT use unescaped newlines inside strings (use \\n)."""
+Return ONLY valid JSON with exactly these 8 keys (1-2 sentences each, no nested quotes):
+{{"manipulation_mechanics":"...","price_impact_analysis":"...","profit_estimation":"...","behavioral_fingerprint":"...","similar_patterns":"...","evidence_strength":"cancel_ratio X/10, sigma X/10, cancel_speed X/10","recommended_investigation_steps":"1. ... 2. ... 3. ...","sebi_prosecution_likelihood":"X% likely. Needs: ..."}}"""
 
     client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
     response = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=4096,
-        system="You are NSE's senior Market Surveillance Investigator. Respond ONLY with valid JSON.",
+        max_tokens=900,
+        system="You are NSE's senior Market Surveillance Investigator. Respond ONLY with valid compact JSON. Keep every field to 1-2 sentences.",
         messages=[{"role": "user", "content": prompt}],
     )
 

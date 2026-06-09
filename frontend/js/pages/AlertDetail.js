@@ -173,14 +173,19 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
   const doDeepDive = async () => {
     setDeepLoading(true);
     setDeepError(null);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 38000);
     try {
-      const res = await fetch(`${window.API_BASE}/api/deep-investigation/${alertId}`).then(r => r.json());
-      if (res.error) { setDeepError(res.error); }
-      else { setDeepDive(res.investigation); }
+      const res = await fetch(`${window.API_BASE}/api/deep-investigation/${alertId}`, { signal: controller.signal }).then(r => r.json());
+      if (res.error) { setDeepError(String(res.error)); }
+      else if (res.investigation) { setDeepDive(res.investigation); }
+      else { setDeepError('No investigation data returned — retry'); }
     } catch (e) {
-      setDeepError('Network error — retry');
+      setDeepError(e.name === 'AbortError' ? 'Analysis timed out (>35s) — retry' : 'Network error — retry');
+    } finally {
+      clearTimeout(timeout);
+      setDeepLoading(false);
     }
-    setDeepLoading(false);
   };
 
   const doVerifyEvidence = async () => {
@@ -940,17 +945,18 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                     Run Deep Investigation
                   </window.Btn>
                   <div style={{ color: t.textMuted, fontSize: 11, marginTop: 10, fontFamily: "'JetBrains Mono',monospace" }}>
-                    ~2048 tokens · ~8s · uses full trade history
+                    ~900 tokens · ~20–30s · concise 8-section report
                   </div>
                 </div>
               )}
 
               {deepLoading && (
                 <div style={{ textAlign: 'center', padding: '48px 0' }}>
-                  <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 18, color: t.gold, marginBottom: 6 }}>
-                    Conducting Forensic Analysis
+                  <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 18, color: t.gold, marginBottom: 6, animation: 'pulse-dot 1.8s ease-in-out infinite' }}>
+                    Conducting Forensic Analysis...
                   </div>
-                  <div style={{ color: t.textSec, fontSize: 13 }}>NSE Senior Investigator · Claude Sonnet · 8 sections</div>
+                  <div style={{ color: t.textSec, fontSize: 13, marginBottom: 8 }}>NSE Senior Investigator · Claude Sonnet · 8 sections</div>
+                  <div style={{ color: t.textMuted, fontSize: 11, fontFamily: "'JetBrains Mono',monospace" }}>Usually completes in 20–30s · times out at 35s</div>
                 </div>
               )}
 
