@@ -165,10 +165,15 @@ window.WatchlistPage = function WatchlistPage({ nav }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, fontWeight: 700, color: t.gold, letterSpacing: '.1em' }}>WATCHLIST AI AGENT</span>
-            {agentStatus && (
-              <span style={{ background: agentStatus.status === 'RUNNING' ? '#22c55e22' : '#ef444422', color: agentStatus.status === 'RUNNING' ? '#22c55e' : '#ef4444', borderRadius: 20, padding: '3px 12px', fontSize: 11, fontWeight: 700, fontFamily: "'Inter',sans-serif", display: 'flex', alignItems: 'center', gap: 5 }}>
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: agentStatus.status === 'RUNNING' ? '#22c55e' : '#ef4444', display: 'inline-block' }} />
-                {agentStatus.status}
+            {agentStatus && agentStatus.status === 'RUNNING' && (
+              <span style={{ background: '#22c55e22', color: '#22c55e', borderRadius: 20, padding: '3px 12px', fontSize: 11, fontWeight: 700, fontFamily: "'Inter',sans-serif", display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+                ACTIVE
+              </span>
+            )}
+            {agentStatus && agentStatus.status !== 'RUNNING' && (
+              <span style={{ background: '#52525218', color: '#737373', borderRadius: 20, padding: '3px 12px', fontSize: 11, fontWeight: 600, fontFamily: "'Inter',sans-serif" }}>
+                Agent Ready — activate for enhanced monitoring
               </span>
             )}
           </div>

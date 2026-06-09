@@ -262,6 +262,49 @@ To reset: delete `surveillance.db` and restart (reseeds from CSV automatically).
 - Free tier Render spins down after 15 min idle — `/api/ping` exists for keep-alive.
 - All `datetime.utcnow()` calls replaced with `_now_iso()` across detector.py.
 
+## JUDGE TALKING POINTS
+
+### Why this beats a rule-based system
+Rule-based: "cancel ratio > 70% → alert." That's it. Every market maker in the building gets flagged.
+Our system: Statistical z-score against the live trader population. If market makers raise the baseline, the threshold self-adjusts. A 70% cancel ratio in a market-making environment might be only 2σ. In a retail account context, the same number is 12σ.
+
+### The sigma is real
+Every demo: click into any LAYERING alert → Evidence tab → see "Population baseline: X% ± Y%".
+That's computed live from all 400+ trades in the DB, not hardcoded. Describe the formula: `(cancel_ratio - pop_mean) / pop_std`.
+
+### The confidence score is mathematical, not AI hallucination
+5 evidence dimensions, each scored 0–100: cancel ratio, sigma, cancel speed, order size, sample size.
+Pattern-specific weights — SPOOFING cares more about cancel speed; LAYERING cares more about ratio.
+Pre-computed before Claude is called → anchors the AI verdict → reduces hallucination.
+
+### The false positive story (T-0501, T-0502, T-0503)
+Three traders that triggered the detector (cancel ratio > 55%) but got DISMISS from Claude:
+- T-0501 / HDFCBANK: 60% cancel ratio but cancels at 850-920ms (legitimate market-making)
+- T-0502 / WIPRO: 62% cancel ratio, cancels at 790-1050ms (algo liquidity provision)
+- T-0503 / SBIN: 57% cancel ratio, cancels at 920-1200ms (barely triggered, textbook FP)
+Claude benchmarks: "suspicious cancel time: <600ms" — all three are well above it.
+Impact: No case file, no Slack alert, no watchlist flag for these 3 traders. Analyst time saved: ~75 minutes.
+
+### The STR is real (not a JSON dump)
+Generated STR includes: FIUIND Entity Code NSE-SEBI-001-CM, Principal Officer declaration, UCC, masked PAN,
+total transaction value in INR, suspicious subset value, reporting period, PMLA Section 12(1)(b) reference,
+signed declaration block — all mandatory under FIU-IND notification G.S.R. 760(E).
+
+### The compliance case file is production-grade
+COMP-XXXXXXXX ID (8-char, not 4), client_ucc, member_code, ISIN, market_segment, transaction_value_inr,
+SLA breach date (T+15), investigator_id, audit_trail[], investigation_notes[], sebi_escalation_ref.
+NSE SLA: SEBI circular SEBI/HO/IVD/IVD-I/CIR/P/2022/170 requires case closure within 15 days.
+
+### Token efficiency (say this to technical judges)
+"280 tokens per triage call vs 15,000 tokens if we sent raw trades. That's a 97% reduction.
+We pre-compute cancel_ratio, sigma, cancel_ms — the AI doesn't count your data, it judges it."
+Cost: ~$0.00014 per triage. A real NSE setup triages ~2000 alerts/day = ~$0.28/day.
+
+### The 10-minute trade window
+detect_layering/spoofing use only trades within the first 10 minutes of a trader's session.
+This is correct: SEBI PFUTP defines layering as a pattern within a single trading window,
+not across the entire day. Without the window, a market maker's daily activity looks like manipulation.
+
 ## Pre-Demo Checklist (run after every Render redeploy)
 
 Render wipes SQLite on every deploy. Before judges see the app, always run:

@@ -295,4 +295,64 @@ def generate_realistic_trades(prices):
             'session_id':     'SES-4401-D',
         })
 
+    # BORDERLINE A: T-0501 / HDFCBANK — market maker with 60% cancel ratio, slow 850ms cancels
+    # Triggers LAYERING (>55% threshold) but slow cancel times should prompt Claude to DISMISS
+    hdfcbank2_price = prices.get('HDFCBANK', {}).get('current', 1642.0)
+    base_bl1 = trading_days[0].replace(hour=14, minute=0, second=0)
+    for i in range(10):
+        is_cancelled = i < 6
+        trades.append({
+            'trade_id':      f'TRD-BL1-{i:03d}',
+            'timestamp':     (base_bl1 + timedelta(seconds=i * 45)).strftime('%Y-%m-%d %H:%M:%S'),
+            'trader_id':     'T-0501',
+            'account_id':    'A-0501',
+            'instrument':    'HDFCBANK',
+            'order_type':    'SELL' if (not is_cancelled and i == 9) else 'BUY',
+            'order_size':    random.randint(12000, 18000),
+            'price':         round(hdfcbank2_price * (1.003 if (not is_cancelled and i == 9) else 1.0), 2),
+            'order_status':  'CANCELLED' if is_cancelled else 'EXECUTED',
+            'cancel_time_ms': random.randint(840, 920) if is_cancelled else 0,
+            'session_id':    'SES-0501-BL1',
+        })
+
+    # BORDERLINE B: T-0502 / WIPRO — algo trader, 62.5% cancel ratio, very slow 850ms cancels
+    # Triggers LAYERING but slow cancel times (>800ms) indicate legitimate liquidity provision
+    wipro_price = prices.get('WIPRO', {}).get('current', 258.0)
+    base_bl2 = trading_days[1].replace(hour=14, minute=30, second=0)
+    for i in range(8):
+        is_cancelled = i < 5
+        trades.append({
+            'trade_id':      f'TRD-BL2-{i:03d}',
+            'timestamp':     (base_bl2 + timedelta(seconds=i * 50)).strftime('%Y-%m-%d %H:%M:%S'),
+            'trader_id':     'T-0502',
+            'account_id':    'A-0502',
+            'instrument':    'WIPRO',
+            'order_type':    'SELL' if (not is_cancelled and i == 7) else 'BUY',
+            'order_size':    random.randint(9000, 15000),
+            'price':         round(wipro_price * (1.002 if (not is_cancelled and i == 7) else 1.0), 2),
+            'order_status':  'CANCELLED' if is_cancelled else 'EXECUTED',
+            'cancel_time_ms': random.randint(790, 1050) if is_cancelled else 0,
+            'session_id':    'SES-0502-BL2',
+        })
+
+    # BORDERLINE C: T-0503 / SBIN — momentum trader, 57% cancel ratio, very slow 1000ms cancels
+    # Barely triggers LAYERING (4/7 = 57%) with cancel times >900ms — classic false positive
+    sbin_price = prices.get('SBIN', {}).get('current', 811.0)
+    base_bl3 = trading_days[2].replace(hour=13, minute=15, second=0)
+    for i in range(7):
+        is_cancelled = i < 4
+        trades.append({
+            'trade_id':      f'TRD-BL3-{i:03d}',
+            'timestamp':     (base_bl3 + timedelta(seconds=i * 55)).strftime('%Y-%m-%d %H:%M:%S'),
+            'trader_id':     'T-0503',
+            'account_id':    'A-0503',
+            'instrument':    'SBIN',
+            'order_type':    'SELL' if (not is_cancelled and i == 6) else 'BUY',
+            'order_size':    random.randint(8000, 14000),
+            'price':         round(sbin_price * (1.002 if (not is_cancelled and i == 6) else 1.0), 2),
+            'order_status':  'CANCELLED' if is_cancelled else 'EXECUTED',
+            'cancel_time_ms': random.randint(920, 1200) if is_cancelled else 0,
+            'session_id':    'SES-0503-BL3',
+        })
+
     return sorted(trades, key=lambda x: x['timestamp'])

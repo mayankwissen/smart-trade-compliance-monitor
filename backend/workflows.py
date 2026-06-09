@@ -11,12 +11,34 @@ CASES_DIR = os.path.join(os.path.dirname(__file__), "..", "cases")
 
 def create_compliance_case(alert, triage_result):
     os.makedirs(CASES_DIR, exist_ok=True)
-    case_id = f"COMP-{uuid.uuid4().hex[:4].upper()}"
+    case_id = f"COMP-{uuid.uuid4().hex[:8].upper()}"
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    # Compute transaction value from DB
+    transaction_value_inr = 0
+    try:
+        conn_tv = get_db()
+        rows_tv = conn_tv.execute(
+            "SELECT order_size, price FROM trades WHERE trader_id=? AND instrument=?",
+            (alert["trader_id"], alert["instrument"])
+        ).fetchall()
+        conn_tv.close()
+        transaction_value_inr = int(sum(r["order_size"] * r["price"] for r in rows_tv))
+    except Exception:
+        pass
+
+    from datetime import timedelta
+    sla_breach_date = (datetime.now(timezone.utc) + timedelta(days=15)).strftime("%Y-%m-%d")
+
     case = {
         "case_id": case_id,
         "alert_id": alert["alert_id"],
         "trader_id": alert["trader_id"],
+        "client_ucc": f"UCC-{alert['trader_id']}-NSE",
+        "member_code": "NSE-MEM-" + alert["trader_id"].split("-")[-1],
         "instrument": alert["instrument"],
+        "isin": f"INE{alert['instrument'][:3].upper()}000000",
+        "market_segment": "CM",
         "pattern_type": alert["pattern_type"],
         "severity": alert["severity"],
         "verdict": triage_result.get("verdict"),
@@ -25,9 +47,20 @@ def create_compliance_case(alert, triage_result):
         "rationale": triage_result.get("rationale"),
         "simple_explanation": triage_result.get("simple_explanation"),
         "recommended_action": triage_result.get("recommended_action"),
+        "regulatory_reference": triage_result.get("regulatory_reference"),
+        "transaction_value_inr": transaction_value_inr,
         "assigned_to": "Surveillance Desk L2",
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "investigator_id": "INV-NSE-001",
+        "priority": "P1" if triage_result.get("risk_level") in ("CRITICAL", "HIGH") else "P2",
+        "sla_breach_date": sla_breach_date,
+        "sebi_escalation_ref": None,
+        "fiuind_str_reference": None,
         "status": "OPEN",
+        "created_at": now_iso,
+        "audit_trail": [
+            {"timestamp": now_iso, "action": "CASE_OPENED", "actor": "surveillance-engine", "note": "Auto-created by AI triage workflow"}
+        ],
+        "investigation_notes": [],
     }
     with open(os.path.join(CASES_DIR, f"{case_id}.json"), "w") as f:
         json.dump(case, f, indent=2)

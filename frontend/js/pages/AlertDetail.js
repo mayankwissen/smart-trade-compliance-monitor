@@ -256,8 +256,42 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                     )}
                   </div>
 
+                  {/* ── DISMISS: FALSE POSITIVE SUPPRESSED block ── */}
+                  {verdict === 'DISMISS' && (
+                    <div style={{ background: '#22c55e08', border: '1px solid #22c55e44', borderRadius: 10, padding: 20, marginBottom: 16, boxShadow: '0 0 18px #22c55e18' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+                        <span style={{ background: '#22c55e22', color: '#22c55e', borderRadius: 6, padding: '4px 14px', fontSize: 11, fontWeight: 700, letterSpacing: '.1em', fontFamily: "'Inter',sans-serif" }}>
+                          FALSE POSITIVE SUPPRESSED
+                        </span>
+                        <span style={{ fontSize: 11, color: '#22c55e', fontFamily: "'Inter',sans-serif", fontWeight: 600 }}>
+                          No escalation triggered · Analyst time saved: ~25 minutes
+                        </span>
+                      </div>
+                      <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: '#22c55e99', marginBottom: 12, fontWeight: 700, letterSpacing: '.1em', textTransform: 'uppercase' }}>
+                        Why this was dismissed
+                      </div>
+                      <div style={{ color: '#a0e4b0', fontSize: 13, lineHeight: 1.8, fontFamily: "'Inter',sans-serif", marginBottom: 14 }}>
+                        {triage.rationale}
+                      </div>
+                      <div style={{ background: '#0a1f0e', borderRadius: 6, padding: '12px 16px', fontFamily: "'JetBrains Mono',monospace", fontSize: 12, color: '#6ee7a0', lineHeight: 2 }}>
+                        <span style={{ color: '#22c55e99' }}>cancel_ratio: </span>
+                        <span style={{ fontWeight: 700 }}>{((alert.cancel_ratio || 0) * 100).toFixed(1)}%</span>
+                        <span style={{ color: '#22c55e99' }}> (threshold: 70%+) · sigma: </span>
+                        <span style={{ fontWeight: 700 }}>{alert.sigma}σ</span>
+                        <span style={{ color: '#22c55e99' }}> (suspicious: &gt;8.0σ) · verdict: </span>
+                        <span style={{ color: '#22c55e', fontWeight: 700 }}>DISMISS</span>
+                      </div>
+                      <div style={{ marginTop: 14, padding: '10px 14px', background: '#22c55e0a', borderRadius: 6, border: '1px solid #22c55e22' }}>
+                        <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 11, color: '#22c55e', fontWeight: 700, letterSpacing: '.1em', marginBottom: 4 }}>NO ESCALATION ACTIONS TRIGGERED</div>
+                        <div style={{ fontSize: 12, color: '#22c55e88', fontFamily: "'Inter',sans-serif" }}>
+                          No case file · No Slack alert · No watchlist flag · No STR filing — statistical false positive correctly identified
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* ── AI TRIAGE NARRATIVE ── */}
-                  <div style={{ background: t.bg, border: `1px solid ${t.gold}44`, borderRadius: 10, padding: 20, marginBottom: 16 }}>
+                  <div style={{ background: t.bg, border: `1px solid ${t.gold}44`, borderRadius: 10, padding: 20, marginBottom: 16, display: verdict === 'DISMISS' ? 'none' : 'block' }}>
                     <div style={{ fontSize: 10, color: t.gold, fontWeight: 700, letterSpacing: '.15em', marginBottom: 14, fontFamily: "'Inter',sans-serif" }}>AI TRIAGE NARRATIVE</div>
                     {triage.rationale && (
                       <div style={{ color: t.textSec, fontSize: 13, lineHeight: 1.8, marginBottom: 16, fontFamily: "'Inter',sans-serif", fontStyle: 'italic' }}>

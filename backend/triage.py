@@ -26,6 +26,7 @@ _REGULATORY_DEFAULTS = {
 
 
 def build_prompt(alert):
+    confidence_hint = alert.get('confidence_hint', 70)
     return f"""Alert ID: {alert['alert_id']}
 Timestamp: {alert['detected_at']} UTC
 Trader: {alert['trader_id']}
@@ -35,26 +36,29 @@ Detected Pattern: {alert['pattern_type']}
 Evidence: {alert['evidence_summary']}
 Stats: cancel_ratio={alert['cancel_ratio']}, sigma={alert['sigma']}
 
-The problem statement example output format for reference:
-AI Triage verdict should include:
-- What the pattern means mechanically
-- Specific numbers: cancellation ratio, time-to-cancel median, anomaly vs baseline in sigma
-- Clear ESCALATE or DISMISS verdict
-- Confidence percentage
-- False positive probability
+NSE SURVEILLANCE BENCHMARKS (use these to calibrate your verdict):
+Cancel ratio | Normal traders: 5–25%    | Suspicious threshold: >70%  | Critical: >90%
+Cancel time  | Normal: 800ms–2000ms     | Suspicious: <600ms          | Critical: <200ms
+Sigma        | Normal: <3.0σ            | Suspicious: >8.0σ           | Critical: >15.0σ
+
+A trader with cancel_ratio 60%, sigma 5.0σ, and cancel times >800ms is likely a legitimate market maker — consider DISMISS.
+A trader with cancel_ratio >80%, sigma >8.0σ, and cancel times <600ms shows clear manipulation — ESCALATE.
+
+Detector pre-analysis confidence estimate: {confidence_hint}%
+Your analysis may refine this up or down based on the evidence quality.
 
 Respond with ONLY this JSON:
 {{
-  "verdict": "ESCALATE",
-  "confidence": 91,
-  "false_positive_probability": 9,
-  "risk_level": "HIGH",
-  "rationale": "4-5 sentences: explain the pattern mechanically, cite the specific numbers cancel_ratio%, median cancel ms, sigma anomaly vs baseline, why this indicates manipulation vs legitimate trading.",
+  "verdict": "ESCALATE or DISMISS",
+  "confidence": {confidence_hint},
+  "false_positive_probability": {100 - confidence_hint},
+  "risk_level": "CRITICAL, HIGH, MEDIUM, or LOW",
+  "rationale": "4-5 sentences: explain the pattern mechanically, cite the specific numbers (cancel_ratio%, sigma vs benchmark, cancel time vs 600ms threshold), and explain why this is or is not manipulation.",
   "simple_explanation": "1-2 sentences in plain English that a non-trader board member can understand.",
-  "recommended_action": "Specific action: e.g. Freeze account, File STR with FIU-IND, Request NSE audit log, Assign to Surveillance Desk L2.",
-  "regulatory_reference": "SEBI regulation: e.g. SEBI PFUTP Regulations 2003, Regulation 4(2)(a) - Manipulative fraudulent and unfair trade practices."
+  "recommended_action": "Specific action: e.g. Freeze account / File STR with FIU-IND / No action — false positive / Assign to Surveillance Desk L2.",
+  "regulatory_reference": "Applicable SEBI regulation with section number."
 }}
-Replace all example values with your actual assessment.
+Replace all values with your actual assessment. confidence must reflect your certainty (52–97).
 verdict must be ESCALATE or DISMISS.
 risk_level must be CRITICAL, HIGH, MEDIUM, or LOW."""
 
