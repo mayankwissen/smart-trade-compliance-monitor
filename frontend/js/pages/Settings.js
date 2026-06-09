@@ -2,23 +2,37 @@ const { useState: _suseS, useEffect: _suseE, useCallback: _suseC } = React;
 
 window.SettingsPage = function SettingsPage() {
   const t = window.useT();
-  const [health, setHealth]         = _suseS(null);
-  const [tokenStats, setTokenStats] = _suseS(null);
-  const [subCount, setSubCount]     = _suseS(0);
-  const [lastCheck, setLastCheck]   = _suseS(null);
+  const [health, setHealth]             = _suseS(null);
+  const [tokenStats, setTokenStats]     = _suseS(null);
+  const [subCount, setSubCount]         = _suseS(0);
+  const [lastCheck, setLastCheck]       = _suseS(null);
+  const [detailedHealth, setDetailedHealth] = _suseS(null);
+  const [healthLoading, setHealthLoading]   = _suseS(false);
+  const [feedbackStats, setFeedbackStats]   = _suseS(null);
 
   const runHealthChecks = _suseC(async () => {
     try {
-      const [h, ts, sc] = await Promise.all([
+      const [h, ts, sc, fb] = await Promise.all([
         fetch(`${window.API_BASE}/api/health`).then(r => r.json()).catch(() => ({ status: 'error' })),
         fetch(`${window.API_BASE}/api/token-stats`).then(r => r.json()).catch(() => null),
         fetch(`${window.API_BASE}/api/subscribers/count`).then(r => r.json()).catch(() => ({ count: 0 })),
+        fetch(`${window.API_BASE}/api/feedback/stats`).then(r => r.json()).catch(() => null),
       ]);
       setHealth(h);
       setTokenStats(ts);
       setSubCount(sc.count || 0);
+      setFeedbackStats(fb);
       setLastCheck(new Date().toLocaleTimeString());
     } catch {}
+  }, []);
+
+  const runDetailedHealth = _suseC(async () => {
+    setHealthLoading(true);
+    try {
+      const dh = await fetch(`${window.API_BASE}/api/health/detailed`).then(r => r.json()).catch(() => null);
+      setDetailedHealth(dh);
+    } catch {}
+    setHealthLoading(false);
   }, []);
 
   _suseE(() => {
@@ -136,9 +150,87 @@ window.SettingsPage = function SettingsPage() {
             <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 10, color: t.textMuted, letterSpacing: '.1em', marginBottom: 6 }}>API BASE URL</div>
             <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: t.info }}>{window.API_BASE}</div>
           </div>
-          <div style={{ marginTop: 8, fontSize: 10, color: t.textMuted, fontFamily: "'Inter',sans-serif", textAlign: 'right' }}>Auto-refresh every 30s</div>
+              <div style={{ marginTop: 8, fontSize: 10, color: t.textMuted, fontFamily: "'Inter',sans-serif", textAlign: 'right' }}>Auto-refresh every 30s</div>
         </window.Card>
       </div>
+
+      {/* System Health Detailed */}
+      <window.Card style={{ marginTop: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 15, color: t.text }}>System Health (Auto-Healing)</div>
+          <window.Btn small variant="outline" onClick={runDetailedHealth} disabled={healthLoading}>
+            {healthLoading ? 'Checking...' : 'Run Health Check'}
+          </window.Btn>
+        </div>
+        {!detailedHealth && !healthLoading && (
+          <div style={{ color: t.textMuted, fontSize: 12, fontFamily: "'Inter',sans-serif" }}>
+            Click "Run Health Check" to get a detailed status of all system components.
+          </div>
+        )}
+        {detailedHealth && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+              <div style={{
+                width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                background: detailedHealth.status === 'healthy' ? t.success : detailedHealth.status === 'degraded' ? t.warning : t.danger,
+                boxShadow: `0 0 8px ${detailedHealth.status === 'healthy' ? t.success : t.warning}66`,
+              }} />
+              <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 13, color: t.text, textTransform: 'uppercase' }}>
+                {detailedHealth.status}
+              </span>
+              <span style={{ fontSize: 11, color: t.textMuted, fontFamily: "'Inter',sans-serif" }}>
+                Uptime: {detailedHealth.uptime_minutes} min · Checked: {(detailedHealth.last_checked || '').slice(11, 19)} UTC
+              </span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 12 }}>
+              {detailedHealth.checks && Object.entries(detailedHealth.checks).map(([key, ok]) => (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: t.bg, border: `1px solid ${t.border}`, borderRadius: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: ok ? t.success : t.danger, flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, fontFamily: "'Inter',sans-serif", color: t.text, textTransform: 'capitalize' }}>
+                    {key.replace(/_/g, ' ')}
+                  </span>
+                  <window.Bdg label={ok ? 'OK' : 'FAIL'} cfg={ok ? { bg: '#22c55e22', c: '#22c55e' } : { bg: '#ef444422', c: '#ef4444' }} />
+                </div>
+              ))}
+            </div>
+            {detailedHealth.auto_healed && detailedHealth.auto_healed.length > 0 && (
+              <div style={{ padding: '10px 14px', background: t.warning + '18', border: `1px solid ${t.warning}44`, borderRadius: 6, fontSize: 12, fontFamily: "'Inter',sans-serif", color: t.warning }}>
+                <strong>Auto-heal actions taken:</strong>
+                <ul style={{ marginTop: 4, paddingLeft: 18 }}>
+                  {detailedHealth.auto_healed.map((a, i) => <li key={i}>{a}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </window.Card>
+
+      {/* Analyst-AI Agreement */}
+      <window.Card style={{ marginTop: 16 }}>
+        <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 800, fontSize: 15, color: t.text, marginBottom: 14 }}>Analyst–AI Agreement</div>
+        {feedbackStats && feedbackStats.total_feedback > 0 ? (
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 12 }}>
+              {[
+                ['Total Overrides',    feedbackStats.total_overrides,               t.warning],
+                ['Claude Agreed',      feedbackStats.claude_agreed_with_analyst,    t.success],
+                ['Claude Maintained',  feedbackStats.claude_maintained_original,    t.info],
+                ['Agreement Rate',     feedbackStats.agreement_rate + '%',          t.gold],
+              ].map(([k, v, c]) => (
+                <div key={k} style={{ background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, padding: '12px 14px', textAlign: 'center' }}>
+                  <div style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, fontSize: 22, color: c }}>{v}</div>
+                  <div style={{ fontSize: 10, color: t.textMuted, fontFamily: "'Inter',sans-serif", fontWeight: 700, letterSpacing: '.08em', marginTop: 4 }}>{k}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ fontSize: 12, color: t.textMuted, fontFamily: "'Inter',sans-serif", lineHeight: 1.6 }}>
+              When analysts override Claude's verdict, the system automatically re-runs AI analysis with analyst context (feedback loop). Agreement rate shows how often Claude updates its verdict after receiving analyst feedback.
+            </div>
+          </div>
+        ) : (
+          <window.EmptyState icon="🤝" msg="No analyst feedback submitted yet. Override a triage verdict in Alert Detail to see stats." />
+        )}
+      </window.Card>
     </div>
   );
 };

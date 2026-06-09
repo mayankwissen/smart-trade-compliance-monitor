@@ -125,6 +125,21 @@ def init_db():
         action_taken TEXT
     )""")
 
+    conn.execute("""CREATE TABLE IF NOT EXISTS human_feedback (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        alert_id TEXT NOT NULL,
+        analyst_verdict TEXT NOT NULL,
+        analyst_reason TEXT NOT NULL,
+        original_verdict TEXT,
+        original_confidence INTEGER,
+        submitted_at TEXT,
+        feedback_type TEXT,
+        outcome TEXT DEFAULT 'PENDING',
+        reconsidered_verdict TEXT,
+        reconsidered_confidence INTEGER,
+        reconsideration_reason TEXT
+    )""")
+
     # Migrate existing triage_results table (safe — silently skips existing columns)
     for col, typ in [
         ("simple_explanation",       "TEXT"),

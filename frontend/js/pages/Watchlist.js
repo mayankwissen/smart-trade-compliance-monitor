@@ -2,12 +2,13 @@ const { useState: _wuseS, useEffect: _wuseE, useCallback: _wuseC } = React;
 
 window.WatchlistPage = function WatchlistPage({ nav }) {
   const t = window.useT();
-  const [watchlist, setWatchlist]     = _wuseS({ active: [], expired: [], total_active: 0, total_expired: 0 });
-  const [agentStatus, setAgentStatus] = _wuseS(null);
-  const [agentLogs, setAgentLogs]     = _wuseS([]);
-  const [triggering, setTriggering]   = _wuseS(false);
-  const [triggerMsg, setTriggerMsg]   = _wuseS('');
-  const [expiringId, setExpiringId]   = _wuseS(null);
+  const [watchlist, setWatchlist]       = _wuseS({ active: [], expired: [], total_active: 0, total_expired: 0 });
+  const [agentStatus, setAgentStatus]   = _wuseS(null);
+  const [agentLogs, setAgentLogs]       = _wuseS([]);
+  const [triggering, setTriggering]     = _wuseS(false);
+  const [triggerMsg, setTriggerMsg]     = _wuseS('');
+  const [expiringId, setExpiringId]     = _wuseS(null);
+  const [agentToggling, setAgentToggling] = _wuseS(false);
 
   const loadAll = _wuseC(async () => {
     try {
@@ -43,6 +44,18 @@ window.WatchlistPage = function WatchlistPage({ nav }) {
     }
     setTriggering(false);
     setTimeout(() => setTriggerMsg(''), 4000);
+  };
+
+  const doAgentToggle = async () => {
+    if (!agentStatus) return;
+    setAgentToggling(true);
+    const isRunning = agentStatus.status === 'RUNNING';
+    try {
+      await fetch(window.API_BASE + (isRunning ? '/api/agent/stop' : '/api/agent/start'), { method: 'POST' });
+      await new Promise(r => setTimeout(r, 600));
+      await loadAll();
+    } catch {}
+    setAgentToggling(false);
   };
 
   const doExpire = async (trader_id) => {
@@ -182,17 +195,37 @@ window.WatchlistPage = function WatchlistPage({ nav }) {
             {triggerMsg && (
               <span style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, color: t.gold }}>{triggerMsg}</span>
             )}
+            {/* START / STOP toggle */}
+            {agentStatus && (
+              <button
+                onClick={doAgentToggle}
+                disabled={agentToggling}
+                style={{
+                  background: agentToggling
+                    ? '#52525244'
+                    : agentStatus.status === 'RUNNING' ? '#ef4444' : '#22c55e',
+                  color: '#fff', border: 'none', borderRadius: 6,
+                  padding: '7px 18px', fontSize: 12, fontWeight: 700,
+                  cursor: agentToggling ? 'default' : 'pointer',
+                  fontFamily: "'Inter',sans-serif", letterSpacing: '.02em',
+                  minWidth: 110,
+                }}>
+                {agentToggling
+                  ? '...'
+                  : agentStatus.status === 'RUNNING' ? '⏹ Stop Agent' : '▶ Start Agent'}
+              </button>
+            )}
             <button
               onClick={doTrigger}
               disabled={triggering}
               style={{
-                background: triggering ? t.gold + '44' : t.gold,
-                color: '#000', border: 'none', borderRadius: 6,
+                background: 'transparent',
+                color: t.gold, border: `1px solid ${t.gold}88`, borderRadius: 6,
                 padding: '7px 18px', fontSize: 12, fontWeight: 700,
                 cursor: triggering ? 'default' : 'pointer',
                 fontFamily: "'Inter',sans-serif", letterSpacing: '.02em',
               }}>
-              {triggering ? 'Checking...' : 'Trigger Manual Check'}
+              {triggering ? 'Checking...' : 'Trigger Check Now'}
             </button>
           </div>
         </div>

@@ -1,34 +1,64 @@
 import logging
 import time
 import threading
+import sqlite3
 from datetime import datetime, timezone
 from database import get_db
 from detector import run_all_detectors
 
-_last_check_time = None
-_agent_running = False
+_stop_event = threading.Event()
+_agent_thread = None
+MAX_RETRIES = 3
 
 
 def run_watchlist_agent():
-    global _agent_running
-    _agent_running = True
-    while True:
+    while not _stop_event.is_set():
         try:
             _agent_check_cycle()
         except Exception as e:
             logging.error(f"Agent cycle error: {e}")
-        time.sleep(300)  # every 5 minutes
+        for _ in range(300):
+            if _stop_event.is_set():
+                break
+            time.sleep(1)
+
+
+def _db_with_retry(fn):
+    """Run fn(conn) with retry on SQLite locked errors."""
+    for attempt in range(MAX_RETRIES):
+        conn = None
+        try:
+            conn = get_db()
+            conn.execute("PRAGMA busy_timeout=10000")
+            result = fn(conn)
+            conn.close()
+            return result
+        except sqlite3.OperationalError as e:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            if "locked" in str(e) and attempt < MAX_RETRIES - 1:
+                time.sleep(2)
+                continue
+            raise
+        except Exception:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            raise
 
 
 def _agent_check_cycle():
-    global _last_check_time
-    _last_check_time = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
+    def _read_watchlist(conn):
+        return conn.execute(
+            "SELECT trader_id FROM watchlist WHERE is_active = 1"
+        ).fetchall()
 
-    conn = get_db()
-    watchlisted = conn.execute(
-        "SELECT trader_id, flagged_at, expires_at, reason FROM watchlist WHERE is_active = 1"
-    ).fetchall()
-    conn.close()
+    watchlisted = _db_with_retry(_read_watchlist)
 
     if not watchlisted:
         _log_agent_action('ALL', 'IDLE', 0, 'No active watchlist entries', 'NONE')
@@ -40,12 +70,13 @@ def _agent_check_cycle():
 
 def _monitor_trader(trader_id):
     try:
-        conn = get_db()
-        trades = conn.execute(
-            "SELECT * FROM trades WHERE trader_id = ? ORDER BY timestamp DESC",
-            (trader_id,)
-        ).fetchall()
-        conn.close()
+        def _read_trades(conn):
+            return conn.execute(
+                "SELECT * FROM trades WHERE trader_id = ? ORDER BY timestamp DESC",
+                (trader_id,)
+            ).fetchall()
+
+        trades = _db_with_retry(_read_trades)
 
         if not trades:
             _log_agent_action(trader_id, 'CHECKED', 0, 'No trades found', 'NONE')
@@ -68,30 +99,36 @@ def _monitor_trader(trader_id):
             )
             return
 
-        # New suspicious activity — save alerts and auto-triage
-        conn = get_db()
         saved = 0
         for alert in new_alerts:
-            existing = conn.execute(
-                "SELECT alert_id FROM alerts WHERE trader_id=? AND instrument=? AND pattern_type=?",
-                (alert['trader_id'], alert['instrument'], alert['pattern_type'])
-            ).fetchone()
+            is_new = False
 
-            if not existing:
-                conn.execute(
-                    """INSERT INTO alerts
-                      (alert_id, detected_at, trader_id, instrument, pattern_type,
-                       severity, evidence_summary, cancel_ratio, sigma, status, source)
-                      VALUES (?,?,?,?,?,?,?,?,?,'PENDING','WATCHLIST_AGENT')""",
-                    (
-                        alert['alert_id'], alert['detected_at'], alert['trader_id'],
-                        alert['instrument'], alert['pattern_type'], alert['severity'],
-                        alert['evidence_summary'], alert['cancel_ratio'], alert['sigma'],
+            def _check_and_insert(conn):
+                nonlocal is_new
+                existing = conn.execute(
+                    "SELECT alert_id FROM alerts WHERE trader_id=? AND instrument=? AND pattern_type=?",
+                    (alert['trader_id'], alert['instrument'], alert['pattern_type'])
+                ).fetchone()
+                if not existing:
+                    conn.execute(
+                        """INSERT INTO alerts
+                          (alert_id, detected_at, trader_id, instrument, pattern_type,
+                           severity, evidence_summary, cancel_ratio, sigma, status, source)
+                          VALUES (?,?,?,?,?,?,?,?,?,'PENDING','WATCHLIST_AGENT')""",
+                        (
+                            alert['alert_id'], alert['detected_at'], alert['trader_id'],
+                            alert['instrument'], alert['pattern_type'], alert['severity'],
+                            alert['evidence_summary'], alert['cancel_ratio'], alert['sigma'],
+                        )
                     )
-                )
-                saved += 1
-                conn.commit()
+                    conn.commit()
+                    is_new = True
+                return is_new
 
+            _db_with_retry(_check_and_insert)
+
+            if is_new:
+                saved += 1
                 try:
                     from triage import triage_alert
                     from workflows import run_escalation_workflow
@@ -100,12 +137,12 @@ def _monitor_trader(trader_id):
                 except Exception as e:
                     logging.error(f"Auto-triage failed for {alert['alert_id']}: {e}")
 
-        conn.close()
-
         _log_agent_action(
-            trader_id, 'ALERT_CREATED' if saved > 0 else 'CHECKED',
+            trader_id,
+            'ALERT_CREATED' if saved > 0 else 'CHECKED',
             saved,
-            f'Agent detected {saved} new suspicious patterns for {trader_id}' if saved > 0 else f'No new patterns for {trader_id}',
+            f'Agent detected {saved} new suspicious patterns for {trader_id}' if saved > 0
+            else f'No new patterns for {trader_id}',
             'TRIAGE_AND_ESCALATE' if saved > 0 else 'NONE'
         )
 
@@ -116,18 +153,18 @@ def _monitor_trader(trader_id):
 
 def _log_agent_action(trader_id, status, alerts_found, message, action_taken):
     try:
-        conn = get_db()
-        conn.execute(
-            """INSERT INTO agent_logs
-              (checked_at, trader_id, status, alerts_found, message, action_taken)
-              VALUES (?, ?, ?, ?, ?, ?)""",
-            (
-                datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
-                trader_id, status, alerts_found, message, action_taken,
+        def _insert(conn):
+            conn.execute(
+                """INSERT INTO agent_logs
+                  (checked_at, trader_id, status, alerts_found, message, action_taken)
+                  VALUES (?, ?, ?, ?, ?, ?)""",
+                (
+                    datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
+                    trader_id, status, alerts_found, message, action_taken,
+                )
             )
-        )
-        conn.commit()
-        conn.close()
+            conn.commit()
+        _db_with_retry(_insert)
     except Exception as e:
         logging.error(f"Log agent action: {e}")
 
@@ -145,7 +182,7 @@ def get_agent_status():
     ).fetchone()[0]
     conn.close()
     return {
-        "status": "RUNNING" if _agent_running else "STOPPED",
+        "status": "RUNNING" if is_agent_running() else "STOPPED",
         "traders_monitored": traders_monitored,
         "last_check": last_log["checked_at"] if last_log else None,
         "total_alerts_created": total_created,
@@ -154,12 +191,29 @@ def get_agent_status():
 
 
 def trigger_check():
-    """Run one cycle immediately (called from API endpoint)."""
     _agent_check_cycle()
 
 
 def start_agent():
-    thread = threading.Thread(target=run_watchlist_agent, daemon=True, name='WatchlistAgent')
-    thread.start()
+    global _agent_thread
+    _stop_event.clear()
+    _agent_thread = threading.Thread(
+        target=run_watchlist_agent,
+        daemon=True,
+        name='WatchlistAgent'
+    )
+    _agent_thread.start()
     logging.info("Watchlist AI Agent started — checking every 5 minutes")
-    return thread
+
+
+def stop_agent():
+    _stop_event.set()
+    logging.info("Agent stop requested")
+
+
+def is_agent_running():
+    return (
+        _agent_thread is not None and
+        _agent_thread.is_alive() and
+        not _stop_event.is_set()
+    )

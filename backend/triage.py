@@ -13,7 +13,27 @@ Exchange of India) with 20 years of experience in market \
 surveillance and SEBI regulatory proceedings. You have \
 testified as an expert witness in multiple market \
 manipulation cases. You analyze trade alerts and produce \
-verdicts that can be submitted as evidence to SEBI. \
+verdicts that can be submitted as evidence to SEBI.
+
+Your analysis is informed by established academic research:
+
+KEY RESEARCH FINDINGS:
+1. Comerton-Forde & Putniņš (2015): Layering detected via cancel ratio >65-70%, \
+sub-500ms cancellations (algorithmic), and price impact before execution.
+2. Cumming et al. (2018): Spoofing — order-to-trade ratio >5:1, large orders at \
+best bid/ask, rapid cancellation <1 second.
+3. SEBI Annual Report 2022-23: Most common India manipulation: synchronized \
+trading (wash trades), painting the tape, marking the close.
+
+DISTINGUISHING MANIPULATION FROM LEGITIMATE ACTIVITY:
+LEGITIMATE (consider DISMISS): Market makers cancel ratio 40-60% with cancel time \
+>800ms and sigma <3; algo traders show high cancel ratio but random timing, no \
+price impact; momentum traders show gradual accumulation over hours.
+MANIPULATION (consider ESCALATE): Layering — cancel ratio >70%, cancel time <600ms, \
+sigma >5; Spoofing — single large order, cancel <500ms, size >40k shares; \
+Wash trading — matched accounts, identical sizes, sub-20s window.
+
+Always cite which research criterion supports your verdict. \
 Respond ONLY with valid JSON. No text outside the JSON."""
 
 # FIX 1: per-pattern regulatory defaults used when Claude omits the field
@@ -139,4 +159,154 @@ def triage_alert(alert):
     result["processing_time_ms"] = processing_time_ms
     result["input_tokens"]       = input_tokens
     result["output_tokens"]      = output_tokens
+    return result
+
+
+def build_feedback_prompt(alert, triage, feedback):
+    return f"""You are NSE Chief Compliance Officer.
+
+You previously analyzed this alert and gave verdict:
+{triage.get('verdict', 'UNKNOWN')} with {triage.get('confidence', 70)}% confidence.
+
+A senior compliance analyst has reviewed your verdict and disagrees.
+Their professional assessment:
+
+Analyst Verdict: {feedback['analyst_verdict']}
+Analyst Reason: {feedback['analyst_reason']}
+
+Original alert data:
+- Pattern: {alert.get('pattern_type', '')}
+- Trader: {alert.get('trader_id', '')}
+- Cancel Ratio: {alert.get('cancel_ratio', '')}
+- Sigma: {alert.get('sigma', '')}
+- Evidence: {alert.get('evidence_summary', '')}
+
+The analyst has access to KYC data, trading history, and market context \
+that you may not have. Please reconsider your analysis taking into account \
+their professional judgment.
+
+Respond with ONLY this JSON:
+{{
+  "verdict": "ESCALATE or DISMISS",
+  "confidence": <integer 52-97>,
+  "false_positive_probability": <100 minus confidence>,
+  "risk_level": "CRITICAL, HIGH, MEDIUM, or LOW",
+  "rationale": "4-5 sentences explaining your reconsidered analysis",
+  "simple_explanation": "1-2 plain English sentences",
+  "recommended_action": "Specific action",
+  "regulatory_reference": "Applicable SEBI regulation",
+  "reconsidered": true,
+  "reconsideration_reason": "Why you changed or maintained your verdict given analyst feedback",
+  "analyst_feedback_incorporated": true
+}}"""
+
+
+def retriage_with_feedback(alert, existing_triage, feedback_data):
+    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+
+    start_ms = int(time.time() * 1000)
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": build_feedback_prompt(alert, existing_triage, feedback_data)}],
+    )
+    processing_time_ms = int(time.time() * 1000) - start_ms
+
+    block = response.content[0]
+    if not isinstance(block, TextBlock):
+        raise ValueError(f"Unexpected content type: {type(block)}")
+    raw = block.text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    result = json.loads(raw.strip())
+
+    if not result.get('regulatory_reference'):
+        result['regulatory_reference'] = _REGULATORY_DEFAULTS.get(
+            alert.get('pattern_type', ''),
+            'SEBI PFUTP Regulations 2003, Regulation 4(2)(a)'
+        )
+
+    result["processing_time_ms"] = processing_time_ms
+    result["input_tokens"]       = response.usage.input_tokens
+    result["output_tokens"]      = response.usage.output_tokens
+    return result
+
+
+def deep_investigate(alert, triage, trades, trader_history):
+    def _fmt_trades(tlist):
+        if not tlist:
+            return "No trades available."
+        lines = ["Timestamp | Type | Size | Price | Status | Cancel(ms)"]
+        for tr in tlist[:30]:
+            lines.append(
+                f"{str(tr.get('timestamp',''))[:19]} | "
+                f"{tr.get('order_type','')} | "
+                f"{tr.get('order_size','')} | "
+                f"₹{float(tr.get('price') or 0):.2f} | "
+                f"{tr.get('order_status','')} | "
+                f"{tr.get('cancel_time_ms','')}"
+            )
+        return "\n".join(lines)
+
+    def _fmt_history(alerts):
+        if not alerts:
+            return "No prior alert history."
+        lines = []
+        for a in alerts[:10]:
+            lines.append(
+                f"- {a.get('alert_id','')} | {a.get('pattern_type','')} | "
+                f"{a.get('instrument','')} | {a.get('severity','')} | "
+                f"cancel_ratio={a.get('cancel_ratio','')} | sigma={a.get('sigma','')}"
+            )
+        return "\n".join(lines)
+
+    prompt = f"""You are NSE's most senior Market Surveillance Investigator.
+Conduct a deep forensic investigation of this alert.
+
+ALERT: {alert.get('alert_id', '')}
+TRADER: {alert.get('trader_id', '')}
+PATTERN: {alert.get('pattern_type', '')}
+CONFIDENCE: {triage.get('confidence', '') if triage else 'N/A'}%
+
+TRADE-BY-TRADE EVIDENCE:
+{_fmt_trades(trades)}
+
+TRADER HISTORY:
+{_fmt_history(trader_history)}
+
+Provide a comprehensive JSON investigation report with EXACTLY these 8 keys:
+{{
+  "manipulation_mechanics": "Step-by-step explanation of HOW the manipulation was executed using actual trade timestamps and sizes",
+  "price_impact_analysis": "Did cancelled orders move the price? By how much? For how long?",
+  "profit_estimation": "Estimate manipulation profit in INR based on trade sizes and prices",
+  "behavioral_fingerprint": "Specific behaviors identifying manipulation vs legitimate trading — timing patterns, order sizes, account relationships",
+  "similar_patterns": "Based on trader history — is this isolated or systematic?",
+  "evidence_strength": "Rate each evidence piece 1-10 with explanation: cancel_ratio /10, sigma /10, cancel_speed /10, order_size /10, account_links /10",
+  "recommended_investigation_steps": "List 5 specific next steps an NSE investigator should take",
+  "sebi_prosecution_likelihood": "Probability of successful prosecution as percentage, what additional evidence is needed"
+}}
+
+Respond ONLY with valid JSON. No text outside the JSON."""
+
+    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2048,
+        system="You are NSE's senior Market Surveillance Investigator. Respond ONLY with valid JSON.",
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    block = response.content[0]
+    if not isinstance(block, TextBlock):
+        raise ValueError(f"Unexpected content type: {type(block)}")
+    raw = block.text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    result = json.loads(raw.strip())
+    result["tokens_used"] = response.usage.input_tokens + response.usage.output_tokens
     return result

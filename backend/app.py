@@ -15,7 +15,7 @@ from detector import run_all_detectors
 from triage import triage_alert
 from workflows import run_escalation_workflow
 from market_data import fetch_real_prices, generate_realistic_trades
-from agent import start_agent, get_agent_status, trigger_check
+from agent import start_agent, stop_agent, is_agent_running, get_agent_status, trigger_check
 
 app = Flask(__name__)
 CORS(app, origins=[
@@ -72,11 +72,8 @@ with app.app_context():
     except Exception as _e:
         app.logger.error(f"Startup auto-detection failed: {_e}")
 
-if os.getenv('ENVIRONMENT') != 'production':
-    start_agent()
-    logging.info("Agent started (local mode)")
-else:
-    logging.info("Agent disabled in production (SQLite concurrency limit)")
+start_agent()
+logging.info("Watchlist AI Agent started")
 
 
 # ── Health / Ping ─────────────────────────────────────────────────────────────
@@ -1403,6 +1400,222 @@ def agent_trigger():
     except Exception as e:
         app.logger.error(f"Agent trigger error: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/agent/start", methods=["POST"])
+def agent_start():
+    start_agent()
+    return jsonify({"status": "started", "running": is_agent_running()})
+
+
+@app.route("/api/agent/stop", methods=["POST"])
+def agent_stop():
+    stop_agent()
+    return jsonify({"status": "stopped"})
+
+
+# ── Human Feedback / Override ─────────────────────────────────────────────────
+
+@app.route("/api/feedback/<alert_id>", methods=["POST"])
+def submit_feedback(alert_id):
+    try:
+        data = request.get_json() or {}
+        analyst_verdict  = data.get("analyst_verdict", "").upper()
+        analyst_reason   = (data.get("reason") or "").strip()
+        feedback_type    = data.get("feedback_type", "OVERRIDE").upper()
+
+        if analyst_verdict not in ("ESCALATE", "DISMISS"):
+            return jsonify({"error": "analyst_verdict must be ESCALATE or DISMISS"}), 400
+        if not analyst_reason:
+            return jsonify({"error": "reason is required"}), 400
+
+        conn = get_db()
+        alert = conn.execute("SELECT * FROM alerts WHERE alert_id=?", (alert_id,)).fetchone()
+        if not alert:
+            conn.close()
+            return jsonify({"error": "Alert not found"}), 404
+        alert = dict(alert)
+
+        triage_row = conn.execute(
+            "SELECT * FROM triage_results WHERE alert_id=?", (alert_id,)
+        ).fetchone()
+        triage = dict(triage_row) if triage_row else {}
+
+        original_verdict    = triage.get("verdict")
+        original_confidence = triage.get("confidence")
+        is_override = original_verdict and original_verdict != analyst_verdict
+
+        # Determine feedback_type automatically
+        if is_override:
+            feedback_type = "OVERRIDE"
+        else:
+            feedback_type = "CONFIRM"
+
+        # Save feedback
+        conn.execute(
+            """INSERT INTO human_feedback
+              (alert_id, analyst_verdict, analyst_reason, original_verdict,
+               original_confidence, submitted_at, feedback_type, outcome)
+              VALUES (?,?,?,?,?,?,?,'PENDING')""",
+            (
+                alert_id, analyst_verdict, analyst_reason,
+                original_verdict, original_confidence,
+                datetime.now(timezone.utc).isoformat(), feedback_type,
+            )
+        )
+        feedback_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        # If override: update alert status
+        if is_override:
+            new_status = "ESCALATED" if analyst_verdict == "ESCALATE" else "DISMISSED"
+            conn.execute("UPDATE alerts SET status=? WHERE alert_id=?", (new_status, alert_id))
+
+        conn.commit()
+        conn.close()
+
+        # Call Claude with feedback context
+        reconsidered = None
+        try:
+            from triage import retriage_with_feedback
+            feedback_data = {"analyst_verdict": analyst_verdict, "analyst_reason": analyst_reason}
+            reconsidered = retriage_with_feedback(alert, triage, feedback_data)
+
+            # Save reconsidered verdict back to human_feedback row
+            conn2 = get_db()
+            conn2.execute(
+                """UPDATE human_feedback
+                   SET reconsidered_verdict=?, reconsidered_confidence=?,
+                       reconsideration_reason=?, outcome=?
+                   WHERE id=?""",
+                (
+                    reconsidered.get("verdict"),
+                    reconsidered.get("confidence"),
+                    reconsidered.get("reconsideration_reason", ""),
+                    "RECONSIDERED",
+                    feedback_id,
+                )
+            )
+            # If Claude now agrees with override, update alert status again
+            if reconsidered.get("verdict") == analyst_verdict and is_override:
+                new_status = "ESCALATED" if analyst_verdict == "ESCALATE" else "DISMISSED"
+                conn2.execute("UPDATE alerts SET status=? WHERE alert_id=?", (new_status, alert_id))
+
+            conn2.commit()
+            conn2.close()
+        except Exception as e:
+            app.logger.error(f"Retriage with feedback error: {e}")
+
+        verdict_changed = (
+            reconsidered is not None and
+            reconsidered.get("verdict") != original_verdict
+        )
+
+        return jsonify({
+            "status": "ok",
+            "feedback_type": feedback_type,
+            "original_verdict": original_verdict,
+            "analyst_verdict": analyst_verdict,
+            "reconsidered": reconsidered,
+            "verdict_changed": verdict_changed,
+        })
+
+    except Exception as e:
+        app.logger.error(f"Feedback error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/feedback/<alert_id>", methods=["GET"])
+def get_feedback(alert_id):
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM human_feedback WHERE alert_id=? ORDER BY submitted_at DESC",
+        (alert_id,)
+    ).fetchall()
+    conn.close()
+    return jsonify({"feedback": [dict(r) for r in rows]})
+
+
+@app.route("/api/feedback/stats", methods=["GET"])
+def feedback_stats():
+    conn = get_db()
+    total = conn.execute("SELECT COUNT(*) FROM human_feedback").fetchone()[0]
+    overrides = conn.execute(
+        "SELECT COUNT(*) FROM human_feedback WHERE feedback_type='OVERRIDE'"
+    ).fetchone()[0]
+    # Claude agreed with analyst = verdict_changed where reconsidered matches analyst
+    claude_agreed = conn.execute(
+        "SELECT COUNT(*) FROM human_feedback WHERE reconsidered_verdict=analyst_verdict AND feedback_type='OVERRIDE'"
+    ).fetchone()[0]
+    conn.close()
+    analyst_right = claude_agreed
+    claude_right  = overrides - claude_agreed
+    agreement_rate = round(claude_agreed / overrides * 100, 1) if overrides > 0 else 0.0
+    return jsonify({
+        "total_feedback":     total,
+        "total_overrides":    overrides,
+        "claude_agreed_with_analyst": claude_agreed,
+        "claude_maintained_original": claude_right,
+        "agreement_rate":     agreement_rate,
+    })
+
+
+# ── Deep Investigation ────────────────────────────────────────────────────────
+
+@app.route("/api/deep-investigation/<alert_id>")
+def deep_investigation(alert_id):
+    try:
+        conn = get_db()
+        alert = conn.execute("SELECT * FROM alerts WHERE alert_id=?", (alert_id,)).fetchone()
+        if not alert:
+            conn.close()
+            return jsonify({"error": "Alert not found"}), 404
+        alert = dict(alert)
+
+        triage_row = conn.execute(
+            "SELECT * FROM triage_results WHERE alert_id=?", (alert_id,)
+        ).fetchone()
+        triage = dict(triage_row) if triage_row else {}
+
+        trades = conn.execute(
+            "SELECT * FROM trades WHERE trader_id=? AND instrument=? ORDER BY timestamp",
+            (alert["trader_id"], alert["instrument"]),
+        ).fetchall()
+
+        history = conn.execute(
+            "SELECT alert_id, pattern_type, instrument, severity, cancel_ratio, sigma, detected_at "
+            "FROM alerts WHERE trader_id=? ORDER BY detected_at DESC LIMIT 20",
+            (alert["trader_id"],)
+        ).fetchall()
+        conn.close()
+
+        from triage import deep_investigate
+        result = deep_investigate(
+            alert, triage,
+            [dict(t) for t in trades],
+            [dict(h) for h in history],
+        )
+        return jsonify({
+            "alert_id": alert_id,
+            "alert":    alert,
+            "triage":   triage,
+            "investigation": result,
+        })
+
+    except Exception as e:
+        app.logger.error(f"Deep investigation error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+# ── Detailed Health ───────────────────────────────────────────────────────────
+
+@app.route("/api/health/detailed")
+def health_detailed():
+    try:
+        from health_monitor import get_detailed_health
+        return jsonify(get_detailed_health())
+    except Exception as e:
+        app.logger.error(f"Health detailed error: {e}")
+        return jsonify({"error": str(e), "status": "unknown"}), 500
 
 
 if __name__ == "__main__":

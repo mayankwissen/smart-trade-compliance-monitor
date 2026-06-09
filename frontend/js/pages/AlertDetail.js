@@ -68,11 +68,23 @@ function _AlertTimelineChart({ trades }) {
 
 window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
   const t = window.useT();
-  const [data, setData]       = _aduseS(null);
-  const [loading, setLoading] = _aduseS(true);
-  const [triaging, setTriaging] = _aduseS(false);
-  const [tab, setTab]         = _aduseS('triage');
-  const [barW, setBarW]       = _aduseS(0);
+  const [data, setData]             = _aduseS(null);
+  const [loading, setLoading]       = _aduseS(true);
+  const [triaging, setTriaging]     = _aduseS(false);
+  const [tab, setTab]               = _aduseS('triage');
+  const [barW, setBarW]             = _aduseS(0);
+
+  // Analyst feedback state
+  const [feedbackSent, setFeedbackSent]       = _aduseS(false);
+  const [feedbackLoading, setFeedbackLoading] = _aduseS(false);
+  const [feedbackResult, setFeedbackResult]   = _aduseS(null);
+  const [selectedReason, setSelectedReason]   = _aduseS('');
+  const [customReason, setCustomReason]       = _aduseS('');
+
+  // Deep dive state
+  const [deepDive, setDeepDive]         = _aduseS(null);
+  const [deepLoading, setDeepLoading]   = _aduseS(false);
+  const [deepError, setDeepError]       = _aduseS(null);
 
   const load = _aduseC(async () => {
     try {
@@ -83,13 +95,49 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
     setLoading(false);
   }, [alertId]);
 
-  _aduseE(() => { setLoading(true); setBarW(0); setTab('triage'); load(); }, [load]);
+  _aduseE(() => {
+    setLoading(true); setBarW(0); setTab('triage');
+    setFeedbackSent(false); setFeedbackResult(null);
+    setSelectedReason(''); setCustomReason('');
+    setDeepDive(null); setDeepError(null);
+    load();
+  }, [load]);
 
   const doTriage = async () => {
     setTriaging(true);
     try { await fetch(`${window.API_BASE}/api/triage/${alertId}`, { method: 'POST' }); await load(); }
     catch {}
     setTriaging(false);
+  };
+
+  const doFeedback = async (analystVerdict) => {
+    const reason = (selectedReason + (customReason ? ' — ' + customReason : '')).trim();
+    if (!reason) return;
+    setFeedbackLoading(true);
+    try {
+      const res = await fetch(`${window.API_BASE}/api/feedback/${alertId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ analyst_verdict: analystVerdict, reason }),
+      }).then(r => r.json());
+      setFeedbackResult(res);
+      setFeedbackSent(true);
+      await load();
+    } catch {}
+    setFeedbackLoading(false);
+  };
+
+  const doDeepDive = async () => {
+    setDeepLoading(true);
+    setDeepError(null);
+    try {
+      const res = await fetch(`${window.API_BASE}/api/deep-investigation/${alertId}`).then(r => r.json());
+      if (res.error) { setDeepError(res.error); }
+      else { setDeepDive(res.investigation); }
+    } catch (e) {
+      setDeepError('Network error — retry');
+    }
+    setDeepLoading(false);
   };
 
   if (loading) return (
@@ -164,10 +212,11 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
       <window.Card pad={0} style={{ overflow: 'hidden' }}>
         <div style={{ display: 'flex', borderBottom: `1px solid ${t.border}`, background: t.bg }}>
           {[
-            ['triage',   'AI Triage'],
-            ['evidence', 'Evidence'],
-            ['actions',  'Escalations'],
-            ['timeline', 'Timeline'],
+            ['triage',    'AI Triage'],
+            ['evidence',  'Evidence'],
+            ['actions',   'Escalations'],
+            ['timeline',  'Timeline'],
+            ['deepdive',  'Deep Dive'],
           ].map(([k, label]) => (
             <button key={k} className={`tab-btn${tab === k ? ' active' : ''}`} onClick={() => setTab(k)}>{label}</button>
           ))}
@@ -358,6 +407,105 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                       ))}
                     </div>
                   </div>
+
+                  {/* ── ANALYST REVIEW ── */}
+                  {!feedbackSent && (() => {
+                    const isDismiss = verdict === 'DISMISS';
+                    const borderC  = isDismiss ? '#f59e0b' : '#22c55e';
+                    const bgC      = isDismiss ? '#fffbeb' : '#f0fdf4';
+                    const titleC   = isDismiss ? '#92400e' : '#065f46';
+                    const question = isDismiss
+                      ? 'Do you disagree with this DISMISS verdict?'
+                      : 'Do you believe this is a false positive?';
+                    const targetVerdict = isDismiss ? 'ESCALATE' : 'DISMISS';
+                    const btnLabel  = isDismiss ? 'Override to ESCALATE' : 'Override to DISMISS';
+                    const btnColor  = isDismiss ? '#ef4444' : '#22c55e';
+                    const reasons   = isDismiss
+                      ? ['Market context not captured', 'Repeat offender pattern', 'Related to other suspicious activity']
+                      : ['Legitimate market maker', 'Algorithmic order management', 'News/corporate event driven'];
+                    return (
+                      <div style={{ border: `1px solid ${borderC}44`, borderLeft: `3px solid ${borderC}`, borderRadius: '0 8px 8px 0', padding: 16, marginBottom: 16, background: bgC + '66' }}>
+                        <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12, color: titleC, marginBottom: 12 }}>
+                          ANALYST REVIEW — {question}
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+                          {reasons.map(r => (
+                            <button key={r} onClick={() => setSelectedReason(selectedReason === r ? '' : r)}
+                              style={{
+                                background: selectedReason === r ? borderC + '22' : t.bg,
+                                border: `1px solid ${selectedReason === r ? borderC : t.border}`,
+                                color: selectedReason === r ? titleC : t.textSec,
+                                borderRadius: 20, padding: '4px 12px', fontSize: 11, fontWeight: selectedReason === r ? 700 : 400,
+                                cursor: 'pointer', fontFamily: "'Inter',sans-serif",
+                              }}>{r}</button>
+                          ))}
+                        </div>
+                        <textarea
+                          value={customReason}
+                          onChange={e => setCustomReason(e.target.value)}
+                          placeholder="Additional details (optional)..."
+                          style={{
+                            width: '100%', minHeight: 60, resize: 'vertical', marginBottom: 10,
+                            background: t.bg, border: `1px solid ${t.border}`, borderRadius: 6,
+                            color: t.text, fontFamily: "'Inter',sans-serif", fontSize: 12, padding: '8px 10px',
+                          }}
+                        />
+                        <button
+                          onClick={() => doFeedback(targetVerdict)}
+                          disabled={feedbackLoading || (!selectedReason && !customReason)}
+                          style={{
+                            background: (!selectedReason && !customReason) ? t.border : btnColor,
+                            color: '#fff', border: 'none', borderRadius: 6, padding: '8px 20px',
+                            fontSize: 12, fontWeight: 700, cursor: feedbackLoading || (!selectedReason && !customReason) ? 'default' : 'pointer',
+                            fontFamily: "'Inter',sans-serif",
+                          }}>
+                          {feedbackLoading ? 'Sending to Claude...' : btnLabel}
+                        </button>
+                      </div>
+                    );
+                  })()}
+
+                  {/* ── CLAUDE RECONSIDERATION RESULT ── */}
+                  {feedbackSent && feedbackResult && (
+                    <div style={{ border: `1px solid ${t.warning}44`, borderRadius: 8, padding: 16, marginBottom: 16, background: t.bg }}>
+                      <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 11, color: t.warning, letterSpacing: '.12em', marginBottom: 12 }}>
+                        CLAUDE AI RECONSIDERATION
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
+                        <div>
+                          <div style={{ fontSize: 10, color: t.textMuted, fontFamily: "'Inter',sans-serif", marginBottom: 3 }}>ORIGINAL</div>
+                          <span style={{
+                            background: feedbackResult.original_verdict === 'ESCALATE' ? '#ef444422' : '#22c55e22',
+                            color: feedbackResult.original_verdict === 'ESCALATE' ? '#ef4444' : '#22c55e',
+                            borderRadius: 4, padding: '4px 10px', fontSize: 12, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace",
+                          }}>{feedbackResult.original_verdict || '—'}</span>
+                        </div>
+                        <span style={{ color: t.textMuted, fontSize: 16 }}>→</span>
+                        <div>
+                          <div style={{ fontSize: 10, color: t.textMuted, fontFamily: "'Inter',sans-serif", marginBottom: 3 }}>RECONSIDERED</div>
+                          <span style={{
+                            background: (feedbackResult.reconsidered?.verdict) === 'ESCALATE' ? '#ef444422' : '#22c55e22',
+                            color: (feedbackResult.reconsidered?.verdict) === 'ESCALATE' ? '#ef4444' : '#22c55e',
+                            borderRadius: 4, padding: '4px 10px', fontSize: 12, fontWeight: 700, fontFamily: "'JetBrains Mono',monospace",
+                          }}>{feedbackResult.reconsidered?.verdict || '—'}</span>
+                        </div>
+                      </div>
+                      {feedbackResult.reconsidered?.reconsideration_reason && (
+                        <div style={{ color: t.textSec, fontSize: 12, lineHeight: 1.7, fontStyle: 'italic', marginBottom: 10 }}>
+                          "{feedbackResult.reconsidered.reconsideration_reason}"
+                        </div>
+                      )}
+                      <div style={{ padding: '8px 12px', borderRadius: 6, fontSize: 11, fontFamily: "'Inter',sans-serif", fontWeight: 600,
+                        background: feedbackResult.verdict_changed ? '#f59e0b18' : '#3b82f618',
+                        color: feedbackResult.verdict_changed ? '#92400e' : '#1e40af',
+                        border: `1px solid ${feedbackResult.verdict_changed ? '#f59e0b44' : '#3b82f644'}`,
+                      }}>
+                        {feedbackResult.verdict_changed
+                          ? 'Claude updated verdict based on analyst feedback'
+                          : 'Claude maintained original verdict with analyst feedback noted'}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -596,6 +744,87 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
                   </div>
                 </window.Card>
               </div>
+            </div>
+          )}
+
+          {/* ── TAB 5: DEEP DIVE ── */}
+          {tab === 'deepdive' && (
+            <div>
+              {!deepDive && !deepLoading && (
+                <div style={{ textAlign: 'center', padding: '40px 0' }}>
+                  <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 17, color: t.text, marginBottom: 8 }}>
+                    Forensic Deep Investigation
+                  </div>
+                  <div style={{ color: t.textMuted, fontSize: 13, maxWidth: 460, margin: '0 auto 24px', lineHeight: 1.6 }}>
+                    Claude produces an 8-section forensic report: manipulation mechanics, price impact, profit estimation,
+                    behavioral fingerprint, evidence strength scores (1–10), and SEBI prosecution likelihood.
+                  </div>
+                  {deepError && (
+                    <div style={{ color: t.danger, fontFamily: "'JetBrains Mono',monospace", fontSize: 12, marginBottom: 14 }}>{deepError}</div>
+                  )}
+                  <window.Btn onClick={doDeepDive} style={{ fontSize: 13, padding: '10px 32px' }}>
+                    Run Deep Investigation
+                  </window.Btn>
+                  <div style={{ color: t.textMuted, fontSize: 11, marginTop: 10, fontFamily: "'JetBrains Mono',monospace" }}>
+                    ~2048 tokens · ~8s · uses full trade history
+                  </div>
+                </div>
+              )}
+
+              {deepLoading && (
+                <div style={{ textAlign: 'center', padding: '48px 0' }}>
+                  <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 18, color: t.gold, marginBottom: 6 }}>
+                    Conducting Forensic Analysis
+                  </div>
+                  <div style={{ color: t.textSec, fontSize: 13 }}>NSE Senior Investigator · Claude Sonnet · 8 sections</div>
+                </div>
+              )}
+
+              {deepDive && !deepLoading && (() => {
+                const sections = [
+                  { key: 'manipulation_mechanics',        label: 'Manipulation Mechanics',         icon: '⚙' },
+                  { key: 'price_impact_analysis',         label: 'Price Impact Analysis',           icon: '📈' },
+                  { key: 'profit_estimation',             label: 'Profit Estimation',               icon: '₹' },
+                  { key: 'behavioral_fingerprint',        label: 'Behavioral Fingerprint',          icon: '🔍' },
+                  { key: 'similar_patterns',              label: 'Similar Patterns',                icon: '🔗' },
+                  { key: 'evidence_strength',             label: 'Evidence Strength Scores',        icon: '⚖' },
+                  { key: 'recommended_investigation_steps', label: 'Recommended Investigation Steps', icon: '📋' },
+                  { key: 'sebi_prosecution_likelihood',   label: 'SEBI Prosecution Likelihood',     icon: '⚖' },
+                ];
+                return (
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                      <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 13, color: t.text }}>
+                        Forensic Investigation Report
+                      </span>
+                      {deepDive.tokens_used && (
+                        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: t.textMuted }}>
+                          {deepDive.tokens_used} tokens used
+                        </span>
+                      )}
+                      <button onClick={() => { setDeepDive(null); setDeepError(null); }}
+                        style={{ marginLeft: 'auto', background: 'transparent', border: `1px solid ${t.border}`, color: t.textMuted, borderRadius: 4, padding: '3px 10px', fontSize: 11, cursor: 'pointer' }}>
+                        Re-run
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {sections.map(({ key, label, icon }) => (
+                        deepDive[key] ? (
+                          <div key={key} style={{ background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, padding: '14px 16px' }}>
+                            <div style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12, color: t.gold, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span>{icon}</span>
+                              <span style={{ letterSpacing: '.06em', textTransform: 'uppercase', fontSize: 10 }}>{label}</span>
+                            </div>
+                            <div style={{ color: t.textSec, fontSize: 13, lineHeight: 1.8, fontFamily: "'Inter',sans-serif", whiteSpace: 'pre-wrap' }}>
+                              {deepDive[key]}
+                            </div>
+                          </div>
+                        ) : null
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
