@@ -1236,7 +1236,7 @@ def leaderboard():
             SUM(CASE WHEN a.severity='CRITICAL' THEN 1 ELSE 0 END)      AS critical_count,
             SUM(CASE WHEN a.severity='HIGH'     THEN 1 ELSE 0 END)      AS high_count,
             SUM(CASE WHEN e.escalation_id IS NOT NULL THEN 1 ELSE 0 END) AS escalation_count,
-            GROUP_CONCAT(DISTINCT a.pattern)                             AS patterns,
+            GROUP_CONCAT(DISTINCT a.pattern_type)                        AS patterns,
             MAX(t.confidence)                                            AS max_confidence
         FROM alerts a
         LEFT JOIN escalations e ON a.alert_id = e.alert_id
