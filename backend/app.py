@@ -24,6 +24,7 @@ CORS(app, origins=[
 ])
 
 def check_watchlist_expiry():
+    conn = None
     try:
         conn = get_db()
         now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
@@ -32,9 +33,14 @@ def check_watchlist_expiry():
             (now,)
         )
         conn.commit()
-        conn.close()
     except Exception as e:
         logging.error(f"Expiry check: {e}")
+    finally:
+        try:
+            if conn:
+                conn.close()
+        except Exception:
+            pass
 
 
 with app.app_context():
@@ -186,7 +192,6 @@ def get_trades():
 
 @app.route("/api/alerts")
 def get_alerts():
-    check_watchlist_expiry()
     pattern_type = request.args.get("pattern_type", "")
     severity     = request.args.get("severity", "")
     status       = request.args.get("status", "")
@@ -384,7 +389,6 @@ def get_escalations():
 
 @app.route("/api/stats")
 def get_stats():
-    check_watchlist_expiry()
     conn = get_db()
     total_trades  = conn.execute("SELECT COUNT(*) FROM trades").fetchone()[0]
     total_alerts  = conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
@@ -894,7 +898,6 @@ def generate_str(alert_id):
 
 @app.route("/api/trader/<trader_id>")
 def get_trader_profile(trader_id):
-    check_watchlist_expiry()
     try:
         conn = get_db()
         alerts_rows = conn.execute(

@@ -17,7 +17,7 @@ def get_db():
             conn.execute("PRAGMA journal_mode=WAL")
         except Exception:
             pass
-        conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute("PRAGMA busy_timeout=10000")
         conn.execute("PRAGMA synchronous=NORMAL")
         return conn
     except sqlite3.DatabaseError as e:
