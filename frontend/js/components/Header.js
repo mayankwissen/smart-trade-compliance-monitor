@@ -1,5 +1,30 @@
 const { useState: _huseState, useEffect: _huseE, useRef: _huseRef } = React;
 
+// ── Live clock ──────────────────────────────────────────────────────────────
+window.LiveClock = function LiveClock() {
+  const [now, setNow] = _huseState(new Date());
+  _huseE(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  return (
+    <div style={{
+      fontFamily: "'JetBrains Mono',monospace",
+      fontSize: 11, color: '#484848',
+      letterSpacing: '.08em',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', lineHeight: 1.2,
+    }}>
+      <span style={{ color: '#303030', fontSize: 9, fontWeight: 700, letterSpacing: '.12em' }}>
+        {now.toLocaleDateString('en-IN', { day:'2-digit', month:'short' }).toUpperCase()}
+      </span>
+      <span style={{ color: '#606060' }}>{hh}:{mm}:<span style={{ color: '#f0b42988' }}>{ss}</span></span>
+    </div>
+  );
+};
+
 // ── Vertical NSE price panel — auto-scroll + search ───────────────────────
 window.PricePanel = function PricePanel({ prices }) {
   const [searchTerm, setSearchTerm] = _huseState('');
@@ -288,6 +313,10 @@ window.Header = function Header({ isReplaying, onStart, onStop, isDark, onToggle
       </div>
 
       <div style={{ flex: 1 }} />
+
+      {/* Live clock */}
+      <window.LiveClock />
+      <div style={{ width: 1, height: 22, background: '#1c1c1c', margin: '0 6px' }} />
 
       {/* Subscribe / Unsubscribe */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>

@@ -1258,14 +1258,58 @@ Compliance workflow: SEBI PFUTP Regulations 2003, automatic STR filing, 72-hour 
 
         import anthropic as _anthropic
         _client = _anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        tech_kb = """
+TECHNICAL KNOWLEDGE BASE — Trade Surveillance Engine (Wissen Technology Hackathon 2026):
+
+MATH FORMULAS:
+- cancel_ratio = cancelled_orders / total_orders (e.g. 12/14 = 85.7%)
+- sigma (z-score) = (cancel_ratio - population_mean) / population_std
+  * Population mean/std computed live from all traders with ≥5 trades
+  * 7.8σ = 1 in 100 trillion chance by random — mathematical certainty of manipulation
+- 5-dimension confidence score: cancel_ratio (30%), sigma (25%), cancel_speed (20%), order_size (15%), sample_size (10%)
+- Severity: CRITICAL if sigma>10 or conf>90, HIGH if sigma>7 or conf>75, else MEDIUM/LOW
+
+DETECTION PATTERNS:
+- LAYERING: cancel_ratio>55%, cancel_time<600ms, orders placed near best bid/ask then cancelled
+  * T-1042 HDFCBANK: 14 orders, 12 cancelled 420-780ms, sigma 8.2σ → ESCALATE
+  * T-0501 HDFCBANK: 60% cancel but 850-920ms cancels (market maker timing) → DISMISS
+- SPOOFING: single order >40K shares, cancelled in <600ms (T-2891 RELIANCE: 8×80K, 180-490ms, sigma 8.6σ)
+- WASH TRADING: same trader BUY (account A) + SELL (account B) on same instrument within 30s
+  * T-3301 INFY: A-3301 buy / A-3302 sell, 18s apart, sigma 10σ
+- PUMP AND DUMP: accumulate >50K shares in <20min, sell >50K in <10min
+  * T-4401 TCS: 5×22K BUY in 14min, 2×55K SELL in 4min, sigma 11σ
+
+BORDERLINE TRADERS (correctly DISMISSED):
+- T-0501 HDFCBANK: 60% cancel ratio, but cancel times 850-920ms (>600ms threshold) = market maker
+- T-0502 WIPRO: 62% cancel, 790-1050ms = algo liquidity provider
+- T-0503 SBIN: 57% cancel, 920-1200ms = momentum trader (barely triggered)
+These 3 save ~75 analyst-minutes by suppressing false positives.
+
+XAI TRUTH ANCHORS: Every Claude statistical claim recalculated from raw DB → hallucination_score shows # incorrect claims.
+CRIME SCENE REPLAY: Animated bar chart in AlertDetail Timeline tab — shows order sequence step by step.
+NETWORK GRAPH: vis.js nodes=traders, edges=same-instrument trades within 5 min. Red dashed = suspicious. Circular patterns detected.
+DEEP DIVE: 30-40s forensic report (8 fields: manipulation mechanics, price impact, profit estimation, behavioral fingerprint, etc.)
+HUMAN FEEDBACK: Analyst can override Claude verdict — Claude reconsiders with 10 additional fields.
+
+COMPLIANCE WORKFLOW (auto on ESCALATE):
+1. COMP-XXXXXXXX.json case file (8-char UUID, ISIN, UCC, SLA 15-day breach date)
+2. Slack #compliance-alerts notification
+3. Email via SendGrid API (port 443, SMTP blocked on Render)
+4. 72-hour watchlist flag
+5. FIU-IND STR document (PMLA Section 12, SEBI/HO/IVD/IVD-I/CIR/P/2022/170)
+
+TOKEN EFFICIENCY: 280 tokens/call (97% reduction from 15,000 raw trade tokens). Cost ~$0.00014/call.
+API: 26 endpoints. Key: /api/refresh-data, /api/replay/start, /api/triage/:id, /api/verify-evidence/:id
+MODEL: claude-sonnet-4-6. Population sigma computed live every call. Confidence pre-computed before Claude call.
+"""
         response = _client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=400,
+            max_tokens=500,
             system=(
                 "You are an AI assistant for the NSE Trade Surveillance Engine dashboard. "
-                "You have access to real-time surveillance data. "
-                "Answer questions about the system, alerts, traders, patterns, and compliance workflows. "
-                "Use the context provided to give specific, data-aware answers. "
+                "You have access to real-time surveillance data AND deep technical knowledge of the system. "
+                "Answer questions about the system, alerts, traders, patterns, math, and compliance workflows. "
+                "Use the context AND technical knowledge base to give specific, data-aware answers. "
                 "Sound professional like an NSE compliance expert. "
                 "Never say you don't have access to data — use the context provided. "
                 "Format your response using markdown: use **bold** for key terms and numbers, "
@@ -1274,7 +1318,7 @@ Compliance workflow: SEBI PFUTP Regulations 2003, automatic STR filing, 72-hour 
             ),
             messages=[{
                 "role": "user",
-                "content": f"Context:\n{context}\n\nQuestion: {message}"
+                "content": f"Technical Knowledge Base:\n{tech_kb}\n\nCurrent System State:\n{context}\n\nQuestion: {message}"
             }]
         )
 
@@ -1921,6 +1965,69 @@ def health_detailed():
     except Exception as e:
         app.logger.error(f"Health detailed error: {e}")
         return jsonify({"error": str(e), "status": "unknown"}), 500
+
+
+import threading as _threading
+import time as _time
+import urllib.request as _urllib_req
+
+_github_last_issue_ts = 0.0
+_github_cooldown_lock = _threading.Lock()
+_GITHUB_REPO = "mayankwissen/smart-trade-compliance-monitor"
+
+
+def _post_github_issue_async(title, body):
+    """Create a GitHub issue in background; 5-minute cooldown between issues."""
+    global _github_last_issue_ts
+    with _github_cooldown_lock:
+        now = _time.time()
+        if now - _github_last_issue_ts < 300:
+            return
+        _github_last_issue_ts = now
+
+    token = os.getenv("GITHUB_TOKEN", "")
+    if not token:
+        return
+    try:
+        payload = json.dumps({
+            "title": title[:200],
+            "body": body[:3000],
+            "labels": ["bug", "production", "auto-report"],
+        }).encode("utf-8")
+        req = _urllib_req.Request(
+            f"https://api.github.com/repos/{_GITHUB_REPO}/issues",
+            data=payload,
+            headers={
+                "Authorization": f"token {token}",
+                "Content-Type": "application/json",
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "TradeSurveillanceBot/2.0",
+            },
+        )
+        _urllib_req.urlopen(req, timeout=10)
+    except Exception as _ge:
+        logging.error(f"GitHub issue creation failed: {_ge}")
+
+
+def _raise_github_issue(title, body):
+    _threading.Thread(target=_post_github_issue_async, args=(title, body), daemon=True).start()
+
+
+@app.errorhandler(500)
+def handle_500(error):
+    try:
+        ts = datetime.now(timezone.utc).isoformat()
+        _raise_github_issue(
+            f"[{ts[:10]}] Production 500 Error — {request.path}",
+            f"**Auto-generated incident report**\n\n"
+            f"**Endpoint:** `{request.method} {request.path}`\n"
+            f"**Timestamp:** {ts}\n"
+            f"**Error:** {str(error)}\n\n"
+            f"Check Render logs at https://dashboard.render.com",
+        )
+    except Exception:
+        pass
+    return jsonify({"error": "Internal server error"}), 500
 
 
 if __name__ == "__main__":

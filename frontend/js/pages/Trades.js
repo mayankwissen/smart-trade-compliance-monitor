@@ -1,4 +1,4 @@
-const { useState: _tuseS, useEffect: _tuseE, useCallback: _tuseC } = React;
+const { useState: _tuseS, useEffect: _tuseE, useCallback: _tuseC, useRef: _tuseR } = React;
 
 window.FLAGGED_TRADERS = new Set(['T-1042', 'T-2891', 'T-3301']);
 
@@ -10,7 +10,24 @@ window.TradesPage = function TradesPage() {
   const [traderId, setTraderId]     = _tuseS('');
   const [instrument, setInstrument] = _tuseS('');
   const [status, setStatus]         = _tuseS('');
+  const [autoScroll, setAutoScroll] = _tuseS(false);
+  const scrollRef  = _tuseR(null);
+  const scrollIdRef = _tuseR(null);
   const PER = 50;
+
+  // Auto-scroll: slow continuous scroll that loops back to top
+  _tuseE(() => {
+    if (!autoScroll || !scrollRef.current) return;
+    const el = scrollRef.current;
+    scrollIdRef.current = setInterval(() => {
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 4) {
+        el.scrollTop = 0;
+      } else {
+        el.scrollBy(0, 1);
+      }
+    }, 40);
+    return () => { if (scrollIdRef.current) clearInterval(scrollIdRef.current); };
+  }, [autoScroll, trades]);
 
   const fetchTrades = _tuseC(async () => {
     const q = new URLSearchParams({ page, limit: PER });
@@ -68,14 +85,27 @@ window.TradesPage = function TradesPage() {
             <option value="">All Status</option>
             {['EXECUTED','CANCELLED','PLACED'].map(s => <option key={s}>{s}</option>)}
           </select>
-          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
+            <button
+              onClick={() => setAutoScroll(s => !s)}
+              title={autoScroll ? 'Stop auto-scroll' : 'Start live feed scroll (mid speed)'}
+              style={{
+                background: autoScroll ? '#f0b42922' : 'transparent',
+                border: `1px solid ${autoScroll ? '#f0b429' : t.border}`,
+                color: autoScroll ? '#f0b429' : t.textMuted,
+                borderRadius: 6, padding: '4px 10px', cursor: 'pointer',
+                fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 11,
+                display: 'flex', alignItems: 'center', gap: 5, transition: 'all .15s',
+              }}>
+              {autoScroll ? '⏸ Live' : '▶ Live Feed'}
+            </button>
             <span style={{ padding: '4px 10px', background: t.danger + '22', border: `1px solid ${t.danger}44`, borderRadius: 6, fontSize: 11, color: t.danger, fontFamily: "'Inter',sans-serif", fontWeight: 700 }}>
               🚩 Red rows = flagged traders (T-1042, T-2891, T-3301)
             </span>
           </div>
         </div>
 
-        <div className="dt-wrap-xl" style={{ overflowX: 'auto' }}>
+        <div ref={scrollRef} className="dt-wrap-xl" style={{ overflowX: 'auto', maxHeight: autoScroll ? 480 : 'none', overflowY: autoScroll ? 'auto' : 'visible', transition: 'max-height .3s' }}>
           <table className="dt">
             <thead>
               <tr>{['Trade ID','Timestamp','Trader','Instrument','Type','Size','Price','Status','Cancel ms'].map(h => <th key={h}>{h}</th>)}</tr>

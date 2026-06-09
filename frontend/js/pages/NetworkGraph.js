@@ -7,6 +7,9 @@ window.NetworkGraphPage = function NetworkGraphPage({ nav }) {
   const [graphData, setGraphData] = _nguseS(null);
   const [loading, setLoading] = _nguseS(true);
   const [error, setError] = _nguseS(null);
+  const [frozen, setFrozen] = _nguseS(false);
+  const [selectedNode, setSelectedNode] = _nguseS(null);
+  const [filterRisk, setFilterRisk] = _nguseS('all'); // 'all' | 'high' | 'medium' | 'normal'
 
   const loadGraph = _nguseC(async () => {
     setLoading(true);
@@ -84,17 +87,46 @@ window.NetworkGraphPage = function NetworkGraphPage({ nav }) {
     network.on('click', (params) => {
       if (params.nodes.length > 0) {
         const nodeId = params.nodes[0];
-        nav('/trader/' + nodeId);
+        const nd = graphData.nodes.find(n => n.id === nodeId);
+        setSelectedNode(nd || null);
       }
     });
 
+    network.on('doubleClick', (params) => {
+      if (params.nodes.length > 0) nav('/trader/' + params.nodes[0]);
+    });
+
+    // Pulse suspicious nodes via interval color flash
+    const pulseInterval = setInterval(() => {
+      const suspNodes = graphData.nodes.filter(n => n.risk_score > 70);
+      if (!networkRef.current) return;
+      suspNodes.forEach(n => {
+        const update = { id: n.id, color: { background: '#ef444488', border: '#ef4444' } };
+        visNodes.update(update);
+        setTimeout(() => {
+          visNodes.update({ id: n.id, color: { background: n.color, border: n.risk_score > 70 ? '#ff0000' : n.color } });
+        }, 400);
+      });
+    }, 2000);
+
     return () => {
+      clearInterval(pulseInterval);
       if (networkRef.current) {
         networkRef.current.destroy();
         networkRef.current = null;
       }
     };
   }, [graphData, loading]);
+
+  // Freeze/unfreeze physics
+  _nguseE(() => {
+    if (!networkRef.current) return;
+    if (frozen) {
+      networkRef.current.setOptions({ physics: { enabled: false } });
+    } else {
+      networkRef.current.setOptions({ physics: { enabled: true } });
+    }
+  }, [frozen]);
 
   const stats = graphData?.stats || {};
 
@@ -138,20 +170,32 @@ window.NetworkGraphPage = function NetworkGraphPage({ nav }) {
 
           {/* Left: vis.js network */}
           <window.Card style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: `1px solid ${t.border}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderBottom: `1px solid ${t.border}`, flexWrap: 'wrap', gap: 8 }}>
               <span style={{ fontFamily: "'Inter',sans-serif", fontWeight: 700, fontSize: 12, color: t.text, letterSpacing: '.08em', textTransform: 'uppercase' }}>
                 Network Graph
               </span>
-              <div style={{ display: 'flex', gap: 12, fontSize: 11, color: t.textMuted, fontFamily: "'Inter',sans-serif" }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />Suspicious
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />Monitor
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />Normal
-                </span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                {/* Legend */}
+                {[['#ef4444','Suspicious'],['#f59e0b','Monitor'],['#22c55e','Normal']].map(([c,l]) => (
+                  <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: t.textMuted, fontFamily: "'Inter',sans-serif" }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: c, display: 'inline-block' }} />{l}
+                  </span>
+                ))}
+                <div style={{ width: 1, height: 16, background: t.border }} />
+                {/* Freeze toggle */}
+                <button
+                  onClick={() => setFrozen(f => !f)}
+                  title={frozen ? 'Unfreeze layout' : 'Freeze layout'}
+                  style={{ background: frozen ? '#f0b42922' : 'transparent', border: `1px solid ${frozen ? '#f0b429' : t.border}`, color: frozen ? '#f0b429' : t.textMuted, borderRadius: 5, padding: '3px 8px', cursor: 'pointer', fontSize: 10, fontFamily: "'Inter',sans-serif", fontWeight: 700, letterSpacing: '.04em' }}>
+                  {frozen ? '🔒 Frozen' : '▶ Animate'}
+                </button>
+                {/* Fit / reset view */}
+                <button
+                  onClick={() => networkRef.current && networkRef.current.fit({ animation: { duration: 500, easingFunction: 'easeInOutQuad' } })}
+                  title="Fit all nodes in view"
+                  style={{ background: 'transparent', border: `1px solid ${t.border}`, color: t.textMuted, borderRadius: 5, padding: '3px 8px', cursor: 'pointer', fontSize: 10, fontFamily: "'Inter',sans-serif", fontWeight: 700, letterSpacing: '.04em' }}>
+                  ⊞ Fit
+                </button>
               </div>
             </div>
             <div
@@ -162,8 +206,17 @@ window.NetworkGraphPage = function NetworkGraphPage({ nav }) {
                 width: '100%',
               }}
             />
+            {selectedNode && (
+              <div style={{ padding: '10px 14px', borderTop: `1px solid ${t.border}`, background: '#0a0a0a', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontWeight: 700, color: selectedNode.risk_score > 70 ? '#ef4444' : selectedNode.risk_score > 40 ? '#f59e0b' : '#22c55e', fontSize: 14 }}>{selectedNode.id}</span>
+                <span style={{ fontSize: 11, color: t.textMuted, fontFamily: "'Inter',sans-serif" }}>Risk: <b style={{ color: t.gold }}>{selectedNode.risk_score}/100</b></span>
+                <span style={{ fontSize: 11, color: t.textMuted, fontFamily: "'Inter',sans-serif" }}>Alerts: <b style={{ color: t.gold }}>{selectedNode.alert_count}</b></span>
+                <button onClick={() => nav('/trader/' + selectedNode.id)} style={{ background: 'transparent', border: `1px solid ${t.gold}44`, color: t.gold, borderRadius: 4, padding: '3px 10px', fontSize: 10, cursor: 'pointer', fontFamily: "'Inter',sans-serif", fontWeight: 700, letterSpacing: '.06em' }}>View Profile →</button>
+                <button onClick={() => setSelectedNode(null)} style={{ background: 'transparent', border: 'none', color: t.textMuted, fontSize: 14, cursor: 'pointer', marginLeft: 'auto' }}>×</button>
+              </div>
+            )}
             <div style={{ padding: '8px 14px', borderTop: `1px solid ${t.border}`, fontSize: 11, color: t.textMuted, fontFamily: "'Inter',sans-serif" }}>
-              Click any node to view trader profile · Scroll to zoom · Drag to pan · Red dashed edges = suspicious connections
+              Click node to inspect · Double-click to view profile · Scroll to zoom · Red dashed = suspicious edges
             </div>
           </window.Card>
 

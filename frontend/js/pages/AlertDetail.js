@@ -257,7 +257,7 @@ window.AlertDetailPage = function AlertDetailPage({ alertId, nav }) {
             ['Severity',    <window.Bdg label={alert.severity} cfg={window.SEV_CFG[alert.severity]} lg />],
             ['Status',      <window.Bdg label={alert.status}   cfg={window.STA_CFG[alert.status]} />],
             ['Detected At', <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: t.textMuted }}>{window.fmtDate(alert.detected_at)}</span>],
-            ['Session',     <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: t.textSec }}>{alert.session_id || '—'}</span>],
+            ['Session',     <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: t.textSec }}>{(trades && trades[0] && trades[0].session_id) || alert.session_id || '—'}</span>],
           ].map(([k, v], i) => (
             <div key={i} style={{ background: t.bg, border: `1px solid ${t.border}`, borderRadius: 8, padding: '10px 14px' }}>
               <div style={{ fontSize: 10, color: t.textMuted, fontFamily: "'Inter',sans-serif", fontWeight: 700, letterSpacing: '.1em', marginBottom: 5, textTransform: 'uppercase' }}>{k}</div>

@@ -307,9 +307,10 @@ html, body {
   font-weight: 700;
   letter-spacing: .06em;
   text-transform: uppercase;
-  color: var(--text-muted, #525252);
+  color: #808080;
 }
-.sidebar-item.active .sidebar-label { color: #f0b429; }
+.sidebar-item:hover .sidebar-label { color: #b0b0b0; }
+.sidebar-item.active .sidebar-label { color: #f0b429; text-shadow: 0 0 8px #f0b42966; }
 
 /* ── Animations ──────────────────────────────────────────────────────────── */
 @keyframes pulse-dot        { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }

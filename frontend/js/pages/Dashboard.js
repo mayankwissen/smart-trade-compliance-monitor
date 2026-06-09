@@ -20,7 +20,26 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
   ]);
   const [inputVal, setInputVal]       = _duseS('');
   const [chatLoading, setChatLoading] = _duseS(false);
+  const [voiceEnabled, setVoiceEnabled] = _duseS(false);
+  const [speaking, setSpeaking]       = _duseS(false);
   const msgEndRef                     = _duseR(null);
+
+  const ttsSupported = typeof window !== 'undefined' && 'speechSynthesis' in window;
+
+  const speakText = (text) => {
+    if (!ttsSupported || !text) return;
+    window.speechSynthesis.cancel();
+    const plain = text.replace(/\*\*(.*?)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1').replace(/^[-•*]\s/gm, '').replace(/#{1,3}\s/g, '');
+    const utt = new window.SpeechSynthesisUtterance(plain);
+    utt.rate = 1.05; utt.pitch = 1.0; utt.volume = 1.0;
+    const voices = window.speechSynthesis.getVoices();
+    const eng = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('google')) || voices.find(v => v.lang.startsWith('en')) || voices[0];
+    if (eng) utt.voice = eng;
+    utt.onstart  = () => setSpeaking(true);
+    utt.onend    = () => setSpeaking(false);
+    utt.onerror  = () => setSpeaking(false);
+    window.speechSynthesis.speak(utt);
+  };
 
   _duseE(() => setLocalAlerts(alerts), [alerts]);
 
@@ -150,7 +169,9 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
         body: JSON.stringify({ message: q }),
       });
       const data = await res.json();
-      setMessages(prev => [...prev, { role: 'ai', text: data.reply || data.error || 'No response.' }]);
+      const reply = data.reply || data.error || 'No response.';
+      setMessages(prev => [...prev, { role: 'ai', text: reply }]);
+      if (voiceEnabled) speakText(reply);
     } catch {
       setMessages(prev => [...prev, { role: 'ai', text: 'Sorry, I could not connect to the AI. Please try again.' }]);
     } finally {
@@ -252,8 +273,19 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 16 }}>🛡</span>
               <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: '#f0b429', letterSpacing: '2px', fontWeight: 700 }}>AI ASSISTANT</span>
+              {speaking && <span style={{ fontSize: 9, color: '#f0b429', fontFamily: "'JetBrains Mono',monospace", letterSpacing: '.08em', animation: 'pulse-badge 1s ease-in-out infinite' }}>◉ SPEAKING</span>}
             </div>
-            <button onClick={() => setChatOpen(false)} style={{ background: 'none', border: 'none', color: '#525252', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: '2px 4px' }}>×</button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {ttsSupported && (
+                <button
+                  onClick={() => { setVoiceEnabled(v => !v); if (speaking) window.speechSynthesis.cancel(); }}
+                  title={voiceEnabled ? 'Mute voice' : 'Enable voice readout'}
+                  style={{ background: voiceEnabled ? '#f0b42920' : 'transparent', border: `1px solid ${voiceEnabled ? '#f0b429' : '#2a2a2a'}`, color: voiceEnabled ? '#f0b429' : '#525252', borderRadius: 5, padding: '3px 7px', cursor: 'pointer', fontSize: 13, lineHeight: 1 }}>
+                  {voiceEnabled ? '🔊' : '🔇'}
+                </button>
+              )}
+              <button onClick={() => { setChatOpen(false); if (speaking) window.speechSynthesis.cancel(); }} style={{ background: 'none', border: 'none', color: '#525252', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: '2px 4px' }}>×</button>
+            </div>
           </div>
 
           <div className="chat-msg-scroll" style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -268,18 +300,28 @@ window.Dashboard = function Dashboard({ stats, alerts, escalations, nav, onRefre
             )}
             {messages.map((m, i) => (
               m.role === 'ai'
-                ? <div key={i} style={{
-                    alignSelf: 'flex-start',
-                    maxWidth: '90%',
-                    background: '#0a0a0a',
-                    border: '1px solid #2a2a2a',
-                    color: '#e8e8e8',
-                    borderRadius: '12px 12px 12px 4px',
-                    padding: '10px 14px', fontSize: 13, lineHeight: 1.65,
-                    fontFamily: "'Inter',sans-serif",
-                  }}
-                  dangerouslySetInnerHTML={{ __html: renderMarkdown(m.text) }}
-                />
+                ? <div key={i} style={{ alignSelf: 'flex-start', maxWidth: '90%', position: 'relative' }}>
+                    <div style={{
+                      background: '#0a0a0a',
+                      border: '1px solid #2a2a2a',
+                      color: '#e8e8e8',
+                      borderRadius: '12px 12px 12px 4px',
+                      padding: '10px 14px', fontSize: 13, lineHeight: 1.65,
+                      fontFamily: "'Inter',sans-serif",
+                    }}
+                    dangerouslySetInnerHTML={{ __html: renderMarkdown(m.text) }}
+                    />
+                    {ttsSupported && (
+                      <button
+                        onClick={() => speakText(m.text)}
+                        title="Read aloud"
+                        style={{ position: 'absolute', top: 4, right: 4, background: 'transparent', border: 'none', color: '#383838', fontSize: 11, cursor: 'pointer', padding: '2px 4px', borderRadius: 4, transition: 'color .15s' }}
+                        onMouseEnter={e => { e.target.style.color = '#f0b429'; }}
+                        onMouseLeave={e => { e.target.style.color = '#383838'; }}>
+                        🔊
+                      </button>
+                    )}
+                  </div>
                 : <div key={i} style={{
                     alignSelf: 'flex-end',
                     maxWidth: '80%',
